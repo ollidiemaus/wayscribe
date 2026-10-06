@@ -1,5 +1,5 @@
 local _, ns = ...
-local L, Compat, Store, Time = ns.L, ns.Compat, ns.Store, ns.Time
+local L, Compat, Store, Time, YearCards = ns.L, ns.Compat, ns.Store, ns.Time, ns.YearCards
 local StaticData = ns.StaticData
 
 -- Quests turned in and the quest chains they complete (docs/ARCHITECTURE.md §6.7):
@@ -10,6 +10,8 @@ local StaticData = ns.StaticData
 --   * Retroactive: after curated chains are added, the next login (and /ws rebuild) scans the saved
 --     quest IDs and back-fills each chain on the day its final quest was turned in.
 local BACKFILL_DELAY = 5
+local ICON = "Interface\\Icons\\INV_Misc_Note_01"
+local MAX_CHAIN_NAMES = 4
 
 local function chainKey(data)
     if data.chain then return "CHAIN:" .. data.chain end
@@ -26,6 +28,19 @@ ns.RecordTypes:Register("QUEST_CHAIN_COMPLETED", {
     category = "quests",
     fields = { chain = "string?", questLine = "number?", quest = "number", title = "string?" },
     firstKey = chainKey,
+    -- The curated chains completed, which have names to show (Your Year).
+    rollup = function(rollup, data)
+        if data.chain then
+            rollup.chains = rollup.chains or {}
+            rollup.chains[data.chain] = true
+        end
+    end,
+    merge = function(target, source)
+        for chain in pairs(source.chains or {}) do
+            target.chains = target.chains or {}
+            target.chains[chain] = true
+        end
+    end,
     render = function(data)
         return L.QUEST_CHAIN_COMPLETED:format(chainName(data))
     end,
@@ -71,6 +86,38 @@ local PROVIDERS = {
         end,
     },
 }
+
+-- "340 quests turned in. 3 quest chains completed: The Defias Brotherhood, ..."
+YearCards:Register({
+    id = "quests",
+    order = 80,
+    build = function(summary)
+        local rollup = summary.rollup
+        local quests = YearCards.Sum(rollup.counters.quests)
+        local chains = rollup.records.QUEST_CHAIN_COMPLETED or 0
+        if quests + chains == 0 then return nil end
+        local card = { title = L.CARD_QUESTS, icon = ICON, lines = {} }
+        if quests > 0 then
+            card.big, card.caption = YearCards.Number(quests), YearCards.Plural("CARD_QUESTS_TURNED_IN", quests)
+        else
+            card.big, card.caption = YearCards.Number(chains), YearCards.Plural("CARD_QUESTS_CHAINS_COUNT", chains)
+        end
+        if chains > 0 then
+            if quests > 0 then
+                card.lines[1] = YearCards.Plural("CARD_QUESTS_CHAINS", chains)
+            end
+            local names = {}
+            for chain in pairs(rollup.chains or {}) do
+                names[#names + 1] = rawget(L, "CHAIN_" .. chain) or chain
+            end
+            table.sort(names)
+            if #names > 0 then
+                card.lines[#card.lines + 1] = YearCards.List(names, MAX_CHAIN_NAMES)
+            end
+        end
+        return card
+    end,
+})
 
 local QuestChains = ns.Trackers:New("QuestChains", { label = L.TRACKER_QUESTS, tooltip = L.TRACKER_QUESTS_TIP })
 

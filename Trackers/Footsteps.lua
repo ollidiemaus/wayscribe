@@ -1,6 +1,6 @@
 local _, ns = ...
 local L, Compat, Store, Paths, Time, Geometry, Codec = ns.L, ns.Compat, ns.Store, ns.Paths, ns.Time, ns.Geometry, ns.Codec
-local StaticData = ns.StaticData
+local StaticData, YearCards = ns.StaticData, ns.YearCards
 
 -- Footsteps (docs/ARCHITECTURE.md §6.8): where the character walked, rode and flew. A ticker samples
 -- the world position once a second while outdoors; a point is kept only after moving MIN_STEP, so
@@ -25,6 +25,7 @@ local JOIN = 30         -- a new trail starting this close to where the last one
 local TRAVEL_WINDOW = 60 -- seconds from a travel spell's cast to the arrival (loading screens included)
 local TRAVEL_SETTLE = 2  -- seconds after arriving, when the subzone's name has caught up
 local HEARTHSTONE_ICON = "Interface\\Icons\\INV_Misc_Rune_01"
+local CARD_ICON = "Interface\\Icons\\INV_Misc_Map_01"
 
 -- Short distances in the language's small unit, long ones in its large unit with one decimal.
 local function formatDistance(yards)
@@ -91,6 +92,43 @@ ns.RecordTypes:Register("TELEPORT", {
                 title = L.TELEPORT_ARRIVED:format(spellName(data.spell)) }
         end
         return list
+    end,
+})
+
+-- "412.3 miles traveled. Flight paths: 980.1 miles. 52 journeys by hearthstone and teleport. You
+-- walked 12.3% of Azeroth." Distances are journal counters; only the share of Azeroth needs the
+-- trails, measured in the background (Data/Coverage.lua) while the card waits.
+YearCards:Register({
+    id = "footsteps",
+    order = 90,
+    build = function(summary)
+        local travel = summary.rollup.counters.travel or {}
+        local ground, flight = travel.ground or 0, travel.flight or 0
+        local journeys = summary.rollup.records.TELEPORT or 0
+        if ground + flight + journeys == 0 then return nil end
+        local card = { title = L.CARD_FOOTSTEPS, icon = CARD_ICON, lines = {} }
+        if ground > 0 or flight == 0 then
+            card.big, card.caption = formatDistance(ground), L.CARD_FOOTSTEPS_GROUND
+            if flight > 0 then
+                card.lines[1] = L.TRAVEL_FLIGHT:format(formatDistance(flight))
+            end
+        else
+            card.big, card.caption = formatDistance(flight), L.CARD_FOOTSTEPS_FLIGHT
+        end
+        if journeys > 0 then
+            card.lines[#card.lines + 1] = YearCards.Plural("CARD_FOOTSTEPS_JOURNEYS", journeys)
+        end
+        local coverage, pending = ns.Coverage:Get(summary.year)
+        if coverage and coverage.walked > 0 then
+            card.lines[#card.lines + 1] = L.CARD_FOOTSTEPS_COVERAGE:format(YearCards.Percent(coverage.percent))
+            local zone = coverage.zone and Compat.GetMapName(coverage.zone.map)
+            if zone then
+                card.lines[#card.lines + 1] = L.CARD_FOOTSTEPS_ZONE:format(zone, YearCards.Percent(coverage.zone.percent))
+            end
+        elseif pending then
+            card.lines[#card.lines + 1] = L.CARD_FOOTSTEPS_MEASURING
+        end
+        return card
     end,
 })
 

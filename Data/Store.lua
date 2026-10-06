@@ -38,6 +38,7 @@ function Store:GetOrCreateDay(ts)
     if not day then
         day = { records = {}, counters = {} }
         month.days[dayKey] = day
+        month.rollup.activeDays = (month.rollup.activeDays or 0) + 1
         ns.Index:AddDay(dayKey)
     end
     return day, month, dayKey
@@ -293,14 +294,16 @@ local function sessionSeconds(sessions, now)
     return seconds, count
 end
 
--- Month rollup plus what is derived on read: play time, session count, active days.
+-- Month rollup plus what is derived on read from the month's sessions: play time and session
+-- count. Days with entries are counted in the rollup, so a summary never needs the day tables.
 function Store:GetMonthSummary(monthKey)
     local month = self:GetMonth(monthKey)
     if not month then return nil end
-    local activeDays = 0
-    for _ in pairs(month.days) do activeDays = activeDays + 1 end
     local playSeconds, sessions = sessionSeconds(month.sessions, Time.Now())
-    return { rollup = month.rollup, playSeconds = playSeconds, sessions = sessions, activeDays = activeDays }
+    return {
+        rollup = month.rollup, playSeconds = playSeconds, sessions = sessions,
+        activeDays = month.rollup.activeDays or 0,
+    }
 end
 
 local function addCounts(target, source)
@@ -310,16 +313,23 @@ local function addCounts(target, source)
 end
 
 -- Sums the 12 month summaries; type-specific rollup fields are combined by each type's merge().
+-- byMonth[1..12] keeps each month's summary (most active month).
 function Store:GetYearSummary(year)
-    local summary = { rollup = ns.Index.NewRollup(), playSeconds = 0, sessions = 0, activeDays = 0, months = 0 }
+    local summary = {
+        year = year, rollup = ns.Index.NewRollup(), playSeconds = 0, sessions = 0, activeDays = 0, months = 0,
+        byMonth = {},
+    }
+    summary.rollup.firsts = 0
     for month = 1, 12 do
         local monthSummary = self:GetMonthSummary(year * 100 + month)
         if monthSummary then
+            summary.byMonth[month] = monthSummary
             summary.months = summary.months + 1
             summary.playSeconds = summary.playSeconds + monthSummary.playSeconds
             summary.sessions = summary.sessions + monthSummary.sessions
             summary.activeDays = summary.activeDays + monthSummary.activeDays
             local source = monthSummary.rollup
+            summary.rollup.firsts = summary.rollup.firsts + (source.firsts or 0)
             addCounts(summary.rollup.records, source.records)
             for path, bucket in pairs(source.counters) do
                 summary.rollup.counters[path] = summary.rollup.counters[path] or {}
@@ -336,11 +346,43 @@ function Store:GetYearSummary(year)
     return summary
 end
 
+-- The years with journal data, newest first.
+function Store:GetYears()
+    local seen, years = {}, {}
+    for monthKey, month in pairs(self.db and self.db.months or {}) do
+        local year = type(monthKey) == "number" and Time.YearOfMonth(monthKey)
+        if year and not seen[year] and type(month) == "table" and type(month.days) == "table" and next(month.days) then
+            seen[year] = true
+            years[#years + 1] = year
+        end
+    end
+    table.sort(years, function(a, b) return a > b end)
+    return years
+end
+
+-- Seconds played per day within fromTs..toTs: { [dayKey] = seconds }, a session past midnight
+-- split between its days. Also returns the longest session (seconds).
+function Store:GetPlayByDay(fromTs, toTs)
+    local played, longest = {}, 0
+    for _, session in ipairs(self:GetSessions(fromTs, toTs)) do
+        longest = math.max(longest, session.e - session.s)
+        local start, stop = math.max(session.s, fromTs), math.min(session.e, toTs)
+        while start < stop do
+            local dayKey = Time.DayKey(start)
+            local nextDay = math.min(stop, Time.DayEnd(dayKey) + 1)
+            played[dayKey] = (played[dayKey] or 0) + (nextDay - start)
+            start = nextDay
+        end
+    end
+    return played, longest
+end
+
 function Store:GetStats()
-    local stats = { months = 0, days = 0, records = 0, sessions = 0, simulated = 0, seq = 0 }
+    local stats = { months = 0, days = 0, records = 0, sessions = 0, simulated = 0, seq = 0, bytes = 0 }
     local db = self.db
     if not db then return stats end
     stats.seq = db.meta.seq
+    stats.bytes = ns.Codec.SavedSize(db)
     for _, month in pairs(db.months) do
         stats.months = stats.months + 1
         stats.sessions = stats.sessions + #month.sessions

@@ -30,6 +30,7 @@ local function newFontString()
     function fontString:GetStringWidth() return 100 end
     function fontString:Show() self.shown = true end
     function fontString:Hide() self.shown = false end
+    function fontString:SetShown(shown) self.shown = shown == true end
     function fontString:IsShown() return self.shown end
     return permissive(fontString)
 end
@@ -54,7 +55,11 @@ local function newFrame(frameType, name, _, template)
         self.shown = true
         if self.scripts.OnShow then self.scripts.OnShow(self) end
     end
-    function frame:Hide() self.shown = false end
+    function frame:Hide()
+        if not self.shown then return end
+        self.shown = false
+        if self.scripts.OnHide then self.scripts.OnHide(self) end
+    end
     function frame:SetShown(shown) if shown then self:Show() else self:Hide() end end
     function frame:IsShown() return self.shown end
     function frame:SetSize(width, height) self.width, self.height = width, height end
@@ -171,12 +176,14 @@ local function installUnits(opts)
 end
 
 -- Two maps of Kalimdor (continent 1), laid out like the client's: u runs west to east (world -y),
--- v north to south (world -x). 1412 is a zone inside the continent map 1414, whose parent 947 (the
--- world) has no world coordinates. 1412 puts map 0.4416, 0.7706 at world -2894.3, -238.8, like
--- the probe on build 70235.
+-- v north to south (world -x). 1412 is a zone (map type 3) inside the continent map 1414 (type 2),
+-- whose parent 947 (the world) has no world coordinates. 1412 puts map 0.4416, 0.7706 at world
+-- -2894.3, -238.8, like the probe on build 70235.
 local MAPS = {
-    [1412] = { name = "Mulgore", continent = 1, top = -255.0, left = 2029.9, width = 5137.5, height = 3425, parent = 1414 },
-    [1414] = { name = "Kalimdor", continent = 1, top = 6000, left = 9000, width = 20000, height = 15000, parent = 947 },
+    [1412] = { name = "Mulgore", continent = 1, top = -255.0, left = 2029.9, width = 5137.5, height = 3425, parent = 1414,
+        type = 3 },
+    [1414] = { name = "Kalimdor", continent = 1, top = 6000, left = 9000, width = 20000, height = 15000, parent = 947,
+        type = 2 },
 }
 Stubs.MAPS = MAPS
 
@@ -226,6 +233,21 @@ local function installMaps()
         GetMapInfo = function(mapID)
             local map = MAPS[mapID]
             return { mapID = mapID, name = map and map.name, parentMapID = map and map.parent or 0 }
+        end,
+        -- The maps under mapID (all levels down with allDescendants), of one map type if given.
+        GetMapChildrenInfo = function(mapID, mapType, allDescendants)
+            local children = {}
+            for childID, map in pairs(MAPS) do
+                local parent = map.parent
+                while allDescendants and parent and parent ~= mapID do
+                    parent = MAPS[parent] and MAPS[parent].parent
+                end
+                if parent == mapID and (not mapType or map.type == mapType) then
+                    children[#children + 1] = { mapID = childID, mapType = map.type, parentMapID = map.parent }
+                end
+            end
+            table.sort(children, function(a, b) return a.mapID < b.mapID end)
+            return children
         end,
     }
 end
@@ -281,8 +303,11 @@ function Stubs.InstallNativeUI()
     Stubs.InstallScrollBox()
     local templates = {
         PortraitFrameTemplate = true, WowStyle1FilterDropdownTemplate = true,
-        WowScrollBoxList = true, MinimalScrollBar = true,
+        WowScrollBoxList = true, MinimalScrollBar = true, PanelTabButtonTemplate = true,
     }
+    -- The default UI's tabs: the selected one is remembered on the frame.
+    _G.PanelTemplates_SetNumTabs = function(frame, count) frame.numTabs = count end
+    _G.PanelTemplates_SetTab = function(frame, id) frame.selectedTab = id end
     _G.C_XMLUtil = { GetTemplateInfo = function(name) return templates[name] and { type = "Frame" } or nil end }
     _G.C_Texture = { GetAtlasInfo = function(name) return name:find("^spellbook%-") and { width = 1 } or nil end }
     _G.ScrollUtil.InitScrollFrameWithScrollBar = function(scrollFrame, scrollBar)
@@ -400,6 +425,7 @@ function Stubs.Install(opts)
     _G.CreateScrollBoxListLinearView, _G.CreateDataProvider, _G.ScrollUtil, _G.ScrollBoxConstants = nil, nil, nil, nil
     _G.C_XMLUtil, _G.C_Texture = nil, nil
     _G.MapCanvasDataProviderMixin, _G.CreateFromMixins, _G.OpenWorldMap, _G.MenuUtil = nil, nil, nil, nil
+    _G.PanelTemplates_SetNumTabs, _G.PanelTemplates_SetTab, _G.StaticPopup_Show, _G.debugprofilestop = nil, nil, nil, nil
     _G.WayscribeDB = opts.accountDB
     _G.WayscribeCharDB = opts.charDB
     _G.WayscribeFootstepsDB = opts.footstepsDB

@@ -123,3 +123,39 @@ function Codec.DecodePath(text)
     end
     return points
 end
+
+------------------------------------------------------------------------------------------------
+-- About how many bytes a value takes in a SavedVariables file, as the client writes it (build
+-- 70235): `["key"] = value,` per line, array items as `value,`, no indentation. /ws stats reports
+-- it, so the archive (docs/ARCHITECTURE.md §4.7) can be decided on real numbers.
+
+local function numberText(value)
+    if value % 1 == 0 and value > -MAX_SAFE and value < MAX_SAFE then
+        return string.format("%d", value)
+    end
+    return string.format("%.14g", value)
+end
+
+local function savedSize(value)
+    local kind = type(value)
+    if kind == "string" then return #string.format("%q", value) end
+    if kind == "number" then return #numberText(value) end
+    if kind == "boolean" then return value and 4 or 5 end
+    if kind ~= "table" then return 0 end
+    local size = 3 -- "{\n" and "}"
+    local count = #value
+    for i = 1, count do
+        size = size + savedSize(value[i]) + 2 -- "value,\n"
+    end
+    for key, item in pairs(value) do
+        local inArray = type(key) == "number" and key >= 1 and key <= count and key % 1 == 0
+        if not inArray then
+            size = size + savedSize(key) + savedSize(item) + 7 -- "[key] = value,\n"
+        end
+    end
+    return size
+end
+
+function Codec.SavedSize(value)
+    return savedSize(value)
+end

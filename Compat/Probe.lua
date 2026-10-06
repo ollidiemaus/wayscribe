@@ -137,6 +137,27 @@ local function addFootsteps(add, mapID)
     add("map.parent", Compat.GetParentMap(mapID))
 end
 
+-- 0.5 Your Year: the zone maps "% of Azeroth walked" counts against, per continent, with the
+-- area they cover together (square miles).
+local SQUARE_MILE = 1760 * 1760
+local function addCoverage(add)
+    local rects = Compat.GetZoneRects()
+    if not rects then
+        add("coverage.zones", nil)
+        return
+    end
+    local byContinent = {}
+    for _, rect in ipairs(rects) do
+        byContinent[rect.c] = byContinent[rect.c] or {}
+        table.insert(byContinent[rect.c], rect)
+    end
+    add("coverage.zones", #rects)
+    for continentID, list in pairs(byContinent) do
+        add("coverage.continent." .. continentID, string.format("%d zones, %.0f sq mi",
+            #list, ns.Geometry.UnionArea(list) / SQUARE_MILE))
+    end
+end
+
 local function collect()
     local lines = {}
     local function add(key, value)
@@ -188,6 +209,7 @@ local function collect()
     addTrackerInputs(add)
     addQuestLines(add)
     addFootsteps(add, mapID)
+    addCoverage(add)
     return lines
 end
 
