@@ -202,6 +202,12 @@ function Compat.GetMapAtWorldPos(continentID, x, y)
     return mapID
 end
 
+-- A map's name in the client's language (a zone, a dungeon), or nil.
+function Compat.GetMapName(mapID)
+    local info = C_Map and C_Map.GetMapInfo and Compat.Call(C_Map.GetMapInfo, mapID)
+    return type(info) == "table" and text(Compat.Safe(info.name, "string")) or nil
+end
+
 function Compat.GetParentMap(mapID)
     local info = C_Map and C_Map.GetMapInfo and Compat.Call(C_Map.GetMapInfo, mapID)
     local parent = type(info) == "table" and Compat.Safe(info.parentMapID, "number")

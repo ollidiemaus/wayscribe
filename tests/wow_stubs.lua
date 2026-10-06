@@ -70,6 +70,7 @@ local function newFrame(frameType, name, _, template)
     function frame:SetTitle(text) self.title = text end
     function frame:SetupMenu(generator) self.menuGenerator = generator end
     function frame:GetFrameLevel() return 1 end
+    function frame:SetPoint(...) self.lastPoint = { ... } end
     function frame:SetText(text) self.text = text end
     function frame:CreateFontString()
         local fontString = newFontString()
@@ -173,8 +174,8 @@ end
 -- world) has no world coordinates. 1412 puts map 0.4416, 0.7706 at world -2894.3, -238.8, like
 -- the probe on build 70235.
 local MAPS = {
-    [1412] = { continent = 1, top = -255.0, left = 2029.9, width = 5137.5, height = 3425, parent = 1414 },
-    [1414] = { continent = 1, top = 6000, left = 9000, width = 20000, height = 15000, parent = 947 },
+    [1412] = { name = "Mulgore", continent = 1, top = -255.0, left = 2029.9, width = 5137.5, height = 3425, parent = 1414 },
+    [1414] = { name = "Kalimdor", continent = 1, top = 6000, left = 9000, width = 20000, height = 15000, parent = 947 },
 }
 Stubs.MAPS = MAPS
 
@@ -191,7 +192,7 @@ end
 local function installMaps()
     _G.CreateVector2D = function(x, y) return { x = x, y = y } end
     _G.C_Map = {
-        GetBestMapForUnit = function() return 1411 end,
+        GetBestMapForUnit = function() return state.bestMap or 1411 end,
         GetWorldPosFromMapPos = function(mapID, position)
             local map = MAPS[mapID]
             if not map then return nil end
@@ -223,7 +224,7 @@ local function installMaps()
         end,
         GetMapInfo = function(mapID)
             local map = MAPS[mapID]
-            return { mapID = mapID, parentMapID = map and map.parent or 0 }
+            return { mapID = mapID, name = map and map.name, parentMapID = map and map.parent or 0 }
         end,
     }
 end
@@ -529,6 +530,8 @@ function Stubs.SetPosition(continent, x, y)
 end
 
 function Stubs.SetTaxi(onTaxi) state.onTaxi = onTaxi end
+-- The map C_Map.GetBestMapForUnit reports (default 1411).
+function Stubs.SetBestMap(mapID) state.bestMap = mapID end
 function Stubs.SetDead(dead) state.dead = dead end
 
 -- Group members other than the player: list of { guid, name, realm, class }.

@@ -5,7 +5,7 @@ local T = require("testlib")
 
 local SPECS = {
     "codec", "geometry", "time", "compat", "recordtypes", "module", "store", "index", "schema",
-    "session", "level", "professions", "gathering", "bosses", "dungeons", "questchains", "footsteps",
+    "session", "level", "professions", "gathering", "bosses", "dungeons", "questchains", "footsteps", "deaths",
     "journal", "footstepsmap", "loginrecap", "settings", "lifecycle",
 }
 

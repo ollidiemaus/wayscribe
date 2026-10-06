@@ -51,6 +51,7 @@ Trackers\Bosses.lua
 Trackers\Dungeons.lua
 Trackers\QuestChains.lua
 Trackers\Footsteps.lua
+Trackers\Deaths.lua
 
 UI\Theme.lua
 UI\DayView.lua

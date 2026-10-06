@@ -187,6 +187,22 @@ function Store:GetDayRecords(dayKey)
     return records
 end
 
+-- Records of one type on the days fromDay..toDay (nil = no limit on that side), time-sorted.
+function Store:GetRecordsOfType(typeName, fromDay, toDay)
+    local found = {}
+    for _, dayKey in ipairs(self:GetDayKeys()) do
+        if (not fromDay or dayKey >= fromDay) and (not toDay or dayKey <= toDay) then
+            for _, record in ipairs(self:GetDay(dayKey).records) do
+                if record.type == typeName then
+                    found[#found + 1] = record
+                end
+            end
+        end
+    end
+    table.sort(found, byTime)
+    return found
+end
+
 -- Records with fromTs <= ts <= toTs (time-sorted), plus the summed counters of every day the range
 -- touches. Counters are kept per day, so they can include other sessions of the same day.
 function Store:GetActivity(fromTs, toTs)

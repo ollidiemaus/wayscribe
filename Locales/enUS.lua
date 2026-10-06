@@ -140,10 +140,17 @@ L.TRACKER_FOOTSTEPS_TIP = "The ways you walk, ride and fly, as trails on the wor
 L.TRAVEL_GROUND = "Traveled %s"
 L.TRAVEL_FLIGHT = "Flight paths: %s"
 
+L.TRACKER_DEATHS = "Deaths"
+L.TRACKER_DEATHS_TIP = "Where and when you die, in the journal and as a skull on the Footsteps map."
+L.DEATH = "Died"
+L.DEATH_IN = "Died in %s"
+L.DEATH_TOOLTIP = "Died here"
+L.DEATH_WHEN = "%s, %s"
+
 -- Footsteps on the world map
 L.FOOTSTEPS = "Footsteps"
 L.FOOTSTEPS_BUTTON = "Footsteps: %s"
-L.FOOTSTEPS_BUTTON_TIP = "Which trails the map shows. Lighter lines are older days, blue lines are flights."
+L.FOOTSTEPS_BUTTON_TIP = "Which trails the map shows. Lighter lines are older days, blue lines are flights, skulls mark deaths."
 L.FOOTSTEPS_MODE_TODAY = "Today"
 L.FOOTSTEPS_MODE_WEEK = "Last 7 days"
 L.FOOTSTEPS_MODE_ALL = "All"

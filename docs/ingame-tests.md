@@ -148,3 +148,14 @@ about 3.2 KB (budget 10 KB). These checks need the client.
   map, it shows "Heute" again.
 - [ ] **Settings:** the Fußspuren section (map dropdown, flights, *Alle Spuren löschen* with its
   confirmation). Try deleting only on a test character.
+
+### Deaths
+
+- [ ] **Die outdoors.** The journal shows "In Mulgore gestorben" (with the time), and the map shows a
+  skull where you died. Mouseover: "Hier gestorben" and the time; the skull keeps its size when
+  zooming. With the map open while dying, the skull appears at once.
+- [ ] **Next day / Letzte 7 Tage:** yesterday's skull shows with the date in its tooltip; "Heute"
+  hides it.
+- [ ] **Die in a dungeon.** The journal names the dungeon ("In Flammenschlund gestorben" or
+  similar); no skull, since there is no position inside.
+- [ ] **Release and resurrect** don't add a second entry.

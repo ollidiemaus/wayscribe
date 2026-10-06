@@ -217,6 +217,90 @@ describe("world map", function()
     end)
 end)
 
+local function skulls(ns)
+    local deaths, list = ns.FootstepsMap.view.deaths, {}
+    for i = 1, deaths.used do
+        if deaths.markers[i]:IsShown() then list[#list + 1] = deaths.markers[i] end
+    end
+    return list
+end
+
+local function installTooltip()
+    local tooltip = { lines = {} }
+    function tooltip:SetOwner() self.lines = {} end
+    function tooltip:SetText(text) self.lines[#self.lines + 1] = text end
+    function tooltip:AddLine(text) self.lines[#self.lines + 1] = text end
+    function tooltip:Show() end
+    function tooltip:Hide() end
+    _G.GameTooltip = tooltip
+    return tooltip
+end
+
+local function dieAt(mapID, u, v)
+    Stubs.SetPosition(1, Stubs.MapToWorld(mapID, u, v))
+    Stubs.Fire("PLAYER_DEAD")
+end
+
+describe("deaths on the map", function()
+    it("marks a death with a skull where it happened, its time on mouseover", function()
+        local ns, map = start()
+        dieAt(1412, 0.3, 0.6)
+        map:Show()
+        local list = skulls(ns)
+        T.eq(#list, 1)
+        local point = list[1].lastPoint
+        T.eq(point[1], "CENTER")
+        near(point[4], 0.3 * WIDTH, "x")
+        near(point[5], -0.6 * HEIGHT, "y")
+        T.eq(list[1].width, 16)
+        local tooltip = installTooltip()
+        list[1].scripts.OnEnter(list[1])
+        T.same(tooltip.lines, { "Died here", "12:00 PM" })
+        _G.GameTooltip = nil
+        T.eq(#ns.Log:GetEntries(), 0)
+    end)
+
+    it("shows the deaths of the days shown, with the date when it isn't today", function()
+        local ns, map = start()
+        dieAt(1412, 0.3, 0.6)
+        Stubs.Advance(DAY)
+        map:Show()
+        T.eq(#skulls(ns), 0, "today only")
+        ns.FootstepsMap.button:Click()
+        T.eq(#skulls(ns), 1, "the last 7 days")
+        local tooltip = installTooltip()
+        skulls(ns)[1].scripts.OnEnter(skulls(ns)[1])
+        T.same(tooltip.lines, { "Died here", "2026-10-03, 12:00 PM" })
+        _G.GameTooltip = nil
+        ns.FootstepsMap.button:Click()
+        ns.FootstepsMap.button:Click()
+        T.eq(#skulls(ns), 0, "off")
+    end)
+
+    it("adds a skull when you die with the map open, and keeps its size at every zoom", function()
+        local ns, map = start()
+        map:Show()
+        dieAt(1412, 0.5, 0.5)
+        T.eq(#skulls(ns), 1)
+        map:Zoom(2)
+        T.eq(skulls(ns)[1].width, 8)
+    end)
+
+    it("leaves out deaths elsewhere: off this map or without a position", function()
+        local ns, map = start()
+        dieAt(1412, 1.5, 0.5) -- on the continent, outside the zone
+        Stubs.Advance(60)
+        Stubs.SetInstance(389, "party", "Ragefire Chasm")
+        Stubs.SetPosition()
+        Stubs.Fire("PLAYER_DEAD")
+        Stubs.SetInstance()
+        map:Show()
+        T.eq(#skulls(ns), 0)
+        map:SetMapID(1414)
+        T.eq(#skulls(ns), 1, "the continent shows the one outside the zone")
+    end)
+end)
+
 describe("from the journal", function()
     it("shows a day's footsteps on the map that holds them", function()
         local ns, map = start()

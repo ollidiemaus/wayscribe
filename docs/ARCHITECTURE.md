@@ -607,6 +607,22 @@ extension point that HandyNotes also uses.
 only consumer. It will be rasterized from the trails into chunked bitsets in a coroutine and cached
 in memory, persisted only if profiling says so.
 
+### 6.9 Deaths
+- `PLAYER_DEAD` → `DEATH {map, c?, x?, y?}` in the journal (category *adventure*): the uiMapID
+  from `C_Map.GetBestMapForUnit` and, outdoors, the corpse's continent and position in whole world
+  yards, the same coordinates as Footsteps' trails. Inside instances there is no position, so only
+  the map is kept.
+- Rendered "Died in Mulgore" / "In Mulgore gestorben"; the map's name is looked up when shown
+  (`Compat.GetMapName`), so the record holds only the ID.
+- **No killer.** Who dealt the killing blow is only in the combat log, which Forever doesn't allow
+  addons (§1), so an entry says where and when, not who.
+- A second `PLAYER_DEAD` within 10 s is the same death.
+- **On the Footsteps map**, a skull marks each death with a position on the days shown (the same
+  Today / Last 7 days / All / picked day as the trails), sized for the screen at every zoom, with
+  the time (and the date, if not today) on mouseover. The map reads the records through
+  `Store:GetRecordsOfType`. A death while the map is open adds its skull at once.
+- The month rollup's record count per type already counts deaths, for Wrapped.
+
 ---
 
 ## 7. UI
@@ -614,7 +630,7 @@ in memory, persisted only if profiling says so.
 | Piece | Design |
 |---|---|
 | **Journal window** | Built from the default UI's own pieces, so it looks like Forever's spellbook: `PortraitFrameTemplate` (title, book portrait, close button), Forever's two-page spellbook parchment (`spellbook-page-left/right-c60`, else the retail `spellbook-background-evergreen-*`), spellbook headers (`SystemFont_Huge2` in `SPELLBOOK_FONT_COLOR` over the `spellbook-divider` ornament), spellbook page buttons with "Page 3/12" (`PAGE_NUMBER_WITH_MAX`), the `WowStyle1FilterDropdownTemplate` filter menu and `MinimalScrollBar`s that hide when not needed. Each piece is checked first (`C_XMLUtil.GetTemplateInfo`, `C_Texture.GetAtlasInfo`); without it, plain colors, a dialog border and toggle chips stand in (`UI/Theme.lua`). Forever's page art carries the spellbook's dark top bar in its upper 9% and dark rims at the edges: the pages start under the title bar, the filter menu sits in that bar, and the text lives on a "paper" frame inside the rims (shares of the page size measured from the textures, so it scales with the window). Movable and resizable; size and position are kept in `settings.journal`. Left page: "Scoopz's journal" above the virtualized **day list** (`ScrollBox` + `DataProvider`), newest first, grouped by month; without ScrollBox, a fixed set of rows follows the selection. Right page (`UI/DayView.lua`): the long date, "Today · played 2 h 10 min", the milestones in time order with their time and category marker, then counter summaries, then the day's sessions. Page 1 is the oldest day. Category filters are saved in `settings.journalHidden`. A reader on the newest day follows a new day as it starts. A day with Footsteps trails shows *Show on the map* at the bottom of its page (§6.8). There is no tab bar: Footsteps lives on the world map, and Wrapped (0.5) decides whether the journal gets tabs. |
-| **World map** | Footsteps trails on `WorldMapFrame` through a MapCanvas data provider, plus a "Footsteps: Today" button that picks the filter (§6.8). Without the data provider API, nothing is added and the journal hides its map link. |
+| **World map** | Footsteps trails and death skulls on `WorldMapFrame` through a MapCanvas data provider, plus a "Footsteps: Today" button that picks the filter (§6.8, §6.9). Without the data provider API, nothing is added and the journal hides its map link. |
 | **Login recap** | On `isInitialLogin` and `state.lastRecapDay ~= today`, 3 s after the loading screen, show the previous session: date, duration, rendered milestones and the counter totals of its day(s) (counters are per day, so they can include another session that day). Simulated entries are left out; an empty session shows nothing. Buttons: *Open journal* (at that day), *Close*, and a *Don't show at login* checkbox wired to the setting. Setting `showLoginRecap` defaults to **on**. `/ws recap` shows it any time. |
 | **Settings** | Blizzard `Settings` API: `RegisterVerticalLayoutCategory`, and `RegisterProxySetting` for every control, so the page reads and writes `ns.Options` / `ns.Trackers` and never owns data. Sections: **General** (login recap, minimap button, date format dropdown), **Tracking** (one toggle per tracker, generated from the registry; Footsteps is one of them), **Footsteps** (what the world map shows, record flight paths, delete all trails with a confirmation popup), **Data** (stats, error log, rebuild indexes, reset with a confirmation popup and a reload; reset deletes the trails too). Without the API the page is skipped and `/ws settings` says so. |
 | **Minimap button** | LibDataBroker-1.1 + LibDBIcon-1.0, position and hidden flag in `WayscribeDB.settings.minimap`. Placeholder icon: `Interface\Icons\INV_Misc_Book_09`. Left-click toggles the journal, right-click opens settings. Skipped when the libraries are missing. The Addon Compartment entry comes from the TOC (`AddonCompartmentFunc`), so it works without libraries. |
@@ -659,7 +675,7 @@ Compat/    Compat.lua Probe.lua
 Data/      Codec.lua RecordTypes.lua Players.lua Index.lua Store.lua Paths.lua Schema.lua
 StaticData/ Dungeons.lua Gathering.lua QuestChains.lua
 Trackers/  Session.lua Level.lua Professions.lua Gathering.lua Bosses.lua Dungeons.lua
-           QuestChains.lua Footsteps.lua
+           QuestChains.lua Footsteps.lua Deaths.lua
 UI/        Journal.lua LoginRecap.lua Settings.lua Minimap.lua
            Theme.lua DayView.lua FootstepsMap.lua Wrapped.lua
 tests/     run.lua testlib.lua wow_stubs.lua serialize.lua <area>_spec.lua …
@@ -722,10 +738,10 @@ dependency mechanism in WoW, so it must match the layer diagram.
 | **0.1 Foundation** | Scaffolding, Core, Compat + probe, Data layer (Store, Schema, RecordTypes, Index, Players, Codec) with tests. Session + Level trackers. Bare journal list. Slash commands. | Tests green. Probe report from the Forever beta committed. A level-up survives logout, `/reload` and relog with no duplicates. |
 | **0.2 Adventurer** | Professions, Gathering, Bosses, Dungeons (roster + firsts). Settings page, minimap button, keybind, login recap. | A full Ragefire Chasm run produces the expected entries, including after a mid-run `/reload`. |
 | **0.3 Chronicler** | Journal UI polish (book look, filters, day view), quest chains (providers + retroactive rebuild), dates localized deDE/enUS. | A curated chain added after the fact back-fills correctly. |
-| **0.4 Footsteps** | Sampler, segmenting, simplification, codec, world-map overlay, day → path link. | 2 h of play stays under ~10 KB packed. No measurable frame-time cost. |
+| **0.4 Footsteps** | Sampler, segmenting, simplification, codec, world-map overlay, day → path link. Deaths in the journal and as skulls on the map. | 2 h of play stays under ~10 KB packed. No measurable frame-time cost. |
 | **0.5 Wrapped** | Recap cards, December prompt, Footsteps coverage ("% of Azeroth walked"). Text export of the journal (a backup the player keeps outside WoW). Archive (Phase B) if `/wayscribe stats` from real users justifies it. | The recap renders from rollups alone. |
 
-**Future tracker ideas** (each is a single-file addition): deaths, gold earned and spent, reputation
+**Future tracker ideas** (each is a single-file addition): gold earned and spent, reputation
 milestones, first mount, zones discovered, epic loot, talent milestones, PvP honor kills, guild join,
 screenshots (`SCREENSHOT_SUCCEEDED` → "took a screenshot here").
 
@@ -825,6 +841,9 @@ Other findings:
   (`WayscribeFootstepsDB`) say Footsteps, like the game; the data layer calls what it stores *trails*
   (`Paths`). Renamed before release, so no saved file refers to the old `HeroPath` id or
   `WayscribePathDB`.
+- **Deaths join 0.4.** A skull on the map where you died belongs to Footsteps, so the Deaths
+  tracker (a future idea until then) came with it. Its records live in the journal, not with the
+  trails: a death is a milestone, the map only reads it.
 - **Coverage moves to 0.5.** "% of Azeroth walked" is a Wrapped card; it's built with Wrapped.
 
 ### Landscape (for positioning)

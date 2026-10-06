@@ -121,10 +121,16 @@ L.TRACKER_FOOTSTEPS_TIP = "Die Wege, die du gehst, reitest und fliegst, als Spur
 L.TRAVEL_GROUND = "Zurückgelegt: %s"
 L.TRAVEL_FLIGHT = "Flugrouten: %s"
 
+L.TRACKER_DEATHS = "Tode"
+L.TRACKER_DEATHS_TIP = "Wo und wann du stirbst, im Tagebuch und als Totenkopf auf der Fußspuren-Karte."
+L.DEATH = "Gestorben"
+L.DEATH_IN = "In %s gestorben"
+L.DEATH_TOOLTIP = "Hier gestorben"
+
 -- Footsteps on the world map
 L.FOOTSTEPS = "Fußspuren"
 L.FOOTSTEPS_BUTTON = "Fußspuren: %s"
-L.FOOTSTEPS_BUTTON_TIP = "Welche Spuren die Karte zeigt. Hellere Linien sind ältere Tage, blaue Linien Flüge."
+L.FOOTSTEPS_BUTTON_TIP = "Welche Spuren die Karte zeigt. Hellere Linien sind ältere Tage, blaue Linien Flüge, Totenköpfe Tode."
 L.FOOTSTEPS_MODE_TODAY = "Heute"
 L.FOOTSTEPS_MODE_WEEK = "Letzte 7 Tage"
 L.FOOTSTEPS_MODE_ALL = "Alle"
