@@ -80,21 +80,21 @@ end)
 
 describe("categories", function()
     it("filters counter lines by category and keeps their order", function()
-        local ns = Stubs.LoadAddon()
+        local loaded = Stubs.LoadAddon()
         local counters = { quests = { [840] = 2 }, skill = { [186] = 5 }, gather = { [2770] = 3 } }
-        local lines = ns.RecordTypes:CounterLines(counters, function(category) return category ~= "gathering" end)
+        local lines = loaded.RecordTypes:CounterLines(counters, function(category) return category ~= "gathering" end)
         T.eq(#lines, 2)
         T.eq(lines[1].category, "progress")
         T.eq(lines[2].category, "quests")
-        T.eq(#ns.RecordTypes:RenderCounters(counters), 3)
+        T.eq(#loaded.RecordTypes:RenderCounters(counters), 3)
     end)
 
     it("lists every category in use, with misc for unknown types", function()
-        local ns = Stubs.LoadAddon()
+        local loaded = Stubs.LoadAddon()
         local seen = {}
-        for _, category in ipairs(ns.RecordTypes:Categories()) do seen[category] = true end
+        for _, category in ipairs(loaded.RecordTypes:Categories()) do seen[category] = true end
         T.same(seen, { progress = true, adventure = true, quests = true, gathering = true })
-        T.eq(ns.RecordTypes:CategoryOf("GONE"), "misc")
-        T.eq(ns.RecordTypes:CounterCategory("gone"), "misc")
+        T.eq(loaded.RecordTypes:CategoryOf("GONE"), "misc")
+        T.eq(loaded.RecordTypes:CounterCategory("gone"), "misc")
     end)
 end)
