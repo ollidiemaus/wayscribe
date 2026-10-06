@@ -99,12 +99,43 @@ describe("settings page", function()
         local _, api = start()
         local buttons = {}
         for _, init in ipairs(api.initializers) do
-            if init.button then buttons[#buttons + 1] = init end
+            if init.button then buttons[init.button] = init end
         end
-        T.eq(#buttons, 4)
-        buttons[1].onClick()
+        T.truthy(buttons["Delete all trails"])
+        T.truthy(buttons["Reset journal"])
+        buttons["Journal statistics"].onClick()
         local printed = Stubs.Printed()
-        T.truthy(printed[#printed]:find("entries on"))
+        T.truthy(printed[#printed - 1]:find("entries on"))
+        T.truthy(printed[#printed]:find("Footsteps: 0 trails"))
+    end)
+
+    it("has a footsteps section: what the map shows, flights, and deleting trails", function()
+        local ns, api = start()
+        local mode = api.settings.Wayscribe_FootstepsMode
+        T.eq(mode.get(), "today")
+        local labels = {}
+        for i, option in ipairs(api.dropdowns.Wayscribe_FootstepsMode()) do labels[i] = option.label end
+        T.same(labels, { "Today", "Last 7 days", "All", "Off" })
+        mode.set("all")
+        T.eq(ns.accountDB.settings.footstepsMode, "all")
+
+        local flights = api.settings.Wayscribe_FootstepsFlights
+        T.eq(flights.get(), true)
+        flights.set(false)
+        T.eq(ns.accountDB.settings.footstepsFlights, false)
+        T.truthy(api.settings.Wayscribe_Tracker_HeroPath, "Footsteps can be turned off like any tracker")
+
+        _G.StaticPopupDialogs = {}
+        local shown
+        _G.StaticPopup_Show = function(name) shown = name end
+        for _, init in ipairs(api.initializers) do
+            if init.button == "Delete all trails" then init.onClick() end
+        end
+        T.eq(shown, "WAYSCRIBE_DELETE_TRAILS")
+        ns.Paths:AddSegment({ c = 1, t = Stubs.Now(), d = 5, p = ns.Codec.EncodePath({ 0, 0, 10, 0 }) })
+        StaticPopupDialogs[shown].OnAccept()
+        T.eq(ns.Paths:GetStats().segments, 0)
+        _G.StaticPopupDialogs, _G.StaticPopup_Show = nil, nil
     end)
 
     it("/ws settings opens the page, or says it isn't there", function()

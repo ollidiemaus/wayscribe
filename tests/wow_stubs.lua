@@ -84,6 +84,20 @@ local function newFrame(frameType, name, _, template)
         function texture:IsShown() return self.shown end
         return permissive(texture)
     end
+    -- Lines remember where they were drawn (in the frame's coordinates) for map assertions.
+    function frame:CreateLine(_, layer, _, sublevel)
+        local line = { shown = true, layer = layer, sublevel = sublevel }
+        function line:Show() self.shown = true end
+        function line:Hide() self.shown = false end
+        function line:IsShown() return self.shown end
+        function line:SetStartPoint(_, _, x, y) self.x1, self.y1 = x, y end
+        function line:SetEndPoint(_, _, x, y) self.x2, self.y2 = x, y end
+        function line:SetThickness(thickness) self.thickness = thickness end
+        function line:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
+        self.lines = self.lines or {}
+        self.lines[#self.lines + 1] = line
+        return permissive(line)
+    end
     function frame:Click(button)
         if self.scripts.OnClick then self.scripts.OnClick(self, button or "LeftButton") end
     end
@@ -142,13 +156,72 @@ local function installUnits(opts)
         if member then return member.class, member.class end
     end
     _G.UnitLevel = function() return state.level end
+    -- UnitPosition: x, y, z, instance (the continent); nil when no position is set.
+    _G.UnitPosition = function(unit)
+        local position = unit == "player" and state.position
+        if position then return position.x, position.y, 0, position.c end
+    end
+    _G.UnitOnTaxi = function() return state.onTaxi == true end
+    _G.UnitIsDeadOrGhost = function() return state.dead == true end
     _G.IsInRaid = function() return #state.group > 4 end
     _G.GetNumGroupMembers = function() return #state.group > 0 and #state.group + 1 or 0 end
     _G.GetNumSubgroupMembers = function() return #state.group end
 end
 
+-- Two maps of Kalimdor (continent 1), laid out like the client's: u runs west to east (world -y),
+-- v north to south (world -x). 1412 is a zone inside the continent map 1414, whose parent 947 (the
+-- world) has no world coordinates. 1412 puts map 0.4416, 0.7706 at world -2894.3, -238.8, like
+-- the probe on build 70235.
+local MAPS = {
+    [1412] = { continent = 1, top = -255.0, left = 2029.9, width = 5137.5, height = 3425, parent = 1414 },
+    [1414] = { continent = 1, top = 6000, left = 9000, width = 20000, height = 15000, parent = 947 },
+}
+Stubs.MAPS = MAPS
+
+function Stubs.MapToWorld(mapID, u, v)
+    local map = MAPS[mapID]
+    return map.top - v * map.height, map.left - u * map.width
+end
+
+function Stubs.WorldToMap(mapID, x, y)
+    local map = MAPS[mapID]
+    return (map.left - y) / map.width, (map.top - x) / map.height
+end
+
+local function installMaps()
+    _G.CreateVector2D = function(x, y) return { x = x, y = y } end
+    _G.C_Map = {
+        GetBestMapForUnit = function() return 1411 end,
+        GetWorldPosFromMapPos = function(mapID, position)
+            local map = MAPS[mapID]
+            if not map then return nil end
+            local x, y = Stubs.MapToWorld(mapID, position.x, position.y)
+            return map.continent, { x = x, y = y }
+        end,
+        GetMapPosFromWorldPos = function(continent, position)
+            for _, mapID in ipairs({ 1412, 1414 }) do
+                local u, v = Stubs.WorldToMap(mapID, position.x, position.y)
+                if MAPS[mapID].continent == continent and u >= 0 and u <= 1 and v >= 0 and v <= 1 then
+                    return mapID, { x = u, y = v }
+                end
+            end
+            return nil
+        end,
+        GetPlayerMapPosition = function(mapID)
+            local position, map = state.position, MAPS[mapID]
+            if not (position and map and map.continent == position.c) then return nil end
+            local u, v = Stubs.WorldToMap(mapID, position.x, position.y)
+            return { x = u, y = v }
+        end,
+        GetMapInfo = function(mapID)
+            local map = MAPS[mapID]
+            return { mapID = mapID, parentMapID = map and map.parent or 0 }
+        end,
+    }
+end
+
 local function installWorld()
-    _G.C_Map = { GetBestMapForUnit = function() return 1411 end }
+    installMaps()
     _G.GetInstanceInfo = function()
         local i = state.instance
         return i.name, i.type, i.difficulty, "", 5, 0, false, i.id, 0, nil
@@ -259,6 +332,7 @@ function Stubs.Install(opts)
         requestedItems = {},
         questTitles = {},
         cvars = {},
+        tickers = {},
     }
     Stubs.state = state
     for name in pairs(Stubs.namedFrames) do
@@ -282,6 +356,21 @@ function Stubs.Install(opts)
         After = function(seconds, fn)
             state.timers[#state.timers + 1] = { at = state.now + seconds, fn = fn }
         end,
+        -- Fires once per Advance at most; advance in steps of `seconds` to see every tick.
+        NewTicker = function(seconds, fn)
+            local ticker = { cancelled = false }
+            function ticker:Cancel() self.cancelled = true end
+            local function schedule()
+                state.timers[#state.timers + 1] = { at = state.now + seconds, fn = function()
+                    if ticker.cancelled then return end
+                    fn(ticker)
+                    if not ticker.cancelled then schedule() end
+                end }
+            end
+            schedule()
+            state.tickers[#state.tickers + 1] = ticker
+            return ticker
+        end,
     }
     _G.C_AddOns = nil
     _G.C_EventUtils = nil
@@ -295,8 +384,75 @@ function Stubs.Install(opts)
     _G.LibStub = nil
     _G.CreateScrollBoxListLinearView, _G.CreateDataProvider, _G.ScrollUtil, _G.ScrollBoxConstants = nil, nil, nil, nil
     _G.C_XMLUtil, _G.C_Texture = nil, nil
+    _G.MapCanvasDataProviderMixin, _G.CreateFromMixins, _G.OpenWorldMap, _G.MenuUtil = nil, nil, nil, nil
     _G.WayscribeDB = opts.accountDB
     _G.WayscribeCharDB = opts.charDB
+    _G.WayscribePathDB = opts.pathDB
+end
+
+-- The default world map as far as Footsteps uses it: a MapCanvas with data providers, showing
+-- map 1412 on a 1000 x 668 canvas. Call before Stubs.Login().
+function Stubs.InstallWorldMap()
+    local map = newFrame("Frame", "WorldMapFrame")
+    map.shown = false
+    map.providers = {}
+    map.mapID = 1412
+    map.canvasScale = 1
+    local canvas = newFrame("Frame")
+    canvas:SetSize(1000, 668)
+    map.canvas = canvas
+    map.ScrollContainer = newFrame("Frame")
+    function map:GetCanvas() return canvas end
+    function map:GetCanvasScale() return self.canvasScale end
+    function map:GetMapID() return self.mapID end
+    function map:SetMapID(mapID)
+        self.mapID = mapID
+        for _, provider in ipairs(self.providers) do provider:OnMapChanged() end
+    end
+    function map:AddDataProvider(provider)
+        self.providers[#self.providers + 1] = provider
+        provider:OnAdded(self)
+        if self.shown then provider:RefreshAllData() end
+    end
+    function map:Show()
+        if self.shown then return end
+        self.shown = true
+        for _, provider in ipairs(self.providers) do
+            provider:OnShow()
+            provider:RefreshAllData(true)
+        end
+    end
+    function map:Hide()
+        if not self.shown then return end
+        self.shown = false
+        for _, provider in ipairs(self.providers) do provider:OnHide() end
+    end
+    function map:Zoom(scale)
+        self.canvasScale = scale
+        for _, provider in ipairs(self.providers) do provider:OnCanvasScaleChanged() end
+    end
+    _G.MapCanvasDataProviderMixin = {
+        OnAdded = function(self, owner) self.owningMap = owner end,
+        GetMap = function(self) return self.owningMap end,
+        OnMapChanged = function(self) self:RefreshAllData() end,
+        OnShow = function() end,
+        OnHide = function() end,
+        RemoveAllData = function() end,
+        RefreshAllData = function() end,
+        OnCanvasScaleChanged = function() end,
+    }
+    _G.CreateFromMixins = function(...)
+        local object = {}
+        for i = 1, select("#", ...) do
+            for key, value in pairs((select(i, ...))) do object[key] = value end
+        end
+        return object
+    end
+    _G.OpenWorldMap = function(mapID)
+        map:Show()
+        if mapID then map:SetMapID(mapID) end
+    end
+    return map
 end
 
 -- Lua files in TOC order; embeds.xml (the libraries) is skipped, like a copy without Libs.
@@ -359,6 +515,14 @@ function Stubs.SetInstance(id, instanceType, name, difficulty)
     end
 end
 
+-- Where the player stands: continent and world yards; no arguments = no position (instances).
+function Stubs.SetPosition(continent, x, y)
+    state.position = continent and { c = continent, x = x, y = y } or nil
+end
+
+function Stubs.SetTaxi(onTaxi) state.onTaxi = onTaxi end
+function Stubs.SetDead(dead) state.dead = dead end
+
 -- Group members other than the player: list of { guid, name, realm, class }.
 function Stubs.SetGroup(members) state.group = members end
 
@@ -390,11 +554,13 @@ function Stubs.Relog(opts, reload)
     local saved = {
         accountDB = serialize.RoundTrip(_G.WayscribeDB),
         charDB = serialize.RoundTrip(_G.WayscribeCharDB),
+        pathDB = serialize.RoundTrip(_G.WayscribePathDB),
     }
     local world = {
         instance = state.instance, group = state.group, professions = state.professions,
         spellNames = state.spellNames, itemNames = state.itemNames, itemClasses = state.itemClasses,
-        questTitles = state.questTitles, cvars = state.cvars,
+        questTitles = state.questTitles, cvars = state.cvars, position = state.position,
+        onTaxi = state.onTaxi, dead = state.dead,
     }
     opts = opts or {}
     for key, value in pairs(saved) do

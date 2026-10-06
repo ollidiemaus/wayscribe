@@ -3,25 +3,31 @@ local L = ns.L
 
 -- Loading, migrating and protecting the SavedVariables (docs/ARCHITECTURE.md §4.6).
 --
---   ADDON_LOADED  LoadAccount + LoadCharacter: shape checks and migrations only.
+--   ADDON_LOADED  LoadAccount + LoadCharacter + LoadPaths: shape checks and migrations only.
 --   PLAYER_LOGIN  VerifyIdentity: needs the player's GUID, so the missing-journal guard,
 --                 rename and foreign-journal checks run here, then the Store is attached.
+--                 VerifyPaths: the same guard for the Footsteps trails, then Paths is attached.
 --
 -- Rule: never destroy data we don't understand. Any problem puts the addon into safe mode and
--- leaves the loaded tables exactly as they were, so logout writes back the same data.
+-- leaves the loaded tables exactly as they were, so logout writes back the same data. A problem
+-- with the trails (WayscribePathDB) only makes the trails read-only; the journal keeps working.
 local Schema = {
     CHAR_CURRENT = 1,
     ACCOUNT_CURRENT = 1,
+    PATH_CURRENT = 1,
     -- [n] upgrades schema n-1 to n. Each step returns a NEW table and must not modify its input
     -- (build-then-swap), so a failing step leaves the loaded data untouched.
     charMigrations = {},
     accountMigrations = {},
+    pathMigrations = {},
     safeKind = nil, -- "newer" | "failed" | "corrupt" | "missing" | "renamed" | "foreign"
+    pathSafeKind = nil, -- "newer" | "failed" | "corrupt" | "missing"
 }
 ns.Schema = Schema
 
 local CHAR_TABLES = { "meta", "state", "players", "months", "firsts" }
 local ACCOUNT_TABLES = { "settings", "log", "characters" }
+local PATH_TABLES = { "months" }
 
 local function newAccountDB()
     return {
@@ -48,6 +54,10 @@ local function newCharDB(identity)
         months = {},
         firsts = {},
     }
+end
+
+local function newPathDB()
+    return { schema = Schema.PATH_CURRENT, seq = 0, months = {} }
 end
 
 -- Type check first, fill second: a table with one wrong field is left completely untouched.
@@ -105,6 +115,21 @@ function Schema:Fail(kind, detail, ...)
     ns.Log:Error("schema", kind .. (detail and (": " .. detail) or ""))
     self.safeKind = self.safeKind or kind
     ns.SetSafeMode(REASONS[kind](...))
+end
+
+local PATH_REASONS = {
+    newer = function() return L.PATHS_NEWER_SCHEMA end,
+    failed = function() return L.PATHS_MIGRATION_FAILED end,
+    corrupt = function() return L.PATHS_CORRUPT end,
+    missing = function(count) return L.PATHS_MISSING:format(count or 0) end,
+}
+
+function Schema:FailPaths(kind, detail, ...)
+    ns.Log:Error("schema", "trails " .. kind .. (detail and (": " .. detail) or ""))
+    self.pathSafeKind = self.pathSafeKind or kind
+    local reason = PATH_REASONS[kind](...)
+    ns.Paths:SetReadOnly(reason)
+    ns.Print(L.PATHS_READ_ONLY:format(reason))
 end
 
 function Schema:LoadAccount()
@@ -168,6 +193,31 @@ function Schema:LoadCharacter()
     ns.charDB = migrated
 end
 
+-- WayscribePathDB is left exactly as loaded when it can't be used, like the journal.
+function Schema:LoadPaths()
+    local raw = WayscribePathDB
+    if raw == nil then
+        self.pathsMissing = true
+        return
+    end
+    if type(raw) ~= "table" then
+        return self:FailPaths("corrupt", "trails root is a " .. type(raw))
+    end
+    local migrated, kind, detail = migrate(raw, self.PATH_CURRENT, self.pathMigrations)
+    if not migrated then
+        return self:FailPaths(kind, detail)
+    end
+    local ok, field = checkAndFill(migrated, PATH_TABLES)
+    if not ok then
+        return self:FailPaths("corrupt", field)
+    end
+    if type(migrated.seq) ~= "number" then
+        return self:FailPaths("corrupt", "seq missing")
+    end
+    WayscribePathDB = migrated
+    ns.pathDB = migrated
+end
+
 function Schema:VerifyIdentity()
     local me = ns.Compat.GetPlayerIdentity()
     self.identity = me
@@ -206,7 +256,27 @@ function Schema:VerifyIdentity()
     self:TouchCanary()
 end
 
--- The account file vouches for each character's journal (missing-journal guard).
+-- Missing trails with a canary that counted some: they didn't load. Without the journal there's
+-- nothing to check against (its own guard has already warned), so the trails stay unattached.
+function Schema:VerifyPaths()
+    if self.pathsMissing then
+        if ns.safeMode then return end
+        local me = self.identity or ns.Compat.GetPlayerIdentity()
+        local canary = me.guid and ns.accountDB.characters[me.guid]
+        local saved = type(canary) == "table" and type(canary.paths) == "number" and canary.paths or 0
+        if saved > 0 then
+            return self:FailPaths("missing", nil, saved)
+        end
+        WayscribePathDB = newPathDB()
+        ns.pathDB = WayscribePathDB
+        self.pathsMissing = nil
+    end
+    if ns.pathDB then
+        ns.Paths:Attach(ns.pathDB)
+    end
+end
+
+-- The account file vouches for each character's journal and trails (missing-data guard).
 function Schema:TouchCanary()
     if not ns.Store:IsWritable() then return end
     local meta = ns.charDB.meta
@@ -219,16 +289,22 @@ function Schema:TouchCanary()
     canary.name = meta.name
     canary.realm = meta.realm
     canary.seq = meta.seq
+    if ns.Paths:IsWritable() then
+        canary.paths = ns.Paths.db.seq
+    end
     canary.savedAt = time()
 end
 
--- Settings > Data > Reset: an empty journal for this character, chosen by the player behind a
--- confirmation. The caller reloads the UI so every tracker starts from the new journal.
+-- Settings > Data > Reset: an empty journal and no trails for this character, chosen by the
+-- player behind a confirmation. The caller reloads the UI so every tracker starts afresh.
 function Schema:ResetCharacter()
     if not ns.Store:IsWritable() then return false end
     WayscribeCharDB = newCharDB(self.identity or ns.Compat.GetPlayerIdentity())
     ns.charDB = WayscribeCharDB
     ns.Store:Attach(WayscribeCharDB)
+    WayscribePathDB = newPathDB()
+    ns.pathDB = WayscribePathDB
+    ns.Paths:Attach(WayscribePathDB)
     self:TouchCanary()
     return true
 end
@@ -237,16 +313,25 @@ end
 function Schema:Accept()
     local me = self.identity or ns.Compat.GetPlayerIdentity()
     local kind = self.safeKind
+    local accepted = false
     if kind == "foreign" and ns.charDB then
         ns.charDB.meta.guid = me.guid
         ns.charDB.meta.name = me.name
         ns.charDB.meta.realm = me.realm
-        return true
+        accepted = true
     elseif (kind == "missing" or kind == "renamed") and me.guid then
         WayscribeCharDB = newCharDB(me)
         ns.charDB = WayscribeCharDB
         ns.accountDB.characters[me.guid] = { name = me.name, realm = me.realm, seq = 0, savedAt = time() }
-        return true
+        accepted = true
     end
-    return false
+    if self.pathSafeKind == "missing" then
+        WayscribePathDB = newPathDB()
+        local canary = me.guid and ns.accountDB.characters[me.guid]
+        if type(canary) == "table" then
+            canary.paths = 0
+        end
+        accepted = true
+    end
+    return accepted
 end

@@ -155,7 +155,7 @@ describe("filters", function()
         ns.Journal:Toggle()
         local labels = {}
         for i, button in ipairs(ns.Journal.ui.chips) do labels[i] = button.label:GetText() end
-        T.same(labels, { "Progress", "Adventure", "Quests", "Gathering" })
+        T.same(labels, { "Progress", "Adventure", "Quests", "Gathering", "Travel" })
     end)
 end)
 
@@ -303,7 +303,7 @@ describe("the default UI's look", function()
         local items = menuItems(ns.Journal.ui.filter)
         local labels = {}
         for i, item in ipairs(items) do labels[i] = item.label end
-        T.same(labels, { "Progress", "Adventure", "Quests", "Gathering" })
+        T.same(labels, { "Progress", "Adventure", "Quests", "Gathering", "Travel" })
         T.truthy(items[1].isSelected())
         items[1].toggle()
         T.falsy(items[1].isSelected())

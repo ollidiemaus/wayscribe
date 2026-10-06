@@ -4,9 +4,9 @@ package.path = "./tests/?.lua;" .. package.path
 local T = require("testlib")
 
 local SPECS = {
-    "codec", "time", "compat", "recordtypes", "module", "store", "index", "schema",
-    "session", "level", "professions", "gathering", "bosses", "dungeons", "questchains", "journal",
-    "loginrecap", "settings", "lifecycle",
+    "codec", "geometry", "time", "compat", "recordtypes", "module", "store", "index", "schema",
+    "session", "level", "professions", "gathering", "bosses", "dungeons", "questchains", "heropath",
+    "journal", "footstepsmap", "loginrecap", "settings", "lifecycle",
 }
 
 for _, name in ipairs(SPECS) do

@@ -87,3 +87,50 @@ day, once). These checks need the client.
 - [ ] **Back-fill on a real journal.** Developer mode, then
   `/ws simulate QUEST_CHAIN_COMPLETED chain=DEFIAS quest=166` shows how a chain entry reads;
   `/ws simulate clear` removes it.
+
+## 0.4 Footsteps (open)
+
+Unit tests cover the size half of the exit criterion: two hours of simulated questing pack into
+about 3.2 KB (budget 10 KB). These checks need the client.
+
+### Probe
+
+- [ ] **`/ws probe` outdoors, standing in a zone.** Paste the new lines (`has.taxiState`,
+  `has.worldMapCanvas`, `worldMap.frame`, `taxi`, `map.corners`, `map.fromWorld`, `map.atWorld`,
+  `map.parent`) into forever-probe.md. `map.fromWorld` must match `map.position` to about three
+  decimals: that proves the world-to-map transform. (§12 #3, #9)
+- [ ] **`/ws probe` inside a dungeon.** Is `unitPosition` nil there? (§12 #3)
+
+### Recording
+
+- [ ] **Walk and ride for a few minutes, then open the world map.** A dark red line follows your
+  way, ending where you stand, and keeps growing while the map stays open. Does it lie on the roads
+  you took (not mirrored or shifted)?
+- [ ] **Stand still for a minute, then walk on.** The line continues without a gap.
+- [ ] **Take a flight.** The flight is a thinner blue line from flight master to flight master, the
+  walk before and after joins it. With *Record flight paths* off, the flight leaves no line.
+- [ ] **Hearthstone or a portal.** No line across the jump.
+- [ ] **Die and run back as a ghost.** The ghost's way is not drawn.
+- [ ] **Fight a few mobs while moving.** The line has no gaps from combat. (Is the position
+  secret in combat? §12 #5)
+- [ ] **`/reload` while walking.** The trail so far stays on the map; recording goes on.
+- [ ] **Day page.** The journal shows "Zurückgelegt: 2,4 km" (and "Flugrouten: …" after a
+  flight).
+- [ ] **`/ws stats` after about two hours of play.** The "Fußspuren: … KB gepackt" line should be
+  well under 10 KB (exit criterion). Note the number here.
+- [ ] **Frame time.** With the map closed, the FPS doesn't change between Footsteps on and off
+  (exit criterion). With "Alle" on a continent map, opening the map doesn't stutter.
+
+### Map
+
+- [ ] **Where the lines land.** Above the map art and explored areas, below the quest and flight
+  master icons? Zooming in keeps the lines equally thin.
+- [ ] **The "Fußspuren: Heute" button** (lower left of the map) isn't hidden behind the map's own
+  controls. Its menu switches between Heute, Letzte 7 Tage, Alle and Aus; older days are lighter.
+- [ ] **Zone, continent, world.** The trail shows on the zone and the continent map; the world map
+  (all of Azeroth) shows none and no error.
+- [ ] **From the journal.** On a day with trails, *Auf der Karte zeigen* opens the map at that
+  day's zone with only that day; does the map come up in front of the journal? After closing the
+  map, it shows "Heute" again.
+- [ ] **Settings:** the Fußspuren section (map dropdown, flights, *Alle Spuren löschen* with its
+  confirmation). Try deleting only on a test character.

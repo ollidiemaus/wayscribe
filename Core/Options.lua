@@ -8,6 +8,8 @@ ns.Options = Options
 local DEFAULTS = {
     showLoginRecap = true,
     dateFormat = "", -- "" = the format of the client's language
+    footstepsMode = "today", -- which trails the world map shows: "today", "week", "all" or "off"
+    footstepsFlights = true, -- record flight paths too
 }
 
 local function settings()

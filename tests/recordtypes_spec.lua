@@ -93,7 +93,7 @@ describe("categories", function()
         local loaded = Stubs.LoadAddon()
         local seen = {}
         for _, category in ipairs(loaded.RecordTypes:Categories()) do seen[category] = true end
-        T.same(seen, { progress = true, adventure = true, quests = true, gathering = true })
+        T.same(seen, { progress = true, adventure = true, quests = true, gathering = true, travel = true })
         T.eq(loaded.RecordTypes:CategoryOf("GONE"), "misc")
         T.eq(loaded.RecordTypes:CounterCategory("gone"), "misc")
     end)

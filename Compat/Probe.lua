@@ -13,6 +13,7 @@ local EVENTS = {
     "LFG_COMPLETION_REWARD", "LOOT_CLOSED", "LOOT_READY", "LOOT_SLOT_CLEARED", "PLAYER_DEAD",
     "PLAYER_LEVEL_UP", "QUEST_TURNED_IN", "SCENARIO_COMPLETED", "SKILL_LINES_CHANGED",
     "TRADE_SKILL_LIST_UPDATE", "UNIT_SPELLCAST_SUCCEEDED", "ZONE_CHANGED_NEW_AREA",
+    "PLAYER_CONTROL_LOST", "PLAYER_CONTROL_GAINED", "PLAYER_UNGHOST",
 }
 
 local LIBRARIES = { "LibStub", "CallbackHandler-1.0", "LibDataBroker-1.1", "LibDBIcon-1.0" }
@@ -101,6 +102,36 @@ local function addQuestLines(add)
     add("questLog.asked", asked)
 end
 
+-- 0.4 Footsteps: the current map's corners in the world, and the player's map position computed
+-- from the world position through them, next to the client's own answer. The two must match.
+local function addFootsteps(add, mapID)
+    if Compat.has.taxiState then
+        add("taxi", Compat.IsOnTaxi())
+    end
+    add("deadOrGhost", Compat.IsDeadOrGhost())
+    add("worldMap.frame", type(WorldMapFrame) == "table")
+    if not mapID then return end
+    local corners = {}
+    for i, corner in ipairs({ { 0, 0 }, { 1, 0 }, { 0, 1 } }) do
+        local continentID, x, y = Compat.GetWorldPosFromMapPos(mapID, corner[1], corner[2])
+        corners[i] = { continentID, x, y }
+    end
+    local parts = {}
+    for i, corner in ipairs(corners) do
+        parts[i] = corner[2] and string.format("%s:%.1f,%.1f", describe(corner[1]), corner[2], corner[3]) or "nil"
+    end
+    add("map.corners", table.concat(parts, " "))
+    local transform = corners[3][2] and ns.Geometry.MapTransform(corners[1][2], corners[1][3], corners[2][2],
+        corners[2][3], corners[3][2], corners[3][3])
+    local continentID, x, y = Compat.GetPlayerWorldPosition()
+    if transform and continentID then
+        local u, v = ns.Geometry.ToMap(transform, x, y)
+        add("map.fromWorld", string.format("%.4f, %.4f (%.0f x %.0f yd)", u, v, transform.width, transform.height))
+    end
+    add("map.atWorld", continentID and Compat.GetMapAtWorldPos(continentID, x, y) or nil)
+    add("map.parent", Compat.GetParentMap(mapID))
+end
+
 local function collect()
     local lines = {}
     local function add(key, value)
@@ -151,6 +182,7 @@ local function collect()
     add("secret.UnitLevel", Compat.IsSecret(UnitLevel and UnitLevel("player")))
     addTrackerInputs(add)
     addQuestLines(add)
+    addFootsteps(add, mapID)
     return lines
 end
 

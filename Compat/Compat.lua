@@ -107,6 +107,16 @@ function Compat:Detect()
     has.itemInfoInstant = C_Item ~= nil and C_Item.GetItemInfoInstant ~= nil
     has.spellNames = (C_Spell ~= nil and C_Spell.GetSpellName ~= nil) or type(GetSpellInfo) == "function"
     has.tradeSkillNames = C_TradeSkillUI ~= nil and C_TradeSkillUI.GetTradeSkillDisplayName ~= nil
+    has.taxiState = type(UnitOnTaxi) == "function"
+    has.worldMapCanvas = self.HasWorldMapCanvas()
+end
+
+-- The default world map with its data provider extension point (Footsteps, docs/ARCHITECTURE.md
+-- §6.8). Asked again when Blizzard_WorldMap loads later than this addon.
+function Compat.HasWorldMapCanvas()
+    return type(WorldMapFrame) == "table" and type(WorldMapFrame.AddDataProvider) == "function"
+        and type(MapCanvasDataProviderMixin) == "table" and type(CreateFromMixins) == "function"
+        and Compat.has.mapWorldPos == true and type(CreateVector2D) == "function"
 end
 
 local function text(value)
@@ -136,6 +146,63 @@ function Compat.GetPlayerMapID()
     local mapID = Compat.Call(C_Map.GetBestMapForUnit, "player")
     return type(mapID) == "number" and mapID or nil
 end
+
+------------------------------------------------------------------------------------------------
+-- World positions (Footsteps). The world is in yards per continent (the Map.db2 instance:
+-- 0 = Eastern Kingdoms, 1 = Kalimdor). x is UnitPosition's first value, which equals C_Map's
+-- world vector .x (verified on build 70235): north is +x, west is +y.
+
+-- Where a point of a map (u, v from 0 to 1) lies in the world: continentID, x, y; or nil.
+function Compat.GetWorldPosFromMapPos(mapID, u, v)
+    if not (Compat.has.mapWorldPos and type(CreateVector2D) == "function") then return nil end
+    local continentID, world = Compat.Call(C_Map.GetWorldPosFromMapPos, mapID, CreateVector2D(u, v))
+    if type(continentID) ~= "number" or type(world) ~= "table" then return nil end
+    local x, y = Compat.Safe(world.x, "number"), Compat.Safe(world.y, "number")
+    if not (x and y) then return nil end
+    return continentID, x, y
+end
+
+-- continentID, x, y of the player; nil inside instances or while the client hides it.
+function Compat.GetPlayerWorldPosition()
+    if Compat.has.unitPosition then
+        local x, y, _, continentID = Compat.Call(UnitPosition, "player")
+        if type(x) == "number" and type(y) == "number" and type(continentID) == "number" then
+            return continentID, x, y
+        end
+        return nil
+    end
+    local mapID = Compat.GetPlayerMapID()
+    if not (mapID and Compat.has.mapPlayerPosition) then return nil end
+    local position = Compat.Call(C_Map.GetPlayerMapPosition, mapID, "player")
+    if type(position) ~= "table" then return nil end
+    local u, v = Compat.Safe(position.x, "number"), Compat.Safe(position.y, "number")
+    if not (u and v) then return nil end
+    return Compat.GetWorldPosFromMapPos(mapID, u, v)
+end
+
+-- The most detailed map showing a world position, or nil.
+function Compat.GetMapAtWorldPos(continentID, x, y)
+    if not (Compat.has.mapWorldPos and type(CreateVector2D) == "function") then return nil end
+    local mapID = Compat.Call(C_Map.GetMapPosFromWorldPos, continentID, CreateVector2D(x, y))
+    return type(mapID) == "number" and mapID or nil
+end
+
+function Compat.GetParentMap(mapID)
+    local info = C_Map and C_Map.GetMapInfo and Compat.Call(C_Map.GetMapInfo, mapID)
+    local parent = type(info) == "table" and Compat.Safe(info.parentMapID, "number")
+    return parent and parent > 0 and parent or nil
+end
+
+function Compat.IsOnTaxi()
+    return Compat.Call(UnitOnTaxi, "player") == true
+end
+
+function Compat.IsDeadOrGhost()
+    return Compat.Call(UnitIsDeadOrGhost, "player") == true
+end
+
+------------------------------------------------------------------------------------------------
+-- Instances, groups, professions, spells and items
 
 -- instanceID (Map.db2 ID, also outdoors: 0 = Eastern Kingdoms, 1 = Kalimdor), instanceType
 -- ("none", "party", "raid", ...), difficultyID, localized name.
