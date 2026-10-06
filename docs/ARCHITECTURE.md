@@ -654,7 +654,8 @@ card (§8), its only consumer.
   (`Geometry.UnionArea`, overlaps once), in squares. A walked square counts if its center lies in a
   zone; the zone with the most walked squares is named on the card with its own share.
 - Zone maps include water and mountains, so 100% isn't reachable; the number is for comparing
-  years, not a completion bar.
+  years, not a completion bar. On build 70235 that is 50 zones and about 123 square miles (some
+  38,000 squares), Forever's Zephras Isle included.
 - Nothing is saved. The first request for a year decodes its trails in a coroutine, at most 4 ms
   per frame, and keeps the walked squares in memory (sparse sets per continent; a year of walking
   is thousands of squares, not the millions a bitset is made for). The card says it is measuring
@@ -820,7 +821,7 @@ screenshots (`SCREENSHOT_SUCCEEDED` → "took a screenshot here").
 
 ## 12. Verify on the Forever beta (run `/ws probe`)
 
-The first probe ran on client `1.60.1` build `70235` (2026-10-06), the 0.2 and 0.3 probes on the same build. The raw output is in
+The first probe ran on client `1.60.1` build `70235` (2026-10-06), the 0.2 to 0.5 probes on the same build. The raw output is in
 [forever-probe.md](forever-probe.md). "Exists" means the API or event is there. Whether an event
 actually *fires* for Vanilla content still needs the matching gameplay test; those are listed per
 release in [ingame-tests.md](ingame-tests.md).
@@ -836,8 +837,8 @@ release in [ingame-tests.md](ingame-tests.md).
 | 7 | Does an LFG or dungeon-finder completion event exist? | `LFG_COMPLETION_REWARD` and `SCENARIO_COMPLETED` exist. | Whether they fire for Vanilla dungeons. | Final-boss data table (already the primary signal). |
 | 8 | Do SavedVariables survive a round trip on the current client build? | ✅ Account and character files written on `/reload` and logout, `.bak` holds the previous save, the session was resumed after the reload. ✅ A full relog added a second session (0.2). | Retest on every new client build. | Missing-DB guard (§4.6). |
 | 9 | Does `WorldMapFrame` take a MapCanvas data provider, and where do the lines land? | ✅ `has.worldMapCanvas`; the trail was drawn in the right place, above the explored-area art. `C_Map.GetMapPosFromWorldPos` answers with the continent (worked around). ✅ Lines at least 3 pixels long stay whole on the small map too. ✅ The map's icons are drawn over the lines. ✅ The journal button opens the map at the zone. | — | No overlay; the journal hides its map link. |
-| 10 | Does `C_Map.GetMapChildrenInfo` list the zone maps, and how big is Azeroth then? (0.5) | Not probed yet: `coverage.zones` and `coverage.continent.*` (zones and square miles per continent). | Run `/ws probe` outdoors. | No "% of Azeroth walked" line; the rest of the Footsteps card stays. |
-| 11 | Is `PanelTabButtonTemplate` there for the journal's tabs? (0.5) | Not probed yet: `has.panelTabs`. | Look at the tabs under the journal. | Plain buttons under the frame. |
+| 10 | Does `C_Map.GetMapChildrenInfo` list the zone maps, and how big is Azeroth then? (0.5) | ✅ 50 zones: Kalimdor 23 (71 sq mi), Eastern Kingdoms 26 (45 sq mi), and Forever's **Zephras Isle** on a world map of its own (2991, 7 sq mi; `UiMap` 2521 under Azeroth). A short session read 0.1%, Mulgore 2.2%. | — | No "% of Azeroth walked" line; the rest of the Footsteps card stays. |
+| 11 | Is `PanelTabButtonTemplate` there for the journal's tabs? (0.5) | ✅ `has.panelTabs`; the tabs show under the journal like the default UI's. | — | Plain buttons under the frame. |
 
 Other findings:
 - wago.tools lists build 70235 as product `wow_cn_beta`, so its DB2 tables (`DungeonEncounter`, `Map`,

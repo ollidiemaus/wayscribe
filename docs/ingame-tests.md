@@ -117,10 +117,12 @@ about 3.2 KB (budget 10 KB). These checks need the client.
 - [x] **Stand still for a minute, then walk on.** The line continues without a gap. *Yes (2026-10-06).*
 - [ ] **Take a flight.** The flight is a thinner blue line from flight master to flight master, the
   walk before and after joins it. With *Record flight paths* off, the flight leaves no line.
-- [ ] **Hearthstone or a portal.** No line across the jump. *2026-10-06: a hearthstone within
+- [x] **Hearthstone or a portal.** No line across the jump. *2026-10-06: a hearthstone within
   Mulgore (no loading screen) drew a straight 688-yard line. The jump was measured from the last
   kept point, and the 10 s cast standing still made it look like a walk. Jumps are now measured
-  from the previous second's sample. Check again: no line, and see "Journeys" below.*
+  from the previous second's sample. Check again: no line, and see "Journeys" below.* *Rechecked
+  with the 0.5 copy: the trail ends 18 s before the cast finished, and no stored step covers the
+  340-yard jump (2026-10-06).*
 - [x] **Die and run back as a ghost.** The ghost's way is not drawn. *Yes; after resurrecting, the
   trail goes on from the respawn spot (2026-10-06).*
 - [ ] **Fight a few mobs while moving.** The line has no gaps from combat. (Is the position
@@ -160,10 +162,11 @@ about 3.2 KB (budget 10 KB). These checks need the client.
   teleports in German; `subZone` names where you stand. *All eight named, `subZone = Bloodhoof`
   (2026-10-06). The list has since grown (Moonglade, Dalaran, the transporters): all 19 named in
   German in the next probe.*
-- [ ] **Hearthstone within a zone** (e.g. to Bloodhoof). The journal shows "Ruhestein nach
+- [x] **Hearthstone within a zone** (e.g. to Bloodhoof). The journal shows "Ruhestein nach
   Bloodhoof" under *Reisen*, at the time you arrived. The map shows the hearthstone's icon where
   you cast it and where you arrived; mouseover: "Ruhestein nach Bloodhoof" and "Mit Ruhestein
-  angekommen". No line between them.
+  angekommen". No line between them. *Worked, icons shown at both ends (2026-10-06); the saved
+  `TELEPORT` has spell 8690, both places and `sub = "Bloodhoof"`.*
 - [ ] **Hearthstone to another continent** (a loading screen): the entry appears; each continent's
   map shows its end.
 - [ ] **A summon or a boat** (no travel spell): no entry, no icon, just a break in the trail.
@@ -191,28 +194,37 @@ checks need the client.
 
 ### Probe and upgrade
 
-- [ ] **`/ws probe` outdoors.** Paste `has.mapChildren`, `has.panelTabs`, `coverage.zones` and the
+- [x] **`/ws probe` outdoors.** Paste `has.mapChildren`, `has.panelTabs`, `coverage.zones` and the
   `coverage.continent.*` lines into forever-probe.md. Do the zones and square miles look like
   Kalimdor and the Eastern Kingdoms (roughly 20-25 zones each)? An unexpected continent ID with a
-  few zones would inflate the total. (§12 #10, #11)
-- [ ] **First login after updating.** The rollups are rebuilt once, silently: `/ws log` stays
-  empty, the journal looks the same, and the saved file has `["rollup"] = 2` under `meta`.
-- [ ] **`/ws stats`.** The new line "Gespeicherte Datei: Tagebuch etwa … KB, Fußspuren etwa … KB"
+  few zones would inflate the total. (§12 #10, #11) *Both true; Kalimdor 23 zones, Eastern
+  Kingdoms 26, plus continent 2991 with one zone: Forever's Zephras Isle (UiMap 2521, under
+  Azeroth), which belongs in the count (2026-10-06).*
+- [x] **First login after updating.** The rollups are rebuilt once, silently: `/ws log` stays
+  empty, the journal looks the same, and the saved file has `["rollup"] = 2` under `meta`. *Yes:
+  `rollup = 2`, no new log entries (2026-10-06).*
+- [x] **`/ws stats`.** The new line "Gespeicherte Datei: Tagebuch etwa … KB, Fußspuren etwa … KB"
   should match the size of `Wayscribe.lua` in the character's SavedVariables folder (after a
-  `/reload`, to within a few percent).
+  `/reload`, to within a few percent). *The estimate, run on the saved file, gives 4,055 bytes for
+  the 4,056-byte file (2026-10-06).*
 
 ### The tab
 
-- [ ] **Tabs under the journal**: "Tagebuch" and "Dein Jahr" look like the spellbook's or the
+- [x] **Tabs under the journal**: "Tagebuch" and "Dein Jahr" look like the spellbook's or the
   character frame's tabs, sit right under the frame, and switch. On "Dein Jahr" the filter menu is
-  gone; back on "Tagebuch" it returns. Screenshot it.
+  gone; back on "Tagebuch" it returns. Screenshot it. *Screenshots 2026-10-06: the default UI's
+  tabs under the frame, the chosen one raised.*
 - [ ] **Before December**: "Dein 2026" says when it opens (Dienstag, 1. Dezember 2026).
-- [ ] **Preview with `/ws dev`**: the page switches to the cards at once, subtitle "Dein 2026 ·
+- [x] **Preview with `/ws dev`**: the page switches to the cards at once, subtitle "Dein 2026 ·
   Vorschau". Read every card in German: do the texts read well, and do all icons show (no green
   squares)? Is the big number large but inside the page? Turn the cards with the page buttons
-  ("Seite 3/11", page sound) and by clicking them in the list.
-- [ ] **Footsteps card**: briefly "Wird gemessen …", then "Du bist x % von Azeroth abgelaufen" and
-  "Am meisten erkundet: Mulgore (y %)". Note x and y here. No stutter while it measures.
+  ("Seite 3/11", page sound) and by clicking them in the list. *Seven cards on this character
+  (Blick, Stufen, Tode, Berufe, Quests, Fußspuren, Spielzeit), all icons shown, big numbers inside
+  the page, "Vorige Karte" / "Nächste Karte" on the buttons (2026-10-06). The dungeon, boss,
+  companion and gathering cards need a character with those.*
+- [x] **Footsteps card**: briefly "Wird gemessen …", then "Du bist x % von Azeroth abgelaufen" and
+  "Am meisten erkundet: Mulgore (y %)". Note x and y here. No stutter while it measures. *x =
+  0,1 %, y = 2,2 % after 5,7 km (2026-10-06).*
 - [ ] **Live**: with the tab open, level up or loot ore: the cards update.
 
 ### Prompt
@@ -223,7 +235,7 @@ checks need the client.
 
 ### Export
 
-- [ ] **`/ws export`**: the window opens with the text selected. Ctrl+C, paste into a text editor:
+- [x] **`/ws export`**: the window opens with the text selected. Ctrl+C, paste into a text editor:
   dates, times and German umlauts come through, entries line up under their times. *Dieser
-  Monat* / *Dieses Jahr* / *Alles* switch the text. Escape closes it.
+  Monat* / *Dieses Jahr* / *Alles* switch the text. Escape closes it. *Looks good (2026-10-06).*
 - [ ] **Settings > Daten > Tagebuch exportieren** opens the same window.

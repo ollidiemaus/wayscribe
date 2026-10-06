@@ -275,3 +275,30 @@ Notes:
   (Hearthstone of the Dawn is "Ruhestein der Argentumdämmerung").
 - 23491's name starts with a space in the client's data. `Compat.GetSpellName` now trims names, so
   the journal never shows it.
+
+## Client 1.60.1, build 70235, Wayscribe 0.5 (2026-10-06)
+
+Scoopz in Bloodhoof, Mulgore, with the 0.5 copy (`/ws probe`; the lines new in 0.5):
+
+```text
+has.mapChildren = true
+has.panelTabs = true
+map.best = 1412
+coverage.zones = 50
+coverage.continent.1 = 23 zones, 71 sq mi
+coverage.continent.0 = 26 zones, 45 sq mi
+coverage.continent.2991 = 1 zones, 7 sq mi
+```
+
+Notes:
+- `C_Map.GetMapChildrenInfo` lists the zone maps, so "% of Azeroth walked" works (§12 #10): 23
+  zones in Kalimdor, 26 in the Eastern Kingdoms, about 123 square miles in all, roughly 38,000
+  squares of 100 yards.
+- Continent 2991 is **Zephras Isle**, one of Forever's own zones: `Map.db2` 2991 "Zephras Isle"
+  (not instanced) and `UiMap.db2` 2521 "Zephras Isle", a zone directly under Azeroth (947), checked
+  on wago.tools for build 70235. It counts, as intended for zones Forever adds. (`UiMap` 2665 with
+  the same name is a legacy taxi map, not a world zone, and isn't listed.)
+- `PanelTabButtonTemplate` and `PanelTemplates_SetNumTabs` / `SetTab` exist (§12 #11): the journal
+  shows the default UI's tabs.
+- After a short session with the hearthstone: "Du bist 0,1 % von Azeroth abgelaufen", most walked
+  zone Mulgore with 2.2%.
