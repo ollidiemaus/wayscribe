@@ -1,7 +1,8 @@
 std = "lua51"
 max_line_length = 140
 self = false -- methods often ignore self (event handlers, mixin-style APIs)
-exclude_files = { ".git/", ".release/", "Libs/" }
+-- .lua/, .luarocks/ and .install/ are the toolchains the CI actions install into the workspace.
+exclude_files = { ".git/", ".release/", "Libs/", ".lua/", ".luarocks/", ".install/" }
 
 -- Globals the addon defines.
 globals = {
