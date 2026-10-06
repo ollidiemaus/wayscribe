@@ -222,6 +222,17 @@ function Schema:TouchCanary()
     canary.savedAt = time()
 end
 
+-- Settings > Data > Reset: an empty journal for this character, chosen by the player behind a
+-- confirmation. The caller reloads the UI so every tracker starts from the new journal.
+function Schema:ResetCharacter()
+    if not ns.Store:IsWritable() then return false end
+    WayscribeCharDB = newCharDB(self.identity or ns.Compat.GetPlayerIdentity())
+    ns.charDB = WayscribeCharDB
+    ns.Store:Attach(WayscribeCharDB)
+    self:TouchCanary()
+    return true
+end
+
 -- /ws accept: the player resolves a guard situation. Takes effect after /reload.
 function Schema:Accept()
     local me = self.identity or ns.Compat.GetPlayerIdentity()

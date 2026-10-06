@@ -83,21 +83,26 @@ function Compat:Detect()
     has.lootSourceInfo = type(GetLootSourceInfo) == "function"
     has.scrollBox = type(CreateScrollBoxListLinearView) == "function" and ScrollUtil ~= nil
     has.addonCompartment = AddonCompartmentFrame ~= nil
+    has.itemInfoInstant = C_Item ~= nil and C_Item.GetItemInfoInstant ~= nil
+    has.spellNames = (C_Spell ~= nil and C_Spell.GetSpellName ~= nil) or type(GetSpellInfo) == "function"
+    has.tradeSkillNames = C_TradeSkillUI ~= nil and C_TradeSkillUI.GetTradeSkillDisplayName ~= nil
+end
+
+local function text(value)
+    return type(value) == "string" and value ~= "" and value or nil
+end
+
+-- guid, name, realm (nil on the player's own realm) and class file of a unit; any may be nil.
+local function unitInfo(unit)
+    local name, realm = Compat.Call(UnitFullName, unit)
+    local _, classFile = Compat.Call(UnitClass, unit)
+    return { guid = text(Compat.Call(UnitGUID, unit)), name = text(name), realm = text(realm), class = text(classFile) }
 end
 
 function Compat.GetPlayerIdentity()
-    local guid = Compat.Call(UnitGUID, "player")
-    local name, realm = Compat.Call(UnitFullName, "player")
-    if type(realm) ~= "string" or realm == "" then
-        realm = Compat.Call(GetRealmName)
-    end
-    local _, classFile = Compat.Call(UnitClass, "player")
-    return {
-        guid = type(guid) == "string" and guid ~= "" and guid or nil,
-        name = type(name) == "string" and name or nil,
-        realm = type(realm) == "string" and realm or nil,
-        class = type(classFile) == "string" and classFile or nil,
-    }
+    local info = unitInfo("player")
+    info.realm = info.realm or text(Compat.Call(GetRealmName))
+    return info
 end
 
 function Compat.GetPlayerLevel()
@@ -109,4 +114,125 @@ function Compat.GetPlayerMapID()
     if not (C_Map and C_Map.GetBestMapForUnit) then return nil end
     local mapID = Compat.Call(C_Map.GetBestMapForUnit, "player")
     return type(mapID) == "number" and mapID or nil
+end
+
+-- instanceID (Map.db2 ID, also outdoors: 0 = Eastern Kingdoms, 1 = Kalimdor), instanceType
+-- ("none", "party", "raid", ...), difficultyID, localized name.
+function Compat.GetInstance()
+    local name, instanceType, difficultyID, _, _, _, _, instanceID = Compat.Call(GetInstanceInfo)
+    if type(instanceID) ~= "number" then return nil end
+    return instanceID, text(instanceType) or "none", type(difficultyID) == "number" and difficultyID or nil, text(name)
+end
+
+-- Everyone in the player's party or raid except the player: array of { guid, name, realm, class }.
+function Compat.GetGroupMembers()
+    local members = {}
+    local inRaid = Compat.Call(IsInRaid) == true
+    local count = Compat.Call(inRaid and GetNumGroupMembers or GetNumSubgroupMembers)
+    if type(count) ~= "number" then return members end
+    local prefix = inRaid and "raid" or "party"
+    local me = Compat.Call(UnitGUID, "player")
+    for i = 1, count do
+        local info = unitInfo(prefix .. i)
+        if info.guid and info.guid ~= me then
+            members[#members + 1] = info
+        end
+    end
+    return members
+end
+
+-- { [skillLineID] = { rank, max, name } } for the learned professions, or nil without a usable API.
+function Compat.GetProfessionSnapshot()
+    if Compat.has.professions ~= "modern" then return nil end
+    local snapshot = {}
+    -- prof1, prof2, archaeology, fishing, cooking; nil where not learned.
+    local slots = { Compat.Call(GetProfessions) }
+    for i = 1, 5 do
+        if type(slots[i]) == "number" then
+            local name, _, rank, maxRank, _, _, skillLine = Compat.Call(GetProfessionInfo, slots[i])
+            if type(skillLine) == "number" and type(rank) == "number" then
+                snapshot[skillLine] = { rank = rank, max = type(maxRank) == "number" and maxRank or nil, name = text(name) }
+            end
+        end
+    end
+    return snapshot
+end
+
+function Compat.GetSkillLineName(skillLine)
+    local api = C_TradeSkillUI and C_TradeSkillUI.GetTradeSkillDisplayName
+    return text(Compat.Call(api, skillLine))
+end
+
+function Compat.GetSpellName(spellID)
+    if C_Spell and C_Spell.GetSpellName then
+        return text(Compat.Call(C_Spell.GetSpellName, spellID))
+    end
+    return text(Compat.Call(GetSpellInfo, spellID))
+end
+
+-- Item class and subclass IDs are locale-free (7/7 = Metal & Stone, 7/9 = Herb, 7/6 = Leather).
+function Compat.GetItemClass(itemID)
+    if not (C_Item and C_Item.GetItemInfoInstant) then return nil end
+    local _, _, _, _, _, classID, subclassID = Compat.Call(C_Item.GetItemInfoInstant, itemID)
+    return classID, subclassID
+end
+
+------------------------------------------------------------------------------------------------
+-- Item names load asynchronously. A miss asks the client for the item; once data arrives, the bus
+-- message ITEM_NAMES_LOADED tells the UI to redraw. The event is only watched while names are
+-- pending.
+
+local NAMES_SETTLE = 0.3
+local namesFrame
+local namesNotifyPending = false
+
+local function onItemData()
+    if namesNotifyPending then return end
+    namesNotifyPending = true
+    C_Timer.After(NAMES_SETTLE, function()
+        namesNotifyPending = false
+        namesFrame:UnregisterAllEvents()
+        ns.Bus:Fire("ITEM_NAMES_LOADED")
+    end)
+end
+
+local function watchItemData()
+    if not namesFrame then
+        namesFrame = CreateFrame("Frame")
+        namesFrame:SetScript("OnEvent", onItemData)
+    end
+    pcall(namesFrame.RegisterEvent, namesFrame, "GET_ITEM_INFO_RECEIVED")
+    pcall(namesFrame.RegisterEvent, namesFrame, "ITEM_DATA_LOAD_RESULT")
+end
+
+function Compat.GetItemName(itemID)
+    if not C_Item then return nil end
+    local name = text(Compat.Call(C_Item.GetItemNameByID, itemID))
+    if not name and C_Item.RequestLoadItemDataByID then
+        watchItemData()
+        Compat.Call(C_Item.RequestLoadItemDataByID, itemID)
+    end
+    return name
+end
+
+------------------------------------------------------------------------------------------------
+-- Loot
+
+-- The open loot window as { [slot] = { itemID, quantity } } (money and currencies left out), plus
+-- the GUID of what is being looted when the client tells us.
+function Compat.GetLootSlots()
+    local slots = {}
+    local source
+    local count = Compat.Call(GetNumLootItems)
+    if type(count) ~= "number" then return slots end
+    for slot = 1, count do
+        local link = Compat.Call(GetLootSlotLink, slot)
+        local itemID = type(link) == "string" and tonumber(link:match("item:(%d+)"))
+        if itemID then
+            local _, _, quantity = Compat.Call(GetLootSlotInfo, slot)
+            slots[slot] = { itemID = itemID, quantity = type(quantity) == "number" and quantity > 0 and quantity or 1 }
+        end
+        source = source or text(Compat.Call(GetLootSourceInfo, slot))
+    end
+    return slots, source
 end

@@ -4,10 +4,38 @@ local Stubs = {}
 -- A stand-in for a Midnight-style secret value: issecretvalue() is true only for this.
 Stubs.SECRET = setmetatable({}, { __tostring = function() return "<SECRET>" end })
 
+-- Globals created by CreateFrame(type, name); a fresh load removes them again.
+Stubs.namedFrames = {}
+
 local state
 
-local function newFrame()
-    local frame = { events = {}, scripts = {}, shown = false }
+local function noop() end
+
+-- Regions accept any widget method (unknown ones do nothing), so UI code runs in tests. Methods
+-- whose results the code uses are implemented; fields stay plain (an unknown field is nil).
+local function permissive(region)
+    return setmetatable(region, {
+        __index = function(_, key)
+            if type(key) == "string" and key:find("^%u") then return noop end
+            return nil
+        end,
+    })
+end
+
+local function newFontString()
+    local fontString = { shown = true, text = nil }
+    function fontString:SetText(text) self.text = text end
+    function fontString:GetText() return self.text end
+    function fontString:GetStringHeight() return 12 end
+    function fontString:GetStringWidth() return 100 end
+    function fontString:Show() self.shown = true end
+    function fontString:Hide() self.shown = false end
+    function fontString:IsShown() return self.shown end
+    return permissive(fontString)
+end
+
+local function newFrame(_, name)
+    local frame = { events = {}, scripts = {}, shown = true, width = 0, height = 0, regions = {}, name = name }
     function frame:RegisterEvent(event)
         if state.unknownEvents[event] then error("Attempt to register unknown event \"" .. event .. "\"") end
         self.events[event] = true
@@ -16,9 +44,130 @@ local function newFrame()
     function frame:UnregisterEvent(event) self.events[event] = nil end
     function frame:UnregisterAllEvents() self.events = {} end
     function frame:IsEventRegistered(event) return self.events[event] == true end
-    function frame:SetScript(name, fn) self.scripts[name] = fn end
+    function frame:SetScript(script, fn) self.scripts[script] = fn end
+    function frame:GetScript(script) return self.scripts[script] end
+    function frame:Show()
+        if self.shown then return end
+        self.shown = true
+        if self.scripts.OnShow then self.scripts.OnShow(self) end
+    end
+    function frame:Hide() self.shown = false end
+    function frame:SetShown(shown) if shown then self:Show() else self:Hide() end end
+    function frame:IsShown() return self.shown end
+    function frame:SetSize(width, height) self.width, self.height = width, height end
+    function frame:SetWidth(width) self.width = width end
+    function frame:SetHeight(height) self.height = height end
+    function frame:GetWidth() return self.width end
+    function frame:GetHeight() return self.height end
+    function frame:GetName() return self.name end
+    function frame:SetChecked(checked) self.checked = checked == true end
+    function frame:GetChecked() return self.checked == true end
+    function frame:SetText(text) self.text = text end
+    function frame:CreateFontString()
+        local fontString = newFontString()
+        self.regions[#self.regions + 1] = fontString
+        return fontString
+    end
+    function frame:CreateTexture() return permissive({}) end
+    function frame:Click(button)
+        if self.scripts.OnClick then self.scripts.OnClick(self, button or "LeftButton") end
+    end
     state.frames[#state.frames + 1] = frame
-    return frame
+    if name then
+        _G[name] = frame
+        Stubs.namedFrames[name] = true
+    end
+    return permissive(frame)
+end
+
+-- Every visible text of all frames, in creation order.
+function Stubs.AllTexts()
+    local texts = {}
+    for _, frame in ipairs(state.frames) do
+        for _, text in ipairs(Stubs.Texts(frame)) do texts[#texts + 1] = text end
+    end
+    return texts
+end
+
+-- Every visible text of a frame, in creation order (for UI assertions).
+function Stubs.Texts(frame)
+    local texts = {}
+    for _, region in ipairs(frame.regions) do
+        if region.shown and region.text then texts[#texts + 1] = region.text end
+    end
+    return texts
+end
+
+local function unitGuid(unit)
+    if unit == "player" then return state.player.guid end
+    local index = tonumber(unit:match("^party(%d)$") or unit:match("^raid(%d+)$"))
+    local member = index and state.group[index]
+    return member and member.guid
+end
+
+local function unitMember(unit)
+    if unit == "player" then return state.player end
+    local index = tonumber(unit:match("^party(%d)$") or unit:match("^raid(%d+)$"))
+    return index and state.group[index]
+end
+
+local function installUnits(opts)
+    state.player = {
+        guid = opts.guid or "Player-1-0000AAAA", name = opts.name or "Tester", realm = opts.realm or "Forever", class = "MAGE",
+    }
+    _G.UnitGUID = unitGuid
+    _G.UnitFullName = function(unit)
+        local member = unitMember(unit)
+        if not member then return nil end
+        return member.name, member.realm
+    end
+    _G.GetRealmName = function() return state.player.realm end
+    _G.UnitClass = function(unit)
+        local member = unitMember(unit)
+        if member then return member.class, member.class end
+    end
+    _G.UnitLevel = function() return state.level end
+    _G.IsInRaid = function() return #state.group > 4 end
+    _G.GetNumGroupMembers = function() return #state.group > 0 and #state.group + 1 or 0 end
+    _G.GetNumSubgroupMembers = function() return #state.group end
+end
+
+local function installWorld()
+    _G.C_Map = { GetBestMapForUnit = function() return 1411 end }
+    _G.GetInstanceInfo = function()
+        local i = state.instance
+        return i.name, i.type, i.difficulty, "", 5, 0, false, i.id, 0, nil
+    end
+    _G.GetProfessions = function()
+        local p = state.professions
+        return p[1] and 1, p[2] and 2, nil, nil, nil
+    end
+    _G.GetProfessionInfo = function(index)
+        local p = state.professions[index]
+        if p then return p.name, 0, p.rank, p.max, 0, 0, p.skillLine end
+    end
+    _G.C_TradeSkillUI = nil
+    _G.C_Spell = { GetSpellName = function(spellID) return state.spellNames[spellID] end }
+    _G.C_Item = {
+        GetItemNameByID = function(itemID) return state.itemNames[itemID] end,
+        GetItemInfoInstant = function(itemID)
+            local class = state.itemClasses[itemID]
+            if class then return itemID, "", "", "", 0, class[1], class[2] end
+        end,
+        RequestLoadItemDataByID = function(itemID) state.requestedItems[itemID] = true end,
+    }
+    _G.GetNumLootItems = function() return state.loot and #state.loot.items or 0 end
+    _G.GetLootSlotLink = function(slot)
+        local item = state.loot and state.loot.items[slot]
+        if item and not item.looted then return "|cffffffff|Hitem:" .. item.id .. "::::::::|h[x]|h|r" end
+    end
+    _G.GetLootSlotInfo = function(slot)
+        local item = state.loot and state.loot.items[slot]
+        if item then return 0, "x", item.quantity or 1 end
+    end
+    _G.GetLootSourceInfo = function()
+        return state.loot and state.loot.source, 1
+    end
 end
 
 -- opts: now, guid, name, realm, level, interface, accountDB, charDB, locale, unknownEvents
@@ -31,22 +180,29 @@ function Stubs.Install(opts)
         printed = {},
         level = opts.level or 10,
         unknownEvents = opts.unknownEvents or {},
+        instance = { id = 1, type = "none", difficulty = 0, name = "Kalimdor" },
+        group = {},
+        professions = {},
+        spellNames = {},
+        itemNames = {},
+        itemClasses = {},
+        requestedItems = {},
     }
     Stubs.state = state
+    for name in pairs(Stubs.namedFrames) do
+        _G[name] = nil
+    end
 
     _G.unpack = _G.unpack or table.unpack
+    _G.tinsert = table.insert
     _G.time = function() return state.now end
     _G.date = os.date
     _G.issecretvalue = function(value) return value == Stubs.SECRET end
     _G.GetLocale = function() return opts.locale or "enUS" end
     _G.GetBuildInfo = function() return "1.60.1", "70009", "Oct 1 2026", opts.interface or 16001 end
     _G.WOW_PROJECT_ID, _G.WOW_PROJECT_MAINLINE = 1, 1
-    _G.UnitGUID = function(unit) if unit == "player" then return opts.guid or "Player-1-0000AAAA" end end
-    _G.UnitFullName = function() return opts.name or "Tester", opts.realm or "Forever" end
-    _G.GetRealmName = function() return opts.realm or "Forever" end
-    _G.UnitClass = function() return "Mage", "MAGE", 8 end
-    _G.UnitLevel = function() return state.level end
-    _G.C_Map = { GetBestMapForUnit = function() return 1411 end }
+    installUnits(opts)
+    installWorld()
     _G.C_Timer = {
         After = function(seconds, fn)
             state.timers[#state.timers + 1] = { at = state.now + seconds, fn = fn }
@@ -54,20 +210,24 @@ function Stubs.Install(opts)
     }
     _G.C_AddOns = nil
     _G.C_EventUtils = nil
-    _G.CreateFrame = function() return newFrame() end
+    _G.CreateFrame = newFrame
+    _G.UIParent = newFrame()
     _G.DEFAULT_CHAT_FRAME = { AddMessage = function(_, message) state.printed[#state.printed + 1] = message end }
     _G.geterrorhandler = function() return function() end end
     _G.SlashCmdList = {}
     _G.UISpecialFrames = {}
+    _G.Settings = nil
+    _G.LibStub = nil
     _G.WayscribeDB = opts.accountDB
     _G.WayscribeCharDB = opts.charDB
 end
 
+-- Lua files in TOC order; embeds.xml (the libraries) is skipped, like a copy without Libs.
 function Stubs.TocFiles()
     local files = {}
     for rawLine in io.lines("Wayscribe.toc") do
         local line = rawLine:gsub("%s+$", "")
-        if line ~= "" and not line:find("^#") then
+        if line ~= "" and not line:find("^#") and line:find("%.lua$") then
             files[#files + 1] = (line:gsub("\\", "/"))
         end
     end
@@ -113,6 +273,30 @@ function Stubs.Now() return state.now end
 function Stubs.SetLevel(level) state.level = level end
 function Stubs.Printed() return state.printed end
 
+-- Where the player is: Stubs.SetInstance(389, "party", "Ragefire Chasm"); no arguments = outdoors.
+function Stubs.SetInstance(id, instanceType, name, difficulty)
+    if not id then
+        state.instance = { id = 1, type = "none", difficulty = 0, name = "Kalimdor" }
+    else
+        state.instance = { id = id, type = instanceType, difficulty = difficulty or 1, name = name }
+    end
+end
+
+-- Group members other than the player: list of { guid, name, realm, class }.
+function Stubs.SetGroup(members) state.group = members end
+
+-- Learned professions: list of { skillLine, name, rank, max } (slots prof1, prof2).
+function Stubs.SetProfessions(list) state.professions = list end
+
+-- An open loot window: { source = guid, items = { { id = itemID, quantity = n }, ... } } or nil.
+function Stubs.SetLoot(loot) state.loot = loot end
+
+-- Loots one slot the way the client does: the slot empties, then LOOT_SLOT_CLEARED fires.
+function Stubs.LootSlot(slot)
+    state.loot.items[slot].looted = true
+    Stubs.Fire("LOOT_SLOT_CLEARED", slot)
+end
+
 -- ADDON_LOADED -> PLAYER_LOGIN -> PLAYER_ENTERING_WORLD, as on a real login or /reload.
 function Stubs.Login(reload)
     Stubs.Fire("ADDON_LOADED", "Wayscribe")
@@ -121,6 +305,7 @@ function Stubs.Login(reload)
 end
 
 -- Logout, then load a fresh copy of the addon with exactly what the client would have saved.
+-- The world (instance, group, professions) stays as it was, like on a real /reload.
 function Stubs.Relog(opts, reload)
     local serialize = require("serialize")
     Stubs.Fire("PLAYER_LOGOUT")
@@ -128,13 +313,23 @@ function Stubs.Relog(opts, reload)
         accountDB = serialize.RoundTrip(_G.WayscribeDB),
         charDB = serialize.RoundTrip(_G.WayscribeCharDB),
     }
+    local world = {
+        instance = state.instance, group = state.group, professions = state.professions,
+        spellNames = state.spellNames, itemNames = state.itemNames, itemClasses = state.itemClasses,
+    }
     opts = opts or {}
     for key, value in pairs(saved) do
         if opts[key] == nil then opts[key] = value end
     end
     opts.now = opts.now or state.now
     opts.level = opts.level or state.level
-    local ns = Stubs.LoadAddon(opts)
+    Stubs.Install(opts)
+    for key, value in pairs(world) do state[key] = value end
+    local ns = {}
+    for _, file in ipairs(Stubs.TocFiles()) do
+        assert(loadfile(file))("Wayscribe", ns)
+    end
+    Stubs.ns = ns
     Stubs.Login(reload)
     return ns
 end

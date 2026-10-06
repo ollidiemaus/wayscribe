@@ -84,6 +84,19 @@ function Module:After(seconds, fn)
     end)
 end
 
+-- Runs fn(self) once, `seconds` after the last call with this key: a burst of noisy events
+-- (SKILL_LINES_CHANGED, BAG_UPDATE) costs one piece of work (docs/ARCHITECTURE.md §3.3).
+function Module:Debounce(key, seconds, fn)
+    self.debounced = self.debounced or {}
+    local generation = (self.debounced[key] or 0) + 1
+    self.debounced[key] = generation
+    self:After(seconds, function(module)
+        if module.debounced[key] == generation then
+            fn(module)
+        end
+    end)
+end
+
 function Module:Enable()
     if self.enabled then return true end
     self.enabled = true

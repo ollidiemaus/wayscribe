@@ -1,17 +1,19 @@
 local _, ns = ...
 
--- Registry of everything that turns game events into journal facts. The settings page (0.2)
--- builds one toggle per non-internal tracker from this list.
+-- Registry of everything that turns game events into journal facts. The settings page builds one
+-- toggle per non-internal tracker from this list.
 local Trackers = { list = {}, byId = {} }
 ns.Trackers = Trackers
 
--- opts.label: shown in settings; opts.default: on unless false; opts.internal: always on, no toggle.
+-- opts.label and opts.tooltip: shown in settings; opts.default: on unless false;
+-- opts.internal: always on, no toggle.
 function Trackers:New(id, opts)
     assert(not self.byId[id], "duplicate tracker " .. tostring(id))
     opts = opts or {}
     local tracker = ns.NewModule("tracker:" .. id)
     tracker.id = id
     tracker.label = opts.label or id
+    tracker.tooltip = opts.tooltip
     tracker.default = opts.default ~= false
     tracker.internal = opts.internal == true
     self.list[#self.list + 1] = tracker

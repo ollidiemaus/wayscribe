@@ -166,6 +166,11 @@ function Store:GetDay(dayKey)
     return month and month.days[dayKey]
 end
 
+local function byTime(a, b)
+    if a.ts ~= b.ts then return a.ts < b.ts end
+    return a.id < b.id
+end
+
 -- A time-sorted copy of the day's records (a changed system clock can append out of order).
 function Store:GetDayRecords(dayKey)
     local day = self:GetDay(dayKey)
@@ -174,11 +179,56 @@ function Store:GetDayRecords(dayKey)
     for i, record in ipairs(day.records) do
         records[i] = record
     end
-    table.sort(records, function(a, b)
-        if a.ts ~= b.ts then return a.ts < b.ts end
-        return a.id < b.id
-    end)
+    table.sort(records, byTime)
     return records
+end
+
+-- Records with fromTs <= ts <= toTs (time-sorted), plus the summed counters of every day the range
+-- touches. Counters are kept per day, so they can include other sessions of the same day.
+function Store:GetActivity(fromTs, toTs)
+    local records, counters = {}, {}
+    local firstDay, lastDay = Time.DayKey(fromTs), Time.DayKey(toTs)
+    for _, dayKey in ipairs(self:GetDayKeys()) do
+        if dayKey >= firstDay and dayKey <= lastDay then
+            local day = self:GetDay(dayKey)
+            for _, record in ipairs(day.records) do
+                if record.ts >= fromTs and record.ts <= toTs then
+                    records[#records + 1] = record
+                end
+            end
+            for path, bucket in pairs(day.counters) do
+                counters[path] = counters[path] or {}
+                for key, amount in pairs(bucket) do
+                    counters[path][key] = (counters[path][key] or 0) + amount
+                end
+            end
+        end
+    end
+    table.sort(records, byTime)
+    return records, counters
+end
+
+-- The most recent session before the current one (for the login recap), or nil.
+function Store:GetPreviousSession()
+    if not self.db then return nil end
+    local current = self.db.state.session
+    local monthKeys = {}
+    for monthKey, month in pairs(self.db.months) do
+        if type(monthKey) == "number" and type(month.sessions) == "table" then
+            monthKeys[#monthKeys + 1] = monthKey
+        end
+    end
+    table.sort(monthKeys, function(a, b) return a > b end)
+    for _, monthKey in ipairs(monthKeys) do
+        local sessions = self.db.months[monthKey].sessions
+        for i = #sessions, 1, -1 do
+            local isCurrent = type(current) == "table" and current.m == monthKey and current.i == i
+            if not isCurrent and type(sessions[i]) == "table" and type(sessions[i].s) == "number" then
+                return sessions[i]
+            end
+        end
+    end
+    return nil
 end
 
 function Store:GetFirst(key)

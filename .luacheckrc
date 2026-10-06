@@ -1,7 +1,8 @@
 std = "lua51"
 max_line_length = 140
 self = false -- methods often ignore self (event handlers, mixin-style APIs)
-exclude_files = { ".git/", ".release/" }
+-- .lua/, .luarocks/ and .install/ are the toolchains the CI actions install into the workspace.
+exclude_files = { ".git/", ".release/", "Libs/", ".lua/", ".luarocks/", ".install/" }
 
 -- Globals the addon defines.
 globals = {
@@ -10,6 +11,11 @@ globals = {
     "SLASH_WAYSCRIBE1",
     "SLASH_WAYSCRIBE2",
     "SlashCmdList",
+    "StaticPopupDialogs",
+    "BINDING_HEADER_WAYSCRIBE",
+    "BINDING_NAME_WAYSCRIBE_TOGGLE",
+    "Wayscribe_OnAddonCompartmentClick",
+    "Wayscribe_ToggleJournal",
 }
 
 -- WoW API the addon reads. Keep this list explicit: an unexpected global is usually a typo.
@@ -19,13 +25,19 @@ read_globals = {
     -- Frames and UI
     "CreateFrame", "UIParent", "UISpecialFrames", "DEFAULT_CHAT_FRAME",
     "CreateScrollBoxListLinearView", "ScrollUtil", "Settings", "AddonCompartmentFrame",
+    "CreateSettingsListSectionHeaderInitializer", "CreateSettingsButtonInitializer",
+    "StaticPopup_Show", "ReloadUI",
     -- Client and player info
     "GetBuildInfo", "GetLocale", "GetRealmName", "WOW_PROJECT_ID",
     "UnitGUID", "UnitFullName", "UnitClass", "UnitLevel", "UnitPosition",
+    "IsInRaid", "GetNumGroupMembers", "GetNumSubgroupMembers",
     "GetInstanceInfo", "GetProfessions", "GetProfessionInfo", "GetNumSkillLines", "GetSkillLineInfo",
-    "GetLootSourceInfo", "GetAddOnMetadata",
+    "GetSpellInfo", "GetAddOnMetadata",
+    "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "GetLootSourceInfo",
     -- Namespaces
-    "C_AddOns", "C_EventUtils", "C_Map", "C_QuestLine", "C_Timer",
+    "C_AddOns", "C_EventUtils", "C_Item", "C_Map", "C_QuestLine", "C_Spell", "C_Timer", "C_TradeSkillUI",
+    -- Libraries (optional, see embeds.xml)
+    "LibStub",
 }
 
 files["Locales/"] = { max_line_length = false }

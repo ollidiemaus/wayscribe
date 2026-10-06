@@ -34,12 +34,24 @@ end
 -- pattern uses DD, MM and YYYY, e.g. "DD.MM.YYYY". Defaults to the player's setting, then the locale.
 function Time.FormatDay(dayKey, pattern)
     if not pattern then
-        local settings = ns.accountDB and ns.accountDB.settings
-        pattern = (settings and settings.dateFormat) or ns.L.DATE_FORMAT
+        pattern = ns.Options:Get("dateFormat")
+        if type(pattern) ~= "string" or pattern == "" then
+            pattern = ns.L.DATE_FORMAT
+        end
     end
     local year, month, day = Time.SplitDay(dayKey)
     return (pattern
         :gsub("YYYY", string.format("%04d", year))
         :gsub("MM", string.format("%02d", month))
         :gsub("DD", string.format("%02d", day)))
+end
+
+function Time.FormatDuration(seconds)
+    local minutes = math.floor(seconds / 60)
+    if minutes < 1 then
+        return ns.L.DURATION_UNDER_MINUTE
+    elseif minutes < 60 then
+        return ns.L.DURATION_MINUTES:format(minutes)
+    end
+    return ns.L.DURATION_HOURS:format(math.floor(minutes / 60), minutes % 60)
 end

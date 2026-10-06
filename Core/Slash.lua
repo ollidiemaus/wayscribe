@@ -14,6 +14,21 @@ commands.help = function()
     ns.Print(L.HELP)
 end
 
+commands.settings = function()
+    ns.SettingsPanel:Open()
+end
+commands.config = commands.settings
+
+-- Shows the login recap now, regardless of the setting and of whether it was shown today.
+commands.recap = function()
+    local recap = ns.LoginRecap:Collect(true)
+    if recap then
+        ns.LoginRecap:Show(recap)
+    else
+        ns.Print(L.RECAP_NOTHING)
+    end
+end
+
 commands.probe = function()
     ns.Probe:Run()
 end

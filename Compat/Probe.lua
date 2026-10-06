@@ -9,10 +9,13 @@ ns.Probe = Probe
 -- COMBAT_LOG_EVENT_UNFILTERED is deliberately missing: registering it on Forever pops a
 -- protected-action warning.
 local EVENTS = {
-    "BOSS_KILL", "CHAT_MSG_SKILL", "ENCOUNTER_END", "LFG_COMPLETION_REWARD", "LOOT_READY",
-    "LOOT_SLOT_CLEARED", "PLAYER_DEAD", "PLAYER_LEVEL_UP", "QUEST_TURNED_IN", "SCENARIO_COMPLETED",
-    "SKILL_LINES_CHANGED", "TRADE_SKILL_LIST_UPDATE", "UNIT_SPELLCAST_SUCCEEDED",
+    "BOSS_KILL", "CHAT_MSG_SKILL", "ENCOUNTER_END", "GET_ITEM_INFO_RECEIVED", "ITEM_DATA_LOAD_RESULT",
+    "LFG_COMPLETION_REWARD", "LOOT_CLOSED", "LOOT_READY", "LOOT_SLOT_CLEARED", "PLAYER_DEAD",
+    "PLAYER_LEVEL_UP", "QUEST_TURNED_IN", "SCENARIO_COMPLETED", "SKILL_LINES_CHANGED",
+    "TRADE_SKILL_LIST_UPDATE", "UNIT_SPELLCAST_SUCCEEDED", "ZONE_CHANGED_NEW_AREA",
 }
+
+local LIBRARIES = { "LibStub", "CallbackHandler-1.0", "LibDataBroker-1.1", "LibDBIcon-1.0" }
 
 local function describe(value)
     if value == nil then return "nil" end
@@ -36,6 +39,31 @@ local function readMapPosition(lines, mapID)
         local wy = type(world) == "table" and Compat.Safe(world.y, "number")
         lines[#lines + 1] = "map.world = continent " .. describe(continentID)
             .. (wx and wy and string.format(" at %.1f, %.1f", wx, wy) or " (no position)")
+    end
+end
+
+-- What 0.2's trackers rely on: profession values, gather spell names in this client's language.
+local function addTrackerInputs(add)
+    for skillLine, info in pairs(Compat.GetProfessionSnapshot() or {}) do
+        add("profession." .. skillLine, describe(info.name) .. " " .. describe(info.rank) .. "/" .. describe(info.max)
+            .. " (skill line name: " .. describe(Compat.GetSkillLineName(skillLine)) .. ")")
+    end
+    -- StaticData is plain tables with no dependencies, so the probe may read it.
+    for _, kind in ipairs({ "mining", "herbalism", "skinning" }) do
+        for _, spellID in ipairs(ns.StaticData.GatherSpells[kind]) do
+            add("spell." .. kind .. "." .. spellID, Compat.GetSpellName(spellID))
+        end
+    end
+    -- Library minor versions, nil when missing (an unpackaged copy has no Libs folder).
+    local libStub = LibStub
+    for _, name in ipairs(LIBRARIES) do
+        local minor
+        if name == "LibStub" then
+            minor = libStub and libStub.minor
+        elseif libStub then
+            minor = select(2, libStub(name, true))
+        end
+        add("lib." .. name, minor)
     end
 end
 
@@ -87,6 +115,7 @@ local function collect()
     end
     add("level", Compat.GetPlayerLevel())
     add("secret.UnitLevel", Compat.IsSecret(UnitLevel and UnitLevel("player")))
+    addTrackerInputs(add)
     return lines
 end
 

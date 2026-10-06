@@ -1,7 +1,8 @@
 local _, ns = ...
 
 -- Internal messages between layers (docs/ARCHITECTURE.md §3.3):
---   READY, LOGOUT, SAFE_MODE(reason), RECORD_ADDED(record), COUNTER_CHANGED(path, key, amount)
+--   READY, LOGOUT, SAFE_MODE(reason), RECORD_ADDED(record), COUNTER_CHANGED(path, key, amount),
+--   SETTINGS_CHANGED(key, value), ITEM_NAMES_LOADED
 local Bus = { handlers = {} }
 ns.Bus = Bus
 
