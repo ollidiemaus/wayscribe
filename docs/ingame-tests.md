@@ -25,9 +25,11 @@ gather spell names and libraries are all present.
 
 ### Professions and gathering
 
-- [ ] **Learn a gathering profession.** Expect "Bergbau erlernt" (or similar).
-- [ ] **`/ws probe` with professions learned.** Paste into forever-probe.md. Answers §12 #2: is the
-  skill line ID the parent (186) or a child (2946), and does First Aid show up?
+- [x] **Learn a gathering profession.** Expect "Bergbau erlernt" (or similar). *Skinning learned
+  2026-10-06: `PROFESSION_LEARNED {skillLine = 393}` with the first-time mark.*
+- [x] **`/ws probe` with professions learned.** Paste into forever-probe.md. Answers §12 #2: is the
+  skill line ID the parent (186) or a child (2946), and does First Aid show up? *The parent: 393
+  Kürschnerei 3/75. First Aid is still open (not learned yet).*
 - [ ] **Skill up and reach 75.** Expect "Fertigkeitspunkte: Bergbau +N" in the day and "Bergbau auf
   75 gebracht".
 - [ ] **Mine a vein that takes several hits, pick a herb, skin a mob.** Expect one node each and the
@@ -104,19 +106,20 @@ about 3.2 KB (budget 10 KB). These checks need the client.
 
 ### Recording
 
-- [ ] **Walk and ride for a few minutes, then open the world map.** A dark red line follows your
+- [x] **Walk and ride for a few minutes, then open the world map.** A dark red line follows your
   way, ending where you stand, and keeps growing while the map stays open. Does it lie on the roads
   you took (not mirrored or shifted)? *2026-10-06: in the right place, and complete on the
   full-screen map. On the small map (with the quest log) at its default zoom, the trail being
   recorded broke up; zooming in showed it. Cause: its lines (8 yards a point) are under a pixel
   there. A first fix (re-laying out the lines after drawing) didn't help; lines are now at least
-  3 pixels long, with a tail to the player, and drawn again after zooming. Check again: walk with
-  the small map open at its default zoom; the line must stay whole and follow you.*
+  3 pixels long, with a tail to the player, and drawn again after zooming. Rechecked: the line
+  stays whole and follows you on the small map too.*
 - [ ] **Stand still for a minute, then walk on.** The line continues without a gap.
 - [ ] **Take a flight.** The flight is a thinner blue line from flight master to flight master, the
   walk before and after joins it. With *Record flight paths* off, the flight leaves no line.
 - [ ] **Hearthstone or a portal.** No line across the jump.
-- [ ] **Die and run back as a ghost.** The ghost's way is not drawn.
+- [x] **Die and run back as a ghost.** The ghost's way is not drawn. *Yes; after resurrecting, the
+  trail goes on from the respawn spot (2026-10-06).*
 - [ ] **Fight a few mobs while moving.** The line has no gaps from combat. (Is the position
   secret in combat? §12 #5)
 - [ ] **`/reload` while walking.** The trail so far stays on the map; recording goes on.
@@ -125,13 +128,16 @@ about 3.2 KB (budget 10 KB). These checks need the client.
 - [ ] **`/ws stats` after about two hours of play.** The "Fußspuren: … KB gepackt" line should be
   well under 10 KB (exit criterion). Note the number here.
 - [ ] **Frame time.** With the map closed, the FPS doesn't change between Footsteps on and off
-  (exit criterion). With "Alle" on a continent map, opening the map doesn't stutter.
+  (exit criterion). With "Alle" on a continent map, opening the map doesn't stutter. *No frame rate
+  change noticed in the first sessions (about 63-66 FPS, map open or closed); "Alle" with a few
+  days of trails is still to try.*
 
 ### Map
 
-- [ ] **Where the lines land.** Above the map art and explored areas, below the quest and flight
-  master icons? Zooming in keeps the lines equally thin.
-- [ ] **The "Fußspuren: Heute" button** (upper right of the map) isn't hidden behind the map's own
+- [x] **Where the lines land.** Above the map art and explored areas, below the quest and flight
+  master icons? Zooming in keeps the lines equally thin. *Yes: the map's icons are drawn over the
+  lines (2026-10-06).*
+- [x] **The "Fußspuren: Heute" button** (upper right of the map) isn't hidden behind the map's own
   controls. *At first it sat in the lower left, over the client's own coordinates; moved to the
   upper right, which looks good (2026-10-06).* Its menu switches between Heute, Letzte 7 Tage, Alle and Aus; older days are lighter.
 - [ ] **Zone, continent, world.** The trail shows on the zone and the continent map; the world map

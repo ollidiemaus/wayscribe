@@ -195,3 +195,26 @@ Notes:
 - The world map takes MapCanvas data providers. The session's trail (one trail of 1807 yards over
   six minutes, stored at logout) was drawn on Mulgore in the right place, above the explored-area
   art.
+
+## Client 1.60.1, build 70235, Wayscribe 0.4, Skinning learned (2026-10-06)
+
+Same character, now level 2, after learning Skinning, standing in Mulgore. Every other line came
+back as in the 0.4 probe above. The lines that changed:
+
+```text
+map.position = 0.4875, 0.8099
+map.fromWorld = 0.4875, 0.8098 (6154 x 4102 yd)
+map.atWorld = 1412
+professions = 4, nil, nil, nil, nil
+level = 2
+profession.393 = Kürschnerei 3/75 (skill line name: Kürschnerei)
+```
+
+Notes:
+- **Answers §12 #2:** `GetProfessionInfo` returns the classic parent skill line (393 Skinning), not
+  one of Forever's child lines (2937–2948). Rank and maximum come back (3/75), and
+  `C_TradeSkillUI.GetTradeSkillDisplayName` names it in the client's language.
+- `GetProfessions` reports the profession at index 4 in its first slot (prof1).
+- The journal recorded `PROFESSION_LEARNED {skillLine = 393}` with the first-time mark, and the real
+  level-up to 2 with its map (1412).
+- `map.atWorld` now names the zone (1412), after the fix that walks down from the continent.

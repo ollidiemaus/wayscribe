@@ -450,7 +450,8 @@ second entry, and it falls back to `UnitLevel` when the event argument is secret
 - Because the snapshot is persisted, changes made while the addon was disabled are reconciled at the
   next login without duplicates.
 - Forever's `SkillLine.db2` has child lines (2937–2948) under the classic professions, like Retail's
-  expansion tiers. Whatever `GetProfessionInfo` returns is used as the key. Names come from
+  expansion tiers. Whatever `GetProfessionInfo` returns is used as the key; on build 70235 that is
+  the classic parent (393 for Skinning, §12 #2). Names come from
   `C_TradeSkillUI.GetTradeSkillDisplayName`, then the name cached in the snapshot.
 
 ### 6.4 Gathering (ores, herbs, skins)
@@ -740,14 +741,14 @@ release in [ingame-tests.md](ingame-tests.md).
 | # | Question | Probe (build 70235) | Still open | Fallback if "no" |
 |---|---|---|---|---|
 | 1 | Do `ENCOUNTER_END` / `BOSS_KILL` fire for Vanilla dungeon bosses? | Both events exist. ForeverChronicle uses both and merges duplicates. | Kill a dungeon boss (0.2). | NPC-ID detection via `UNIT_HEALTH` on the current target (CLEU is not an option, §1). |
-| 2 | Which profession API works? | ✅ `GetProfessions` / `GetProfessionInfo` (modern). | Values with a profession learned (the probe now prints them). Which skill line ID comes back (parent like 186 or child like 2946)? Does First Aid show up in `GetProfessions`? | — |
+| 2 | Which profession API works? | ✅ `GetProfessions` / `GetProfessionInfo` (modern). ✅ With Skinning learned: the parent skill line **393**, rank 3/75, name "Kürschnerei"; it sits in `GetProfessions`' first slot (index 4). | Does First Aid show up in `GetProfessions`? | — |
 | 3 | Does world position work outdoors? | ✅ `UnitPosition` works (instance 1 = Kalimdor). ✅ `C_Map.GetWorldPosFromMapPos` returns the same point. **UnitPosition's first return equals the world vector's `.x`.** ✅ 0.4: the Footsteps transform gives exactly the client's map position. | Behavior inside instances and in combat (0.4 keeps a trail through a short gap). | Zone-relative `uiMapID + x,y`. |
 | 4 | Does `C_QuestLine` return data for Vanilla quests? | `C_QuestLine.GetQuestLineInfo` exists. ❌ The 0.3 probe got nothing for two Mulgore chain quests (747, 752). | Recheck on new client builds. | Curated chains carry the feature (already the first provider). |
 | 5 | Which values are secret, and when? | `issecretvalue` exists. `UnitLevel` is not secret out of combat. ForeverChronicle saw secret aura data and spellcast arguments. | Values in combat and instances. | `Compat.Safe` everywhere. Capture IDs and resolve names later via `ns.Defer`. |
 | 6 | Gather spell IDs, and does `GetLootSourceInfo` exist? | ✅ `GetLootSourceInfo` exists. ✅ All gather spell IDs exist and their names resolve in the client's language (0.2 probe, deDE: Bergbau / Kräuterkunde / Kürschnerei; 1235236 = Kräutersammeln). | Which spell ID a gather cast actually reports, and whether it's secret. | Name match is built in (§6.4); item subclass fallback for nodes. |
 | 7 | Does an LFG or dungeon-finder completion event exist? | `LFG_COMPLETION_REWARD` and `SCENARIO_COMPLETED` exist. | Whether they fire for Vanilla dungeons. | Final-boss data table (already the primary signal). |
 | 8 | Do SavedVariables survive a round trip on the current client build? | ✅ Account and character files written on `/reload` and logout, `.bak` holds the previous save, the session was resumed after the reload. ✅ A full relog added a second session (0.2). | Retest on every new client build. | Missing-DB guard (§4.6). |
-| 9 | Does `WorldMapFrame` take a MapCanvas data provider, and where do the lines land? | ✅ `has.worldMapCanvas`; the trail was drawn in the right place, above the explored-area art. `C_Map.GetMapPosFromWorldPos` answers with the continent (worked around). | Lines under a pixel long broke up on the small map (minimum line length added, recheck). Below the pins? Does `OpenWorldMap(mapID)` exist? | No overlay; the journal hides its map link. |
+| 9 | Does `WorldMapFrame` take a MapCanvas data provider, and where do the lines land? | ✅ `has.worldMapCanvas`; the trail was drawn in the right place, above the explored-area art. `C_Map.GetMapPosFromWorldPos` answers with the continent (worked around). ✅ Lines at least 3 pixels long stay whole on the small map too. ✅ The map's icons are drawn over the lines. ✅ The journal button opens the map at the zone. | — | No overlay; the journal hides its map link. |
 
 Other findings:
 - wago.tools lists build 70235 as product `wow_cn_beta`, so its DB2 tables (`DungeonEncounter`, `Map`,
