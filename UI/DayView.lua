@@ -35,7 +35,7 @@ local function sessionsOf(dayKey, use24Hour)
     return spans, played
 end
 
--- { dayKey, title, subtitle, entries = { { time?, text, icon?, category } }, counters, sessions? }
+-- { dayKey, title, subtitle, played, entries = { { time?, text, icon?, category } }, counters, sessions? }
 function DayView.Build(dayKey, isVisible)
     local use24Hour = Compat.Uses24HourClock()
     local page = { dayKey = dayKey, title = Time.FormatLongDay(dayKey), entries = {} }
@@ -57,6 +57,7 @@ function DayView.Build(dayKey, isVisible)
     page.counters = RecordTypes:CounterLines(day and day.counters, isVisible)
 
     local spans, played = sessionsOf(dayKey, use24Hour)
+    page.played = played
     local parts = { Time.RelativeDay(dayKey) }
     if played > 0 then
         parts[#parts + 1] = L.PAGE_PLAYED:format(Time.FormatDuration(played))

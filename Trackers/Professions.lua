@@ -1,5 +1,5 @@
 local _, ns = ...
-local L, Compat, Store = ns.L, ns.Compat, ns.Store
+local L, Compat, Store, YearCards = ns.L, ns.Compat, ns.Store, ns.YearCards
 
 -- Snapshot-diff (docs/ARCHITECTURE.md §6.3): after skill events settle, the learned professions are
 -- compared with the saved snapshot. Chat text is never parsed, so this works in every language,
@@ -8,6 +8,7 @@ local RANKS = { 75, 150, 225, 300 }
 local SETTLE = 0.5
 -- Profession data can still be loading right after login.
 local FIRST_SNAPSHOT_DELAY = 3
+local ICON = "Interface\\Icons\\Trade_BlackSmithing"
 
 local function skillName(skillLine)
     local name = Compat.GetSkillLineName(skillLine)
@@ -22,6 +23,17 @@ ns.RecordTypes:Register("PROFESSION_LEARNED", {
     category = "progress",
     fields = { skillLine = "number" },
     firstKey = function(data) return "PROF:" .. data.skillLine end,
+    -- The professions learned (Your Year).
+    rollup = function(rollup, data)
+        rollup.professionsLearned = rollup.professionsLearned or {}
+        rollup.professionsLearned[data.skillLine] = true
+    end,
+    merge = function(target, source)
+        for skillLine in pairs(source.professionsLearned or {}) do
+            target.professionsLearned = target.professionsLearned or {}
+            target.professionsLearned[skillLine] = true
+        end
+    end,
     render = function(data)
         return L.PROFESSION_LEARNED:format(skillName(data.skillLine))
     end,
@@ -59,6 +71,47 @@ ns.RecordTypes:RegisterCounter("skill", {
         end
         table.sort(parts)
         return L.COUNTER_SKILL:format(table.concat(parts, L.LIST_SEPARATOR))
+    end,
+})
+
+-- "+275 skill points. Learned Mining and Herbalism. Mining reached 225. Skill gains: ..."
+YearCards:Register({
+    id = "professions",
+    order = 70,
+    build = function(summary)
+        local rollup = summary.rollup
+        local skill = rollup.counters.skill
+        local points = YearCards.Sum(skill)
+        local learned = {}
+        for skillLine in pairs(rollup.professionsLearned or {}) do
+            learned[#learned + 1] = skillName(skillLine)
+        end
+        table.sort(learned)
+        local ranks = {}
+        for skillLine, rank in pairs(rollup.professionRanks or {}) do
+            ranks[#ranks + 1] = { name = skillName(skillLine), rank = rank }
+        end
+        if points == 0 and #learned == 0 and #ranks == 0 then return nil end
+        local card = { title = L.CARD_PROFESSIONS, icon = ICON, lines = {} }
+        if points > 0 then
+            card.big, card.caption = YearCards.Number(points), YearCards.Plural("CARD_PROFESSIONS_POINTS", points)
+        else
+            card.big, card.caption = YearCards.Number(#learned), YearCards.Plural("CARD_PROFESSIONS_LEARNED_COUNT", #learned)
+        end
+        if #learned > 0 then
+            card.lines[#card.lines + 1] = L.PROFESSION_LEARNED:format(YearCards.List(learned))
+        end
+        table.sort(ranks, function(a, b)
+            if a.rank ~= b.rank then return a.rank > b.rank end
+            return a.name < b.name
+        end)
+        for _, entry in ipairs(ranks) do
+            card.lines[#card.lines + 1] = L.PROFESSION_RANK:format(entry.name, entry.rank)
+        end
+        if points > 0 then
+            card.lines[#card.lines + 1] = ns.RecordTypes.counters.skill.render(skill)
+        end
+        return card
     end,
 })
 

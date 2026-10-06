@@ -1,5 +1,5 @@
 local _, ns = ...
-local L, Compat, Store, Time, Players = ns.L, ns.Compat, ns.Store, ns.Time, ns.Players
+local L, Compat, Store, Time, Players, YearCards = ns.L, ns.Compat, ns.Store, ns.Time, ns.Players, ns.YearCards
 local StaticData = ns.StaticData
 
 -- Dungeon and raid runs (docs/ARCHITECTURE.md §6.6). A run lives in state.activeRun from entering
@@ -14,6 +14,9 @@ local REPEAT_KILL = 120
 local TRACKED_TYPES = { party = true, raid = true }
 local INSTANCE_EVENTS = { "ENCOUNTER_END", "BOSS_KILL", "LFG_COMPLETION_REWARD", "SCENARIO_COMPLETED" }
 local MAX_NAMES = 5
+local DUNGEONS_ICON = "Interface\\Icons\\INV_Misc_Key_03"
+local COMPANIONS_ICON = "Interface\\Icons\\Spell_Holy_PrayerOfFortitude"
+local TOP_COMPANIONS = 3
 
 local function instanceTitle(data)
     local title = data.name or L.UNKNOWN_INSTANCE:format(data.instanceID)
@@ -45,6 +48,13 @@ local function addCounts(target, source)
     end
 end
 
+-- The earliest of two optional timestamps.
+local function earliest(a, b)
+    if not a then return b end
+    if not b then return a end
+    return math.min(a, b)
+end
+
 local RUN_FIELDS = {
     instanceID = "number", name = "string?", difficultyID = "number?", wing = "string?",
     roster = "table?", bosses = "table?", dur = "number?",
@@ -57,9 +67,18 @@ ns.RecordTypes:Register("DUNGEON_COMPLETED", {
     firstKey = function(data)
         return "DUNGEON:" .. data.instanceID .. (data.wing and (":" .. data.wing) or "")
     end,
-    rollup = function(rollup, data)
+    -- Clears per instance, with the captured name and the first clear's time (Your Year).
+    rollup = function(rollup, data, record)
         rollup.dungeons = rollup.dungeons or {}
         rollup.dungeons[data.instanceID] = (rollup.dungeons[data.instanceID] or 0) + 1
+        if data.name then
+            rollup.dungeonNames = rollup.dungeonNames or {}
+            rollup.dungeonNames[data.instanceID] = data.name
+        end
+        if record.first then
+            rollup.dungeonFirsts = rollup.dungeonFirsts or {}
+            rollup.dungeonFirsts[data.instanceID] = earliest(rollup.dungeonFirsts[data.instanceID], record.ts)
+        end
         countCompanions(rollup, data)
     end,
     -- Also merges `companions`, which DUNGEON_VISITED fills too: one merge per rollup field.
@@ -69,6 +88,14 @@ ns.RecordTypes:Register("DUNGEON_COMPLETED", {
                 target[field] = target[field] or {}
                 addCounts(target[field], source[field])
             end
+        end
+        for instanceID, name in pairs(source.dungeonNames or {}) do
+            target.dungeonNames = target.dungeonNames or {}
+            target.dungeonNames[instanceID] = name
+        end
+        for instanceID, ts in pairs(source.dungeonFirsts or {}) do
+            target.dungeonFirsts = target.dungeonFirsts or {}
+            target.dungeonFirsts[instanceID] = earliest(target.dungeonFirsts[instanceID], ts)
         end
     end,
     render = function(data, record)
@@ -97,6 +124,71 @@ ns.RecordTypes:Register("DUNGEON_VISITED", {
             text = L.DUNGEON_VISITED_BOSSES:format(instanceTitle(data), bosses)
         end
         return withGroup(text, data)
+    end,
+})
+
+-- "12 runs completed: 5 different dungeons and raids, most often Ragefire Chasm (4 times)."
+YearCards:Register({
+    id = "dungeons",
+    order = 20,
+    build = function(summary)
+        local rollup = summary.rollup
+        local cleared = YearCards.Sum(rollup.dungeons)
+        local visited = rollup.records.DUNGEON_VISITED or 0
+        if cleared + visited == 0 then return nil end
+        local card = { title = L.CARD_DUNGEONS, icon = DUNGEONS_ICON, lines = {} }
+        if cleared == 0 then
+            card.big, card.caption = YearCards.Number(visited), YearCards.Plural("CARD_DUNGEONS_VISITS", visited)
+            return card
+        end
+        card.big, card.caption = YearCards.Number(cleared), YearCards.Plural("CARD_DUNGEONS_CLEARED", cleared)
+        local names = rollup.dungeonNames or {}
+        local function nameOf(instanceID)
+            return names[instanceID] or L.UNKNOWN_INSTANCE:format(instanceID)
+        end
+        local ranked = YearCards.Ranked(rollup.dungeons)
+        if #ranked > 1 then
+            card.lines[#card.lines + 1] = L.CARD_DUNGEONS_DIFFERENT:format(#ranked)
+        end
+        local top = ranked[1]
+        if rollup.dungeons[top] > 1 then
+            card.lines[#card.lines + 1] = L.CARD_DUNGEONS_FAVORITE:format(nameOf(top),
+                YearCards.Plural("CARD_TIMES", rollup.dungeons[top]))
+        else
+            local all = {}
+            for i, instanceID in ipairs(ranked) do all[i] = nameOf(instanceID) end
+            card.lines[#card.lines + 1] = L.CARD_DUNGEONS_LIST:format(YearCards.List(all, 3))
+        end
+        local first = rollup.dungeonFirsts and rollup.dungeonFirsts[top]
+        if first then
+            card.lines[#card.lines + 1] = L.CARD_DUNGEONS_FIRST:format(nameOf(top), YearCards.Date(first))
+        end
+        if visited > 0 then
+            card.lines[#card.lines + 1] = YearCards.Plural("CARD_DUNGEONS_VISITED", visited)
+        end
+        return card
+    end,
+})
+
+-- "8 companions. Xy: 12 runs together, ..."
+YearCards:Register({
+    id = "companions",
+    order = 40,
+    build = function(summary)
+        local companions = summary.rollup.companions
+        local ranked = YearCards.Ranked(companions)
+        if #ranked == 0 then return nil end
+        local card = {
+            title = L.CARD_COMPANIONS, icon = COMPANIONS_ICON,
+            big = YearCards.Number(#ranked), caption = YearCards.Plural("CARD_COMPANIONS_COUNT", #ranked),
+            lines = {},
+        }
+        for i = 1, math.min(#ranked, TOP_COMPANIONS) do
+            local player = Players:Get(ranked[i])
+            card.lines[i] = L.CARD_COMPANION:format(player and player.name or "?",
+                YearCards.Plural("CARD_RUNS_TOGETHER", companions[ranked[i]]))
+        end
+        return card
     end,
 })
 

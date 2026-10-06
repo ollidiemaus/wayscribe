@@ -131,10 +131,12 @@ function Paths:HasDay(dayKey)
     return self.live ~= nil and self.live.day == dayKey
 end
 
--- Trails, days with trails and the size of the packed points (what /ws stats reports).
+-- Trails, days with trails, the size of the packed points and about how much the saved file
+-- holds for them (what /ws stats reports).
 function Paths:GetStats()
-    local stats = { segments = 0, days = 0, bytes = 0, seq = self.db and self.db.seq or 0 }
+    local stats = { segments = 0, days = 0, bytes = 0, saved = 0, seq = self.db and self.db.seq or 0 }
     if not self.db then return stats end
+    stats.saved = ns.Codec.SavedSize(self.db)
     for _, month in pairs(self.db.months) do
         for _, day in pairs(daysOf(month)) do
             if type(day) == "table" and #day > 0 then

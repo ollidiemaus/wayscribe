@@ -54,6 +54,10 @@ function LoginRecap:Collect(force)
     return recap
 end
 
+function LoginRecap:IsShown()
+    return frame ~= nil and frame:IsShown()
+end
+
 function LoginRecap:ShowIfDue()
     local recap = self:Collect()
     if recap then
@@ -87,6 +91,8 @@ local function createWindow()
         insets = { left = 11, right = 12, top = 12, bottom = 11 },
     })
     tinsert(UISpecialFrames, "WayscribeLoginRecapFrame")
+    -- Your Year's prompt waits for this.
+    frame:SetScript("OnHide", function() ns.Bus:Fire("RECAP_HIDDEN") end)
 
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOP", 0, -PADDING)

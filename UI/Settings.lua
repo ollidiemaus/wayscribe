@@ -137,6 +137,7 @@ local function addData(layout)
     addButton(layout, L.SETTINGS_LOG, L.SETTINGS_SHOW, function() ns.Slash:Handle("log") end, L.SETTINGS_LOG_TIP)
     addButton(layout, L.SETTINGS_REBUILD, L.SETTINGS_REBUILD_BUTTON, function() ns.Slash:Handle("rebuild") end,
         L.SETTINGS_REBUILD_TIP)
+    addButton(layout, L.SETTINGS_EXPORT, L.SETTINGS_EXPORT_BUTTON, function() ns.Export:Open() end, L.SETTINGS_EXPORT_TIP)
     addButton(layout, L.SETTINGS_RESET, L.SETTINGS_RESET_BUTTON, confirmReset, L.SETTINGS_RESET_TIP)
 end
 

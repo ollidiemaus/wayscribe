@@ -43,6 +43,7 @@ local function newCharDB(identity)
         schema = Schema.CHAR_CURRENT,
         meta = {
             seq = 0,
+            rollup = ns.Index.ROLLUP_VERSION,
             created = time(),
             guid = identity.guid,
             name = identity.name,
@@ -253,6 +254,8 @@ function Schema:VerifyIdentity()
     meta.clientBuild = ns.Compat.clientBuild
     meta.interface = ns.Compat.interface
     ns.Store:Attach(db)
+    -- Rollups are caches: ones from an older version are rebuilt from the records (§4.5).
+    ns.Index:Upgrade(db)
     self:TouchCanary()
 end
 

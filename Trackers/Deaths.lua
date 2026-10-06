@@ -1,5 +1,5 @@
 local _, ns = ...
-local L, Compat, Store, Time = ns.L, ns.Compat, ns.Store, ns.Time
+local L, Compat, Store, Time, YearCards = ns.L, ns.Compat, ns.Store, ns.Time, ns.YearCards
 
 -- Deaths (docs/ARCHITECTURE.md §6.9): where and when the character died. Outdoors the corpse's
 -- position is kept in world yards, like Footsteps' trails, so the Footsteps map marks it with a
@@ -24,6 +24,20 @@ ns.RecordTypes:Register("DEATH", {
     -- map: uiMapID (its name is looked up when shown); sub: the subzone's name as the client gave
     -- it (no API names it later); c, x, y: continent and world yards
     fields = { map = "number?", sub = "string?", c = "number?", x = "number?", y = "number?" },
+    -- Deaths per map, for the most dangerous place of the year (Your Year).
+    rollup = function(rollup, data)
+        if data.map then
+            rollup.deathMaps = rollup.deathMaps or {}
+            rollup.deathMaps[data.map] = (rollup.deathMaps[data.map] or 0) + 1
+        end
+    end,
+    merge = function(target, source)
+        if not source.deathMaps then return end
+        target.deathMaps = target.deathMaps or {}
+        for map, count in pairs(source.deathMaps) do
+            target.deathMaps[map] = (target.deathMaps[map] or 0) + count
+        end
+    end,
     render = function(data)
         local place = placeOf(data)
         return place and L.DEATH_IN:format(place) or L.DEATH
@@ -31,6 +45,27 @@ ns.RecordTypes:Register("DEATH", {
     markers = function(data)
         if not data.c then return nil end
         return { { c = data.c, x = data.x, y = data.y, icon = SKULL, title = L.DEATH_TOOLTIP } }
+    end,
+})
+
+-- "14 deaths. Most dangerous place: The Barrens (5 deaths)."
+YearCards:Register({
+    id = "deaths",
+    order = 50,
+    build = function(summary)
+        local deaths = summary.rollup.records.DEATH or 0
+        if deaths == 0 then return nil end
+        local card = {
+            title = L.CARD_DEATHS, icon = SKULL,
+            big = YearCards.Number(deaths), caption = YearCards.Plural("CARD_DEATHS_COUNT", deaths),
+            lines = {},
+        }
+        local map, count = YearCards.Top(summary.rollup.deathMaps)
+        local zone = map and count > 1 and Compat.GetMapName(map)
+        if zone then
+            card.lines[1] = L.CARD_DEATHS_PLACE:format(zone, YearCards.Plural("CARD_DEATHS_TIMES", count))
+        end
+        return card
     end,
 })
 

@@ -6,7 +6,9 @@ local L, Compat, Store, Time, RecordTypes, Theme, DayView =
 -- frame with a filter menu in its top bar and an open book below. The left page lists the days
 -- (newest first, grouped by month), the right page shows the selected day, with page controls to
 -- turn to the next older or newer one. The list is a virtualized ScrollBox where the client has
--- one; otherwise a fixed set of rows follows the selection.
+-- one; otherwise a fixed set of rows follows the selection. A second tab, Your Year
+-- (UI/YourYear.lua), draws the yearly recap into the same book and turns its cards with the same
+-- page buttons.
 local Journal = {}
 ns.Journal = Journal
 
@@ -19,12 +21,14 @@ local ROW_HEIGHT = 24
 local CHIP_HEIGHT = 20
 local CHIP_WIDTH = 96
 local GOLD, GREY = { 1, 0.82, 0 }, { 0.5, 0.5, 0.5 } -- text on the frame's dark top bar
+local TABS = { "journal", "year" }
+local TAB_WIDTH = 110 -- without the default UI's tab template
 
 local ui = {}
 Journal.ui = ui
 -- days: visible day keys, newest first; elements: the list rows (month headings and days);
--- byDay: dayKey -> its element; selected: the day on the right page.
-local state = { days = {}, elements = {}, byDay = {}, listDirty = true }
+-- byDay: dayKey -> its element; selected: the day on the right page; tab: "journal" or "year".
+local state = { days = {}, elements = {}, byDay = {}, listDirty = true, tab = "journal" }
 Journal.state = state
 
 local function indexOf(list, value)
@@ -156,7 +160,7 @@ local function showFixedList()
         local row = ui.fixedRows[i]
         if element then
             if not row then
-                row = CreateFrame("Button", nil, ui.listPaper)
+                row = CreateFrame("Button", nil, ui.journalLeft)
                 row:SetHeight(ROW_HEIGHT)
                 row:SetPoint("TOPLEFT", left - 10, -(top + (i - 1) * ROW_HEIGHT))
                 row:SetPoint("TOPRIGHT", -right, -(top + (i - 1) * ROW_HEIGHT))
@@ -274,17 +278,28 @@ end
 ------------------------------------------------------------------------------------------------
 -- Day page and page controls (the right page)
 
+-- "Page 3/12" and the page buttons: back (the older day, the previous card) and on.
+local function showPageControls(page, count, canGoBack, canGoOn)
+    local pattern = type(PAGE_NUMBER_WITH_MAX) == "string" and PAGE_NUMBER_WITH_MAX or L.PAGE_NUMBER
+    ui.pageText:SetText(page and pattern:format(page, count) or "")
+    ui.older:SetEnabled(canGoBack == true)
+    ui.newer:SetEnabled(canGoOn == true)
+end
+
 local function showPage()
     local page = state.selected and DayView.Build(state.selected, visibilityFilter())
     local hasDays = Store.db ~= nil and #Store:GetDayKeys() > 0
     DayView:Show(page, ui.paperWidth, hasDays and L.JOURNAL_NOTHING_SHOWN or L.JOURNAL_EMPTY)
     -- Page 1 is the oldest day, like the first page of a diary.
     local index = indexOf(state.days, state.selected)
-    local pattern = type(PAGE_NUMBER_WITH_MAX) == "string" and PAGE_NUMBER_WITH_MAX or L.PAGE_NUMBER
-    ui.pageText:SetText(index and pattern:format(#state.days - index + 1, #state.days) or "")
-    ui.older:SetEnabled(index ~= nil and index < #state.days)
-    ui.newer:SetEnabled(index ~= nil and index > 1)
+    showPageControls(index and #state.days - index + 1, #state.days, index ~= nil and index < #state.days,
+        index ~= nil and index > 1)
     ui.pathLink:SetShown(state.selected ~= nil and ns.FootstepsMap:CanShow() and ns.Paths:HasDay(state.selected))
+end
+
+local function showYearPage()
+    local index, count = ns.YourYear:Refresh(ui.paperWidth, ui.paperHeight)
+    showPageControls(index, count, index ~= nil and index > 1, index ~= nil and index < count)
 end
 
 local function showTooltip(button)
@@ -330,6 +345,7 @@ local function createPathLink(paper)
     ui.pathLink = link
 end
 
+-- Shared by both tabs; the map link belongs to the day page.
 local function createPageControls(paper)
     local insets = DayView.INSETS
     ui.newer = createPageButton(paper, "Next", L.PAGE_NEWER, -1)
@@ -339,7 +355,7 @@ local function createPageControls(paper)
     ui.pageText = Theme.Text(paper, "text")
     ui.pageText:SetPoint("RIGHT", ui.older, "LEFT", -8, 0)
     ui.pageText:SetJustifyH("RIGHT")
-    createPathLink(paper)
+    createPathLink(ui.journalRight)
 end
 
 ------------------------------------------------------------------------------------------------
@@ -454,13 +470,19 @@ local function createPages(frame)
     ui.banner:SetMaxLines(2)
     ui.listPaper = CreateFrame("Frame", nil, left)
     ui.rightPaper = CreateFrame("Frame", nil, right)
+    -- Each tab draws into its own layer of the paper: here the day list and the day page.
+    ui.journalLeft = CreateFrame("Frame", nil, ui.listPaper)
+    ui.journalLeft:SetAllPoints()
+    ui.journalRight = CreateFrame("Frame", nil, ui.rightPaper)
+    ui.journalRight:SetAllPoints()
 
-    createListHeader(ui.listPaper)
+    createListHeader(ui.journalLeft)
     if Compat.has.scrollBox then
-        createScrollList(ui.listPaper)
+        createScrollList(ui.journalLeft)
     end
-    DayView:Create(ui.rightPaper)
+    DayView:Create(ui.journalRight)
     createPageControls(ui.rightPaper)
+    ns.YourYear:Create(ui.listPaper, ui.rightPaper)
 end
 
 -- The rims scale with the page, so the paper, the filter and the banner move on every resize.
@@ -492,6 +514,53 @@ local function layoutPages()
     end
 end
 
+------------------------------------------------------------------------------------------------
+-- Tabs: the default UI's tabs under the frame, or plain buttons there.
+
+local TAB_LABELS = { journal = L.TAB_JOURNAL, year = L.TAB_YOUR_YEAR }
+
+local function updateTabs()
+    for i, tab in ipairs(ui.tabs) do
+        if not Compat.has.panelTabs then
+            tab:SetEnabled(tab.tabId ~= state.tab)
+        elseif tab.tabId == state.tab then
+            PanelTemplates_SetTab(ui.frame, i)
+        end
+    end
+    local onYear = state.tab == "year"
+    ui.older.tooltip = onYear and L.PAGE_PREVIOUS or L.PAGE_OLDER
+    ui.newer.tooltip = onYear and L.PAGE_NEXT or L.PAGE_NEWER
+end
+
+local function createTabs(frame)
+    ui.tabs = {}
+    for i, id in ipairs(TABS) do
+        local template = Compat.has.panelTabs and "PanelTabButtonTemplate" or "UIPanelButtonTemplate"
+        local tab = CreateFrame("Button", "WayscribeJournalFrameTab" .. i, frame, template)
+        tab:SetID(i)
+        tab.tabId = id
+        tab:SetText(TAB_LABELS[id])
+        if not Compat.has.panelTabs then
+            tab:SetSize(TAB_WIDTH, 22)
+        end
+        -- Where Mainline's CharacterFrame puts its tabs.
+        if i == 1 then
+            tab:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 11, 2)
+        else
+            tab:SetPoint("TOPLEFT", ui.tabs[i - 1], "TOPRIGHT", 1, 0)
+        end
+        tab:SetScript("OnClick", function() Journal:SetTab(id) end)
+        ui.tabs[i] = tab
+    end
+    if Compat.has.panelTabs then
+        frame.Tabs = ui.tabs
+        PanelTemplates_SetNumTabs(frame, #TABS)
+        for _, tab in ipairs(ui.tabs) do
+            Compat.Call(PanelTemplates_TabResize, tab, 0)
+        end
+    end
+end
+
 local function createWindow()
     Theme.Resolve()
     local frame = createFrame()
@@ -500,6 +569,7 @@ local function createWindow()
     setupWindow(frame)
     createPages(frame)
     createFilter(frame)
+    createTabs(frame)
     createResizeGrip(frame)
     frame:Hide()
     tinsert(UISpecialFrames, "WayscribeJournalFrame") -- closes with Escape
@@ -521,6 +591,16 @@ function Journal:Refresh()
     if not ui.frame or not ui.frame:IsShown() then return end
     layoutPages()
     updateHeaders()
+    updateTabs()
+    local onYear = state.tab == "year"
+    ui.journalLeft:SetShown(not onYear)
+    ui.journalRight:SetShown(not onYear)
+    ui.filterBar:SetShown(not onYear)
+    ns.YourYear:SetShown(onYear)
+    if onYear then
+        showYearPage()
+        return
+    end
     if state.listDirty then
         -- Whoever reads the newest day keeps reading the newest day when a new one starts.
         local followNewest = state.selected == nil or state.selected == state.days[1]
@@ -547,12 +627,17 @@ function Journal:Select(dayKey)
     showSelection()
 end
 
--- step 1 turns to the next older day, -1 to the next newer one.
+-- step 1 turns back (the next older day, the previous card), -1 on (a newer day, the next card).
 function Journal:Turn(step)
-    local index = indexOf(state.days, state.selected)
-    local target = index and state.days[index + step]
-    if not target then return end
-    self:Select(target)
+    if state.tab == "year" then
+        if not ns.YourYear:Turn(-step) then return end
+        showYearPage()
+    else
+        local index = indexOf(state.days, state.selected)
+        local target = index and state.days[index + step]
+        if not target then return end
+        self:Select(target)
+    end
     if SOUNDKIT then
         Compat.Call(PlaySound, SOUNDKIT.IG_ABILITY_PAGE_TURN)
     end
@@ -565,19 +650,43 @@ function Journal:ShowPath()
     end
 end
 
--- Opens the journal at dayKey, or at the newest day.
+local function showWindow()
+    if ui.frame:IsShown() then
+        Journal:Refresh()
+    else
+        ui.frame:Show()
+    end
+end
+
+-- Opens the journal at dayKey (on the journal tab), or as it was left at the newest day.
 function Journal:Open(dayKey)
     if not ui.frame then
         createWindow()
     end
+    if dayKey then
+        state.tab = "journal"
+    end
     state.listDirty = true
     state.selected = dayKey
     state.days = {} -- so the refresh keeps dayKey instead of following the newest day
-    if ui.frame:IsShown() then
-        self:Refresh()
-    else
-        ui.frame:Show()
+    showWindow()
+end
+
+-- Opens Your Year at `year`, or at the newest open year.
+function Journal:OpenYear(year)
+    if not ui.frame then
+        createWindow()
     end
+    ns.YourYear:Select(year)
+    state.tab = "year"
+    showWindow()
+end
+
+function Journal:SetTab(tab)
+    if state.tab == tab then return end
+    state.tab = tab
+    state.listDirty = true
+    self:Refresh()
 end
 
 function Journal:Toggle()
@@ -619,3 +728,5 @@ ns.Bus:On("REBUILT", Journal, Journal.OnChanged)
 ns.Bus:On("PATH_ADDED", Journal, Journal.RequestRefresh)
 ns.Bus:On("PATH_LIVE", Journal, Journal.RequestRefresh)
 ns.Bus:On("PATH_WIPED", Journal, Journal.RequestRefresh)
+-- Your Year's share of Azeroth arrives after its card is first drawn.
+ns.Bus:On("COVERAGE_READY", Journal, Journal.RequestRefresh)

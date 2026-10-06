@@ -38,6 +38,17 @@ commands.stats = function()
     ns.Print(L.STATS_LINE:format(stats.records, stats.days, stats.months, stats.sessions, stats.seq))
     local paths = ns.Paths:GetStats()
     ns.Print(L.STATS_PATHS:format(paths.segments, paths.days, paths.bytes / 1024))
+    ns.Print(L.STATS_SAVED:format(stats.bytes / 1024, paths.saved / 1024))
+end
+
+-- /ws year [2026]: Your Year, at the newest year or the one given.
+commands.year = function(rest)
+    ns.Journal:OpenYear(tonumber(rest))
+end
+
+-- /ws export [month|year|all]: the journal as text to copy.
+commands.export = function(rest)
+    ns.Export:Open(rest:lower())
 end
 
 commands.log = function()
@@ -65,6 +76,8 @@ commands.dev = function()
     ns.devMode = not ns.devMode
     ns.accountDB.settings.devMode = ns.devMode or nil
     ns.Print(L.DEV_MODE:format(ns.devMode and L.ON or L.OFF))
+    -- An open journal shows or hides the preview of the current year.
+    ns.Bus:Fire("SETTINGS_CHANGED", "devMode", ns.devMode)
 end
 
 commands.accept = function()

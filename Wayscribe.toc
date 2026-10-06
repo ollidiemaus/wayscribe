@@ -37,6 +37,8 @@ Data\Players.lua
 Data\Index.lua
 Data\Store.lua
 Data\Paths.lua
+Data\Coverage.lua
+Data\YearCards.lua
 Data\Schema.lua
 
 StaticData\Dungeons.lua
@@ -56,7 +58,9 @@ Trackers\Deaths.lua
 
 UI\Theme.lua
 UI\DayView.lua
+UI\YourYear.lua
 UI\Journal.lua
+UI\Export.lua
 UI\FootstepsMap.lua
 UI\LoginRecap.lua
 UI\Settings.lua

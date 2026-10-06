@@ -181,3 +181,49 @@ about 3.2 KB (budget 10 KB). These checks need the client.
 - [ ] **Die in a dungeon.** The journal names the dungeon ("In Flammenschlund gestorben" or
   similar); no skull, since there is no position inside.
 - [ ] **Release and resurrect** don't add a second entry.
+
+## 0.5 Your Year (open)
+
+Unit tests cover the exit criterion: a played year's cards come out the same after every day of the
+journal was deleted, so the recap renders from rollups (and sessions) alone. They also cover the
+prompt's timing (December 1, the January catch-up, once per year, after the login recap). These
+checks need the client.
+
+### Probe and upgrade
+
+- [ ] **`/ws probe` outdoors.** Paste `has.mapChildren`, `has.panelTabs`, `coverage.zones` and the
+  `coverage.continent.*` lines into forever-probe.md. Do the zones and square miles look like
+  Kalimdor and the Eastern Kingdoms (roughly 20-25 zones each)? An unexpected continent ID with a
+  few zones would inflate the total. (§12 #10, #11)
+- [ ] **First login after updating.** The rollups are rebuilt once, silently: `/ws log` stays
+  empty, the journal looks the same, and the saved file has `["rollup"] = 2` under `meta`.
+- [ ] **`/ws stats`.** The new line "Gespeicherte Datei: Tagebuch etwa … KB, Fußspuren etwa … KB"
+  should match the size of `Wayscribe.lua` in the character's SavedVariables folder (after a
+  `/reload`, to within a few percent).
+
+### The tab
+
+- [ ] **Tabs under the journal**: "Tagebuch" and "Dein Jahr" look like the spellbook's or the
+  character frame's tabs, sit right under the frame, and switch. On "Dein Jahr" the filter menu is
+  gone; back on "Tagebuch" it returns. Screenshot it.
+- [ ] **Before December**: "Dein 2026" says when it opens (Dienstag, 1. Dezember 2026).
+- [ ] **Preview with `/ws dev`**: the page switches to the cards at once, subtitle "Dein 2026 ·
+  Vorschau". Read every card in German: do the texts read well, and do all icons show (no green
+  squares)? Is the big number large but inside the page? Turn the cards with the page buttons
+  ("Seite 3/11", page sound) and by clicking them in the list.
+- [ ] **Footsteps card**: briefly "Wird gemessen …", then "Du bist x % von Azeroth abgelaufen" and
+  "Am meisten erkundet: Mulgore (y %)". Note x and y here. No stutter while it measures.
+- [ ] **Live**: with the tab open, level up or loot ore: the cards update.
+
+### Prompt
+
+- [ ] Optional, needs the computer's clock set to December 1 (or later): at login, after the
+  "Letzte Sitzung" window is closed, the popup "Dein 2026 ist fertig!" appears with a chat line;
+  *Anzeigen* opens the tab. The next login doesn't ask again.
+
+### Export
+
+- [ ] **`/ws export`**: the window opens with the text selected. Ctrl+C, paste into a text editor:
+  dates, times and German umlauts come through, entries line up under their times. *Dieser
+  Monat* / *Dieses Jahr* / *Alles* switch the text. Escape closes it.
+- [ ] **Settings > Daten > Tagebuch exportieren** opens the same window.

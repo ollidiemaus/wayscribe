@@ -80,6 +80,7 @@ end
 
 -- The spellbook's fonts (header, entry name, sub text), with plainer ones as fallback.
 local FONTS = {
+    huge = { "Game40Font", "SystemFont_Huge4", "SystemFont_Huge2", "GameFontNormalHuge" }, -- Your Year's numbers
     title = { "SystemFont_Huge2", "GameFontNormalHuge" },
     heading = { "SystemFont_Large", "GameFontNormalLarge" },
     text = { "SystemFont_Med3", "GameFontHighlight" },

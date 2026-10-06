@@ -1,8 +1,9 @@
 local _, ns = ...
 
 -- Plain math on Footsteps trails (docs/ARCHITECTURE.md §6.8): simplification, length, the
--- world-to-map transform and clipping. Trails are flat lists { x1, y1, x2, y2, ... } in world yards.
--- No WoW API here, so all of it is tested in plain Lua.
+-- world-to-map transform, clipping, and the grid cells and areas the coverage stat counts. Trails
+-- are flat lists { x1, y1, x2, y2, ... } in world yards. No WoW API here, so all of it is tested
+-- in plain Lua.
 local Geometry = {}
 ns.Geometry = Geometry
 
@@ -135,4 +136,79 @@ function Geometry.ClipToUnit(x1, y1, x2, y2)
     if t0 then t0, t1 = clipEdge(dy, 1 - y1, t0, t1) end
     if not t0 then return nil end
     return x1 + t0 * dx, y1 + t0 * dy, x1 + t1 * dx, y1 + t1 * dy
+end
+
+------------------------------------------------------------------------------------------------
+-- Coverage: a grid of square cells `size` yards wide; cell (i, j) holds x from i * size to
+-- (i + 1) * size and y from j * size to (j + 1) * size.
+
+-- Calls visit(i, j) for every cell the line from (x1, y1) to (x2, y2) passes through, in order,
+-- the start's cell first (Amanatides-Woo traversal: a diagonal skips no cell).
+function Geometry.WalkCells(x1, y1, x2, y2, size, visit)
+    local i, j = floor(x1 / size), floor(y1 / size)
+    local lastI, lastJ = floor(x2 / size), floor(y2 / size)
+    visit(i, j)
+    local dx, dy = x2 - x1, y2 - y1
+    local stepI, stepJ = dx > 0 and 1 or -1, dy > 0 and 1 or -1
+    local huge = math.huge
+    local nextX, nextY, deltaX, deltaY = huge, huge, huge, huge
+    if dx ~= 0 then
+        nextX = ((dx > 0 and (i + 1) or i) * size - x1) / dx
+        deltaX = size / math.abs(dx)
+    end
+    if dy ~= 0 then
+        nextY = ((dy > 0 and (j + 1) or j) * size - y1) / dy
+        deltaY = size / math.abs(dy)
+    end
+    for _ = 1, math.abs(lastI - i) + math.abs(lastJ - j) do
+        -- Rounding can't take a step past the last cell's row or column.
+        if j == lastJ or (i ~= lastI and nextX < nextY) then
+            i = i + stepI
+            nextX = nextX + deltaX
+        else
+            j = j + stepJ
+            nextY = nextY + deltaY
+        end
+        visit(i, j)
+    end
+end
+
+local function sortedUnique(values)
+    table.sort(values)
+    local unique = {}
+    for _, value in ipairs(values) do
+        if value ~= unique[#unique] then unique[#unique + 1] = value end
+    end
+    return unique
+end
+
+-- Whether a rectangle { minX, maxX, minY, maxY } of `rects` contains the point.
+function Geometry.InAnyRect(rects, x, y)
+    for _, rect in ipairs(rects) do
+        if x >= rect.minX and x <= rect.maxX and y >= rect.minY and y <= rect.maxY then
+            return true
+        end
+    end
+    return false
+end
+
+-- The area the rectangles cover together, overlaps counted once: the edges cut the plane into a
+-- grid of pieces, and each piece is either inside some rectangle or not.
+function Geometry.UnionArea(rects)
+    local xs, ys = {}, {}
+    for _, rect in ipairs(rects) do
+        xs[#xs + 1], xs[#xs + 2] = rect.minX, rect.maxX
+        ys[#ys + 1], ys[#ys + 2] = rect.minY, rect.maxY
+    end
+    xs, ys = sortedUnique(xs), sortedUnique(ys)
+    local area = 0
+    for a = 1, #xs - 1 do
+        local x = (xs[a] + xs[a + 1]) / 2
+        for b = 1, #ys - 1 do
+            if Geometry.InAnyRect(rects, x, (ys[b] + ys[b + 1]) / 2) then
+                area = area + (xs[a + 1] - xs[a]) * (ys[b + 1] - ys[b])
+            end
+        end
+    end
+    return area
 end

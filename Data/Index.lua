@@ -3,8 +3,13 @@ local _, ns = ...
 -- Derived data (docs/ARCHITECTURE.md §4.5):
 --   * the sorted day list lives in memory only and is rebuilt at every load,
 --   * `firsts` and month rollups are saved for speed but are caches: Rebuild recomputes them
---     from records and counters, so a rollup change is just "bump and rebuild".
-local Index = {}
+--     from records and counters, so a rollup change is just "bump ROLLUP_VERSION and rebuild".
+local Index = {
+    -- 2 (0.5): days with entries, firsts, level range, dungeon names and first clears, first boss
+    -- kills, death places, professions learned and curated chains, for Your Year
+    -- (docs/ARCHITECTURE.md §8).
+    ROLLUP_VERSION = 2,
+}
 ns.Index = Index
 
 local dayKeys = {} -- newest first
@@ -65,6 +70,7 @@ function Index:ApplyRecord(db, month, record, def)
         elseif type(key) == "string" and db.firsts[key] == nil then
             db.firsts[key] = record.id
             record.first = true
+            rollup.firsts = (rollup.firsts or 0) + 1
         end
     end
     if def.rollup then
@@ -134,11 +140,21 @@ function Index:Rebuild(db)
             for _, dayKey in ipairs(sortedKeys(month.days)) do
                 local day = month.days[dayKey]
                 if type(day) == "table" then
+                    month.rollup.activeDays = (month.rollup.activeDays or 0) + 1
                     total = total + self:RebuildDay(db, month, day)
                 end
             end
         end
     end
+    db.meta.rollup = Index.ROLLUP_VERSION
     self:Build(db)
     return total
+end
+
+-- Rollups written by an older version lack fields that newer ones fill: they are rebuilt once.
+-- Returns whether it rebuilt.
+function Index:Upgrade(db)
+    if db.meta.rollup == Index.ROLLUP_VERSION then return false end
+    self:Rebuild(db)
+    return true
 end

@@ -1,7 +1,7 @@
 # Wayscribe — Architecture Plan
 
 An automatic, per-character journal for **WoW Forever**. It records what happens while you play,
-groups it by day, and powers a login recap, a **Footsteps** travel map and a yearly "Wrapped".
+groups it by day, and powers a login recap, a **Footsteps** travel map and a yearly recap, **Your Year**.
 
 > The name **Wayscribe** was decided on 2026-10-06, after checking that it's free on CurseForge, Wago,
 > WoWInterface and GitHub. It's baked into the SavedVariables names, the folder name and the slash
@@ -57,7 +57,7 @@ flowchart LR
     S --> DB[("SavedVariables<br/>WayscribeDB / WayscribeCharDB / WayscribeFootstepsDB")]
     S --> IX["Indexes + Rollups<br/>(rebuildable caches)"]
     S -->|"RECORD_ADDED"| BUS(("Internal bus"))
-    BUS --> UI["UI: Journal, Login recap,<br/>Footsteps, Wrapped"]
+    BUS --> UI["UI: Journal, Login recap,<br/>Footsteps, Your Year"]
     UI -->|"read API"| S
     RT["RecordTypes registry<br/>schema, render, rollup"] -.-> S
     RT -.-> UI
@@ -67,10 +67,10 @@ flowchart LR
 |---|---|---|
 | **Core** | Namespace, lifecycle, module base, event frames, internal bus, error boundary, logging, time/day keys, geometry (pure math on trails) | — |
 | **Compat** | Capability detection (`Compat.has.*`), thin API shims (position, professions, instance info), `/wayscribe probe` | Core |
-| **Data** | `Store`, `Paths` (Footsteps trails), `Schema` (migrations, safe mode), `RecordTypes`, `Index`, `Players` (interning), `Codec` | Core |
+| **Data** | `Store`, `Paths` (Footsteps trails), `Schema` (migrations, safe mode), `RecordTypes`, `Index`, `Players` (interning), `Codec`, `Coverage` (share of Azeroth walked), `YearCards` (Your Year's card registry) | Core, Compat |
 | **StaticData** | Plain tables: dungeon → final encounter, quest chains, gather spell IDs | — |
 | **Trackers** | Translate game events into facts, holding only the minimal state they need | Core, Compat, Data (write API), StaticData |
-| **UI** | Journal window, login recap, settings, minimap, keybind, Footsteps map, Wrapped | Core, Data (read API), RecordTypes |
+| **UI** | Journal window with Your Year, login recap, settings, minimap, keybind, Footsteps map, export | Core, Data (read API), RecordTypes |
 
 Dependencies point one way only. UI never calls trackers, and trackers never call UI. They talk through
 the Store and the bus.
@@ -107,7 +107,9 @@ the Store and the bus.
 - Tiny callback registry (or CallbackHandler-1.0). Messages: `RECORD_ADDED`, `COUNTER_CHANGED`,
   `DAY_CHANGED`, `SETTINGS_CHANGED`, `SAFE_MODE`, `REBUILT` (after `/ws rebuild`, so trackers can
   derive what older facts imply, see §6.7), `LOGOUT` (sent before the canary is stamped, so what it
-  writes is counted), and for Footsteps `PATH_ADDED`, `PATH_LIVE`, `PATH_POINT`, `PATH_WIPED` (§6.8).
+  writes is counted), for Footsteps `PATH_ADDED`, `PATH_LIVE`, `PATH_POINT`, `PATH_WIPED` (§6.8), and
+  since 0.5 `COVERAGE_READY` (a background measurement finished, §6.8) and `RECAP_HIDDEN` (Your
+  Year's prompt waits for the login recap, §8).
 - `ns.Defer(fn)`: work that doesn't need to happen in combat (UI refresh, index maintenance beyond O(1),
   loading the archive) is queued and flushed on `PLAYER_REGEN_ENABLED`.
 - UI refresh is **coalesced**: a dirty flag plus one `C_Timer.After(0, ...)`, so 20 loot events produce
@@ -159,6 +161,7 @@ WayscribeCharDB = {
         guid = "Player-…", name = "…", realm = "…", class = "MAGE", race = "Troll",
         created = 1759400000,           -- first time the addon saw this character
         seq = 1234,                     -- last issued record id (monotonic)
+        rollup = 2,                     -- version of the rollups' shape (§4.5)
         addonVersion = "0.2.0",         -- last version that wrote this DB
     },
 
@@ -198,9 +201,12 @@ WayscribeCharDB = {
                 },
             },
             sessions = { { s = 1759489000, e = 1759497000 } },
-            rollup   = { levelsGained = 2, dungeons = { [389] = 1 }, bosses = 4,
-                         gather = { [2770] = 23 }, companions = { [3] = 1, [7] = 1 },
-                         playSeconds = 8000, activeDays = 1 },
+            rollup   = { records = { LEVEL_UP = 2, DUNGEON_COMPLETED = 1 },   -- count per type
+                         counters = { gather = { [2770] = 23 } },              -- the days' counters summed
+                         activeDays = 1, firsts = 1,                           -- generic (Index)
+                         minLevel = 11, maxLevel = 12, maxLevelAt = 1759493100, -- type-specific
+                         dungeons = { [389] = 1 }, dungeonNames = { [389] = "Ragefire Chasm" },
+                         dungeonFirsts = { [389] = 1759490900 }, companions = { [3] = 1, [7] = 1 } },
         },
     },
 
@@ -221,6 +227,11 @@ Why this shape:
 - Records carry `v` (the record-type version) so renderers can handle or upcast older shapes.
 - **Player interning:** dungeon groups repeat, and a small integer is much cheaper than a name or GUID
   repeated in every record. It also makes "top companions" a simple count.
+- **Rollups hold everything a year's recap needs** (§8): a count per record type, the summed
+  counters, the days with entries and the firsts (kept by `Index` for every type), plus the fields
+  each type's `rollup` adds (level range, dungeon names and first clears, first boss kills, deaths
+  per map, professions learned and highest ranks, curated chains). Play time comes from the
+  month's sessions. So a month's days could move to an archive without changing its recap.
 
 ### 4.3 Record types: the extension point
 
@@ -232,7 +243,7 @@ ns.RecordTypes:Register("DUNGEON_COMPLETED", {
     category = "adventure",               -- journal filter group
     fields   = { instanceID = "number", roster = "table", dur = "number?" },
     firstKey = function(data, r) return "DUNGEON:" .. data.instanceID end,  -- enables "First time" badge
-    rollup   = function(monthRollup, data, r) ... end, -- O(1) update of the month rollup
+    rollup   = function(monthRollup, data, r) ... end, -- O(1) update of the month rollup (r.first is set already)
     merge    = function(yearRollup, monthRollup) ... end, -- combines type-specific rollup fields
     render   = function(data, r) ... end,  -- -> text, icon (localized, at display time)
     markers  = function(data, r) ... end,  -- optional: { { c, x, y, icon, title }, ... } on the map (0.4)
@@ -274,13 +285,17 @@ Store:GetDay(dayKey)                  -- records (time-sorted) + counters
 Store:GetSessions(fromTs, toTs)       -- overlapping sessions; the open one ends now
 Store:GetMonthSummary(ym) / Store:GetYearSummary(y) -- rollups + play time; year = sum of 12 months
 Store:GetFirst(key)
+Store:GetYears()                      -- years with entries, newest first (0.5)
+Store:GetPlayByDay(fromTs, toTs)      -- seconds played per day, a session split at midnight (0.5)
 ```
 
 - The day index is rebuilt at load from month and day keys. That costs a few hundred iterations per year
   of data, so there's nothing to persist or corrupt.
 - `firsts` and `rollup` **are** persisted for speed, but they are treated as caches. `/wayscribe rebuild`
   (and any migration that needs it) recomputes them from records and counters. A rollup schema change is
-  therefore just "bump version and rebuild".
+  therefore just "bump version and rebuild": `Index.ROLLUP_VERSION` is stamped into `meta.rollup`,
+  and a journal with an older one is rebuilt once at login (0.5 brought version 2). A read-only
+  journal is left as it is.
 - The journal UI asks only for the days that are visible, so the ScrollBox is virtualized.
 
 ### 4.6 Schema, migrations, safe mode
@@ -346,7 +361,9 @@ designed now but built later:
   `C_AddOns.LoadAddOn("Wayscribe_Archive")` on demand. Because rollups stay in the hot DB, the yearly recap
   never needs the archive.
 - `/wayscribe stats` reports record counts and approximate serialized size per SV, so we can decide when to
-  build Phase B from real numbers.
+  build Phase B from real numbers. Since 0.5 it says how big the journal and the trails are in the
+  saved file (`Codec.SavedSize` writes them the way build 70235 does: `["key"] = value,` per line,
+  no indentation; it came within one byte of a real 3.4 KB file).
 
 ---
 
@@ -365,6 +382,8 @@ Compat.has = {
     lootSourceInfo  = …,   -- GetLootSourceInfo
     taxiState       = …,   -- UnitOnTaxi (0.4)
     worldMapCanvas  = …,   -- the world map's data provider extension point (0.4)
+    mapChildren     = …,   -- C_Map.GetMapChildrenInfo: the zone maps coverage counts against (0.5)
+    panelTabs       = …,   -- PanelTabButtonTemplate + PanelTemplates_*: the journal's tabs (0.5)
 }
 Compat.Safe(v [, expectedType])  -- -> v, or nil if issecretvalue(v) or the type is wrong. Every game value goes through this.
 Compat.Call(fn, ...)             -- pcall + Safe on each return value, for APIs that may error or return secrets
@@ -372,6 +391,7 @@ Compat.GetPlayerWorldPosition()  -- -> continentID, x, y in world yards (UnitPos
 Compat.GetWorldPosFromMapPos(mapID, u, v) -- -> continentID, x, y of a map point (0.4)
 Compat.GetMapAtWorldPos(continentID, x, y) -- -> the most detailed uiMapID there (0.4)
 Compat.GetParentMap(mapID)       -- -> parentMapID (0.4)
+Compat.GetZoneRects()            -- -> { { map, c, minX, maxX, minY, maxY } } of every zone map, in world yards (0.5)
 Compat.IsOnTaxi() / Compat.IsDeadOrGhost()
 Compat.HasWorldMapCanvas()       -- WorldMapFrame takes MapCanvas data providers (0.4)
 Compat.GetProfessionSnapshot()   -- -> { [skillLineID] = { rank, max, name } }
@@ -428,8 +448,8 @@ second entry, and it falls back to `UnitLevel` when the event argument is secret
 ### 6.1 Session (always on, internal)
 - Initial login opens a session. On `/reload` (`isReloadingUi`), the session is resumed. Logout stamps
   `e`.
-- Produces `months[m].sessions` and `playSeconds` in the rollup. This drives the login recap and the
-  "most active day" stat in Wrapped.
+- Produces `months[m].sessions`, from which play time is derived on read. This drives the login
+  recap and Your Year's time card (most active month and day, longest session).
 
 ### 6.2 Level ups
 - `PLAYER_LEVEL_UP(level)` → `LEVEL_UP {level, map}`.
@@ -443,7 +463,7 @@ second entry, and it falls back to `UnitLevel` when the event argument is secret
   Wayscribe are not dated today.
 - New skill line → `PROFESSION_LEARNED {skillLine}` (milestone, `firstKey`).
 - Skill crossing 75/150/225/300 → `PROFESSION_RANK {skillLine, rank}` (milestone). The month rollup
-  keeps the highest rank per profession for Wrapped.
+  keeps the highest rank per profession, and the professions learned, for Your Year.
 - Every point gained → `Store:Count("skill", skillLine, delta)`. The day view shows "Mining +23".
 - A profession missing from one snapshot stays in `state.professions`: its data may just not be loaded
   yet, and dropping it would report it as newly learned later. A lower rank (unlearned and learned
@@ -587,7 +607,7 @@ WayscribeFootstepsDB = {
   64-character printable alphabet. Arithmetic only (no `bit` library), unit-tested in plain Lua 5.1.
 - **Distance** goes into the journal as the day counter `travel` (`ground` / `flight` → yards),
   rendered "Traveled 2.4 miles · Flight paths: 5.1 miles" (km in German). The journal, the login
-  recap and Wrapped get distances without decoding a single trail.
+  recap and Your Year get distances without decoding a single trail.
 - **Measured:** two hours of simulated questing (rides, running around between fights, standing in
   town; about 80 minutes of movement) pack into **about 3.2 KB** in 10 trails. The 0.4 exit criterion
   is 10 KB; the unit test `footsteps > size budget` keeps it.
@@ -622,9 +642,24 @@ extension point that HandyNotes also uses.
   day until the map closes. `C_Map.GetMapPosFromWorldPos` answers with the continent, so
   `Compat.GetMapAtWorldPos` walks down with `C_Map.GetMapInfoAtPosition` to find the zone.
 
-**Coverage** (the "% of Azeroth walked" stat and a fog-of-war look) moves to 0.5 with Wrapped, its
-only consumer. It will be rasterized from the trails into chunked bitsets in a coroutine and cached
-in memory, persisted only if profiling says so.
+**Coverage** (`Data/Coverage.lua`, 0.5): the "% of Azeroth walked" stat on Your Year's Footsteps
+card (§8), its only consumer.
+- A year's **ground** trails are laid on a grid of **100-yard squares** (`Geometry.WalkCells`, an
+  Amanatides-Woo walk, so a diagonal skips no square). Flights don't count: they pass over the land.
+  100 yards is about how far you see a path, and a road is one square wide.
+- What counts as Azeroth comes from the client: `Compat.GetZoneRects()` asks
+  `C_Map.GetMapChildrenInfo` for every zone map under the top of the player's map chain and turns
+  each into a world rectangle (two corners through `C_Map.GetWorldPosFromMapPos`), so zones Forever
+  adds count too. The total is the area the rectangles cover together per continent
+  (`Geometry.UnionArea`, overlaps once), in squares. A walked square counts if its center lies in a
+  zone; the zone with the most walked squares is named on the card with its own share.
+- Zone maps include water and mountains, so 100% isn't reachable; the number is for comparing
+  years, not a completion bar.
+- Nothing is saved. The first request for a year decodes its trails in a coroutine, at most 4 ms
+  per frame, and keeps the walked squares in memory (sparse sets per continent; a year of walking
+  is thousands of squares, not the millions a bitset is made for). The card says it is measuring
+  until `COVERAGE_READY`. A trail stored later is laid on top; deleting the trails starts over.
+- The fog-of-war look on the map is not built (a later idea).
 
 ### 6.9 Deaths
 - `PLAYER_DEAD` → `DEATH {map, sub?, c?, x?, y?}` in the journal (category *adventure*): the
@@ -640,7 +675,7 @@ in memory, persisted only if profiling says so.
 - **On the Footsteps map**, a skull marks each death with a position on the days shown (the same
   Today / Last 7 days / All / picked day as the trails), through the record type's `markers`
   (§6.8).
-- The month rollup's record count per type already counts deaths, for Wrapped.
+- The month rollup counts deaths (per type) and deaths per map, for Your Year's most dangerous place.
 
 ---
 
@@ -648,37 +683,53 @@ in memory, persisted only if profiling says so.
 
 | Piece | Design |
 |---|---|
-| **Journal window** | Built from the default UI's own pieces, so it looks like Forever's spellbook: `PortraitFrameTemplate` (title, book portrait, close button), Forever's two-page spellbook parchment (`spellbook-page-left/right-c60`, else the retail `spellbook-background-evergreen-*`), spellbook headers (`SystemFont_Huge2` in `SPELLBOOK_FONT_COLOR` over the `spellbook-divider` ornament), spellbook page buttons with "Page 3/12" (`PAGE_NUMBER_WITH_MAX`), the `WowStyle1FilterDropdownTemplate` filter menu and `MinimalScrollBar`s that hide when not needed. Each piece is checked first (`C_XMLUtil.GetTemplateInfo`, `C_Texture.GetAtlasInfo`); without it, plain colors, a dialog border and toggle chips stand in (`UI/Theme.lua`). Forever's page art carries the spellbook's dark top bar in its upper 9% and dark rims at the edges: the pages start under the title bar, the filter menu sits in that bar, and the text lives on a "paper" frame inside the rims (shares of the page size measured from the textures, so it scales with the window). Movable and resizable; size and position are kept in `settings.journal`. Left page: "Scoopz's journal" above the virtualized **day list** (`ScrollBox` + `DataProvider`), newest first, grouped by month; without ScrollBox, a fixed set of rows follows the selection. Right page (`UI/DayView.lua`): the long date, "Today · played 2 h 10 min", the milestones in time order with their time and category marker, then counter summaries, then the day's sessions. Page 1 is the oldest day. Category filters are saved in `settings.journalHidden`. A reader on the newest day follows a new day as it starts. A day with Footsteps trails shows *Show on the map* at the bottom of its page (§6.8). There is no tab bar: Footsteps lives on the world map, and Wrapped (0.5) decides whether the journal gets tabs. |
+| **Journal window** | Built from the default UI's own pieces, so it looks like Forever's spellbook: `PortraitFrameTemplate` (title, book portrait, close button), Forever's two-page spellbook parchment (`spellbook-page-left/right-c60`, else the retail `spellbook-background-evergreen-*`), spellbook headers (`SystemFont_Huge2` in `SPELLBOOK_FONT_COLOR` over the `spellbook-divider` ornament), spellbook page buttons with "Page 3/12" (`PAGE_NUMBER_WITH_MAX`), the `WowStyle1FilterDropdownTemplate` filter menu and `MinimalScrollBar`s that hide when not needed. Each piece is checked first (`C_XMLUtil.GetTemplateInfo`, `C_Texture.GetAtlasInfo`); without it, plain colors, a dialog border and toggle chips stand in (`UI/Theme.lua`). Forever's page art carries the spellbook's dark top bar in its upper 9% and dark rims at the edges: the pages start under the title bar, the filter menu sits in that bar, and the text lives on a "paper" frame inside the rims (shares of the page size measured from the textures, so it scales with the window). Movable and resizable; size and position are kept in `settings.journal`. Left page: "Scoopz's journal" above the virtualized **day list** (`ScrollBox` + `DataProvider`), newest first, grouped by month; without ScrollBox, a fixed set of rows follows the selection. Right page (`UI/DayView.lua`): the long date, "Today · played 2 h 10 min", the milestones in time order with their time and category marker, then counter summaries, then the day's sessions. Page 1 is the oldest day. Category filters are saved in `settings.journalHidden`. A reader on the newest day follows a new day as it starts. A day with Footsteps trails shows *Show on the map* at the bottom of its page (§6.8). Two tabs under the frame (the default UI's `PanelTabButtonTemplate`, anchored like Mainline's CharacterFrame; plain buttons without it): **Journal** and **Your Year** (§8), which draws into the same book. The filter belongs to the journal tab; the page buttons turn days there and cards on Your Year. Opening at a day (login recap, `/ws`) shows the journal tab; reopening keeps the tab. |
 | **World map** | Footsteps trails and death skulls on `WorldMapFrame` through a MapCanvas data provider, plus a "Footsteps: Today" button that picks the filter (§6.8, §6.9). Without the data provider API, nothing is added and the journal hides its map link. |
+| **Your Year** | The journal's second tab (`UI/YourYear.lua`, §8). Left page: "Your Year" above the years with entries, newest first ("Your 2026"); the shown year lists its cards. Right page: the card's title, "Your 2026", its icon with a big number (`Game40Font` where the client has it) and a caption, then a few lines. A year that hasn't opened yet shows when it opens. |
+| **Export** | `UI/Export.lua`: a dialog with the journal as plain text in a read-only, multi-line edit box, selected and focused, so Ctrl+C copies it (addons can't write files). This month / This year / Everything (default). Every day reads like its page (long date, played time, entries with times in one column, counter lines, sessions), oldest first, with every category whatever the journal's filter. A reading copy: it can't be imported. Works on a read-only journal too. `/ws export [month\|year\|all]` and a button under Settings > Data. |
 | **Login recap** | On `isInitialLogin` and `state.lastRecapDay ~= today`, 3 s after the loading screen, show the previous session: date, duration, rendered milestones and the counter totals of its day(s) (counters are per day, so they can include another session that day). Simulated entries are left out; an empty session shows nothing. Buttons: *Open journal* (at that day), *Close*, and a *Don't show at login* checkbox wired to the setting. Setting `showLoginRecap` defaults to **on**. `/ws recap` shows it any time. |
-| **Settings** | Blizzard `Settings` API: `RegisterVerticalLayoutCategory`, and `RegisterProxySetting` for every control, so the page reads and writes `ns.Options` / `ns.Trackers` and never owns data. Sections: **General** (login recap, minimap button, date format dropdown), **Tracking** (one toggle per tracker, generated from the registry; Footsteps is one of them), **Footsteps** (what the world map shows, record flight paths, delete all trails with a confirmation popup), **Data** (stats, error log, rebuild indexes, reset with a confirmation popup and a reload; reset deletes the trails too). Without the API the page is skipped and `/ws settings` says so. |
+| **Settings** | Blizzard `Settings` API: `RegisterVerticalLayoutCategory`, and `RegisterProxySetting` for every control, so the page reads and writes `ns.Options` / `ns.Trackers` and never owns data. Sections: **General** (login recap, minimap button, date format dropdown), **Tracking** (one toggle per tracker, generated from the registry; Footsteps is one of them), **Footsteps** (what the world map shows, record flight paths, delete all trails with a confirmation popup), **Data** (stats, error log, rebuild indexes, export, reset with a confirmation popup and a reload; reset deletes the trails too). Without the API the page is skipped and `/ws settings` says so. |
 | **Minimap button** | LibDataBroker-1.1 + LibDBIcon-1.0, position and hidden flag in `WayscribeDB.settings.minimap`. Placeholder icon: `Interface\Icons\INV_Misc_Book_09`. Left-click toggles the journal, right-click opens settings. Skipped when the libraries are missing. The Addon Compartment entry comes from the TOC (`AddonCompartmentFunc`), so it works without libraries. |
 | **Keybind** | `Bindings.xml`: `WAYSCRIBE_TOGGLE` under the AddOns category, unbound by default and configurable in the game's Keybindings menu. `BINDING_HEADER_WAYSCRIBE` and `BINDING_NAME_WAYSCRIBE_TOGGLE` are localized. |
-| **Slash** | `/wayscribe` or `/ws` (toggle), plus `settings`, `recap`, `probe`, `stats`, `log`, `rebuild`, `dev`, `simulate <TYPE> …`, `accept`. |
-| **Wrapped** | See §8. |
+| **Slash** | `/wayscribe` or `/ws` (toggle), plus `year [YYYY]`, `export [month\|year\|all]`, `settings`, `recap`, `probe`, `stats`, `log`, `rebuild`, `dev`, `simulate <TYPE> …`, `accept`. |
 
 All UI listens to bus messages. None of it polls.
 
 ---
 
-## 8. Yearly recap ("Wrapped")
+## 8. Your Year (yearly recap)
 
-- Data comes from `Store:GetYearSummary(year)` (12 month rollups), plus `firsts` and Footsteps coverage.
-  It's cheap and needs no archive.
-- It's shown as a card slideshow (next and previous). Cards include:
-  - Levels gained (from → to) and the day you hit max level
-  - Dungeons cleared, with your most-run dungeon and its first clear date
-  - Bosses defeated
-  - Top 3 companions (most shared runs)
-  - Ores, herbs and skins totals, plus the top item
-  - Professions learned and maxed
-  - Quest chains completed
-  - Distance traveled and % of Azeroth walked (Footsteps)
-  - Most active month and day, and total play time
-- It becomes available from December 1st, with a one-time "Your 2026 is ready" prompt. It can also be
-  opened any time from the tab for any past year.
-- New cards plug in through a `RecapCards:Register{ id, order, build = function(yearRollup) … end }`
-  registry. It's the same extension pattern as trackers.
+Built in 0.5. Named **Your Year** in game ("Your 2026" / "Dein 2026") and in the code (`YourYear`,
+`YearCards`); the plan called it "Wrapped", which is Spotify's word.
+
+- **Cards from rollups.** `YearCards:Build(year)` hands `Store:GetYearSummary(year)` to each card:
+  the 12 month rollups merged (§4.2), play time and sessions, and `byMonth`. Cards never read day
+  records, so a year renders the same with its days archived. That is the exit criterion, and a
+  unit test proves it by deleting every day of a played year and comparing the cards. Two inputs
+  besides rollups: the months' sessions (most active day, longest session) and Footsteps coverage
+  (§6.8), measured in the background.
+- **Registry.** `ns.YearCards:Register{ id, order, build = function(summary) -> card or nil }`, the
+  same pattern as record types: each tracker registers its card next to its facts. A card is
+  `{ title, icon, big, caption, lines }`; `nil` leaves it out (nothing happened), a failing one only
+  loses itself. Helpers format numbers ("1,234" / "1.234"), percentages and plurals (every `_ONE`
+  pattern has a German one; a test checks).
+- **The cards** (order): *The year at a glance* (entries, how many were firsts, days and months with
+  entries) · *Levels* (+N, from → to, the day the highest was reached) · *Dungeons and raids* (runs
+  completed, how many different, most often, its first clear, visits without the final boss) ·
+  *Bosses* (defeated, how many for the first time) · *Companions* (how many, top 3 with runs
+  together) · *Deaths* (how many, the most dangerous zone) · *Gathering* (nodes, items, top item) ·
+  *Professions* (skill points, learned, highest ranks, gains per profession) · *Quests* (turned in,
+  curated chains by name) · *Footsteps* (distance over land, flight paths, journeys by hearthstone,
+  % of Azeroth walked and the most walked zone) · *Time played* (total, sessions, most active
+  month and day, longest session).
+- **Shown in the journal**, as its second tab (§7): years on the left, the card on the right, the
+  page buttons turn cards like a slideshow ("Page 3/11").
+- **Opens on December 1.** Past years open any time; the current year from December 1. Developer
+  mode (`/ws dev`) previews it early, marked "preview".
+- **One prompt per year.** At the first login after a year opens (December 1, or the next login in
+  the new year if December went by), if the character has entries in that year: a chat line and a
+  popup ("Your 2026 is ready!", *Show* / *Later*). It waits for the login recap to close.
+  `state.yourYearPrompted` keeps the year, per character.
 
 ---
 
@@ -691,12 +742,12 @@ embeds.xml                 -- libs in Libs/ (fetched by the packager via .pkgmet
 Locales/   enUS.lua deDE.lua
 Core/      Init.lua Log.lua Time.lua Geometry.lua Bus.lua Options.lua Module.lua Trackers.lua Slash.lua Lifecycle.lua
 Compat/    Compat.lua Probe.lua
-Data/      Codec.lua RecordTypes.lua Players.lua Index.lua Store.lua Paths.lua Schema.lua
+Data/      Codec.lua RecordTypes.lua Players.lua Index.lua Store.lua Paths.lua Coverage.lua YearCards.lua Schema.lua
 StaticData/ Dungeons.lua Gathering.lua QuestChains.lua Travel.lua
 Trackers/  Session.lua Level.lua Professions.lua Gathering.lua Bosses.lua Dungeons.lua
            QuestChains.lua Footsteps.lua Deaths.lua
-UI/        Journal.lua LoginRecap.lua Settings.lua Minimap.lua
-           Theme.lua DayView.lua FootstepsMap.lua Wrapped.lua
+UI/        Theme.lua DayView.lua YourYear.lua Journal.lua Export.lua FootstepsMap.lua
+           LoginRecap.lua Settings.lua Minimap.lua
 tests/     run.lua testlib.lua wow_stubs.lua serialize.lua <area>_spec.lua …
 docs/      ARCHITECTURE.md forever-probe.md
 .pkgmeta  .luacheckrc  .github/workflows/{ci.yml,release.yml}
@@ -746,7 +797,8 @@ dependency mechanism in WoW, so it must match the layer diagram.
   capitalized to match `Wayscribe.toc`, since the repository is the lowercase `wayscribe`.
 - **In-game dev tools:** `/ws simulate LEVEL_UP level=12` (developer mode only) injects records through the real write path,
   flagged as test data and removable with `/ws simulate clear`,
-  `/wayscribe stats`, `/wayscribe log`, `/wayscribe probe`, and `/wayscribe rebuild`.
+  `/wayscribe stats`, `/wayscribe log`, `/wayscribe probe`, and `/wayscribe rebuild`. Developer mode
+  also previews the current year in Your Year before December.
 
 ---
 
@@ -758,7 +810,7 @@ dependency mechanism in WoW, so it must match the layer diagram.
 | **0.2 Adventurer** | Professions, Gathering, Bosses, Dungeons (roster + firsts). Settings page, minimap button, keybind, login recap. | A full Ragefire Chasm run produces the expected entries, including after a mid-run `/reload`. |
 | **0.3 Chronicler** | Journal UI polish (book look, filters, day view), quest chains (providers + retroactive rebuild), dates localized deDE/enUS. | A curated chain added after the fact back-fills correctly. |
 | **0.4 Footsteps** | Sampler, segmenting, simplification, codec, world-map overlay, day → path link. Deaths in the journal and as skulls on the map. | 2 h of play stays under ~10 KB packed. No measurable frame-time cost. |
-| **0.5 Wrapped** | Recap cards, December prompt, Footsteps coverage ("% of Azeroth walked"). Text export of the journal (a backup the player keeps outside WoW). Archive (Phase B) if `/wayscribe stats` from real users justifies it. | The recap renders from rollups alone. |
+| **0.5 Your Year** | Recap cards, December prompt, Footsteps coverage ("% of Azeroth walked"). Text export of the journal (a backup the player keeps outside WoW). Archive (Phase B) if `/wayscribe stats` from real users justifies it (not yet: §13). | The recap renders from rollups alone. |
 
 **Future tracker ideas** (each is a single-file addition): gold earned and spent, reputation
 milestones, first mount, zones discovered, epic loot, talent milestones, PvP honor kills, guild join,
@@ -784,6 +836,8 @@ release in [ingame-tests.md](ingame-tests.md).
 | 7 | Does an LFG or dungeon-finder completion event exist? | `LFG_COMPLETION_REWARD` and `SCENARIO_COMPLETED` exist. | Whether they fire for Vanilla dungeons. | Final-boss data table (already the primary signal). |
 | 8 | Do SavedVariables survive a round trip on the current client build? | ✅ Account and character files written on `/reload` and logout, `.bak` holds the previous save, the session was resumed after the reload. ✅ A full relog added a second session (0.2). | Retest on every new client build. | Missing-DB guard (§4.6). |
 | 9 | Does `WorldMapFrame` take a MapCanvas data provider, and where do the lines land? | ✅ `has.worldMapCanvas`; the trail was drawn in the right place, above the explored-area art. `C_Map.GetMapPosFromWorldPos` answers with the continent (worked around). ✅ Lines at least 3 pixels long stay whole on the small map too. ✅ The map's icons are drawn over the lines. ✅ The journal button opens the map at the zone. | — | No overlay; the journal hides its map link. |
+| 10 | Does `C_Map.GetMapChildrenInfo` list the zone maps, and how big is Azeroth then? (0.5) | Not probed yet: `coverage.zones` and `coverage.continent.*` (zones and square miles per continent). | Run `/ws probe` outdoors. | No "% of Azeroth walked" line; the rest of the Footsteps card stays. |
+| 11 | Is `PanelTabButtonTemplate` there for the journal's tabs? (0.5) | Not probed yet: `has.panelTabs`. | Look at the tabs under the journal. | Plain buttons under the frame. |
 
 Other findings:
 - wago.tools lists build 70235 as product `wow_cn_beta`, so its DB2 tables (`DungeonEncounter`, `Map`,
@@ -872,11 +926,36 @@ Other findings:
   kill) can add icons the same way.
 - **Coverage moves to 0.5.** "% of Azeroth walked" is a Wrapped card; it's built with Wrapped.
 
+### Decided during 0.5
+
+- **Name: Your Year.** In game "Your Year" / "Dein Jahr" (the tab) and "Your 2026" / "Dein 2026"
+  (each year); in the code `YourYear` and `YearCards`, so game and code say the same (the 0.4
+  rule). "Wrapped" is Spotify's word.
+- **A tab in the journal, not a window of its own.** The book already has a list page and a page to
+  turn; years and their cards fit both, and the page buttons make the slideshow. It is the tab bar
+  0.3 and 0.4 left to this release. Footsteps stays on the world map.
+- **Cards live with their trackers**, like record types and counters: one file still adds a
+  feature, its card included. Only the opening card is the UI's own.
+- **Rollups carry the recap.** The fields cards need went into the rollups (rollup version 2),
+  including days with entries, which used to be counted from the day tables. Older rollups are
+  rebuilt once at login instead of waiting for `/ws rebuild`.
+- **The current year opens on December 1**, as planned; developer mode previews it. The prompt also
+  catches up in the new year for a player who didn't log in during December, and it never covers
+  the login recap.
+- **Coverage on a 100-yard grid, ground only, against the client's zone maps** (§6.8): no list of
+  zones to maintain, and Forever's own zones count. Sparse sets of squares in memory instead of the
+  planned chunked bitsets: a year of walking is thousands of squares. Not saved.
+- **The export is a copy to read**: rendered pages, not facts, so it can't be imported, and it says
+  so. It goes through the clipboard because addons can't write files. Everything is the default
+  (it's a backup); month and year are there if a long journal makes the edit box slow.
+- **No archive (Phase B) yet.** It waits for real numbers: `/ws stats` now reports the saved file's
+  size, measured the way the client writes it. The first beta day (15 sessions) saved 3.4 KB.
+
 ### Landscape (for positioning)
 
 | Addon | Overlap | Gap we fill |
 |---|---|---|
-| **ForeverChronicle** (Forever + Retail, created late Sep 2026, ~300 downloads, All Rights Reserved) | Session/day/month/year diary in narrative prose, login recap, levels, quests, dungeons, bosses, gathering, professions, deaths, companions, minimap, slash | No movement trail, no quest-chain completion, no Wrapped-style stats recap, no keybinding, no Blizzard Settings panel. One account-wide SV with flat, unpartitioned event lists that store prose; its own preflight rates performance at 100k+ events 5/10. Its focus is a broad "memory" (search, resource atlas, vendors, trainers, notes, bags and bank), not a journal. |
+| **ForeverChronicle** (Forever + Retail, created late Sep 2026, ~300 downloads, All Rights Reserved) | Session/day/month/year diary in narrative prose, login recap, levels, quests, dungeons, bosses, gathering, professions, deaths, companions, minimap, slash | No movement trail, no quest-chain completion, no yearly stats recap, no keybinding, no Blizzard Settings panel. One account-wide SV with flat, unpartitioned event lists that store prose; its own preflight rates performance at 100k+ events 5/10. Its focus is a broad "memory" (search, resource atlas, vendors, trainers, notes, bags and bank), not a journal. |
 | AutoBiographer (Classic/TBC, ~109K downloads) | Milestones and stats | No Forever support, no day-by-day journal, no travel map, no yearly recap |
 | Hero's Path (Classic 1.15.5, inactive ~1 year) | Route recording | Not combined with a journal, not on Forever |
 | Diary (abandoned) | Diary-style tracking | Dead project |
@@ -887,7 +966,7 @@ atlas, vendor and trainer memory, bag and bank). It should win on three things F
 have:
 
 1. A **Footsteps trail map** (BotW-style), tied to journal days.
-2. A **Wrapped** yearly recap.
+2. **Your Year**, a yearly recap.
 3. A **lightweight, scalable core**: per-character partitioned storage, facts instead of prose,
    counters for high-volume events, and native Settings panel plus keybinding.
 

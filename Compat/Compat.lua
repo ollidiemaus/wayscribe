@@ -109,6 +109,10 @@ function Compat:Detect()
     has.tradeSkillNames = C_TradeSkillUI ~= nil and C_TradeSkillUI.GetTradeSkillDisplayName ~= nil
     has.taxiState = type(UnitOnTaxi) == "function"
     has.worldMapCanvas = self.HasWorldMapCanvas()
+    -- 0.5: the zone maps the coverage stat measures against, and the journal's tabs.
+    has.mapChildren = has.mapWorldPos and C_Map.GetMapChildrenInfo ~= nil
+    has.panelTabs = self.HasTemplate("PanelTabButtonTemplate") == true and type(PanelTemplates_SetNumTabs) == "function"
+        and type(PanelTemplates_SetTab) == "function"
 end
 
 -- The default world map with its data provider extension point (Footsteps, docs/ARCHITECTURE.md
@@ -218,6 +222,39 @@ function Compat.GetParentMap(mapID)
     local info = C_Map and C_Map.GetMapInfo and Compat.Call(C_Map.GetMapInfo, mapID)
     local parent = type(info) == "table" and Compat.Safe(info.parentMapID, "number")
     return parent and parent > 0 and parent or nil
+end
+
+local ZONE_MAP_TYPE = 3 -- Enum.UIMapType.Zone
+
+-- Every zone map of the world the player is in, as { map, c, minX, maxX, minY, maxY } in world
+-- yards: what "% of Azeroth walked" is measured against (docs/ARCHITECTURE.md §6.8). The zones
+-- are asked from the client, so zones Forever adds count too. nil without the API or before the
+-- player's map is known.
+function Compat.GetZoneRects()
+    if not Compat.has.mapChildren then return nil end
+    local root = Compat.GetPlayerMapID()
+    for _ = 1, MAX_MAP_DEPTH do
+        local parent = root and Compat.GetParentMap(root)
+        if not parent then break end
+        root = parent
+    end
+    if not root then return nil end
+    local zoneType = type(Enum) == "table" and type(Enum.UIMapType) == "table" and Enum.UIMapType.Zone or ZONE_MAP_TYPE
+    local children = Compat.Call(C_Map.GetMapChildrenInfo, root, zoneType, true)
+    if type(children) ~= "table" then return nil end
+    local rects = {}
+    for _, info in ipairs(children) do
+        local mapID = type(info) == "table" and Compat.Safe(info.mapID, "number")
+        local c1, x1, y1 = Compat.GetWorldPosFromMapPos(mapID, 0, 0)
+        local c2, x2, y2 = Compat.GetWorldPosFromMapPos(mapID, 1, 1)
+        if mapID and c1 and c1 == c2 and x1 ~= x2 and y1 ~= y2 then
+            rects[#rects + 1] = {
+                map = mapID, c = c1,
+                minX = math.min(x1, x2), maxX = math.max(x1, x2), minY = math.min(y1, y2), maxY = math.max(y1, y2),
+            }
+        end
+    end
+    return rects
 end
 
 function Compat.IsOnTaxi()

@@ -1,5 +1,5 @@
 local _, ns = ...
-local L, Compat, Store, Time = ns.L, ns.Compat, ns.Store, ns.Time
+local L, Compat, Store, Time, YearCards = ns.L, ns.Compat, ns.Store, ns.Time, ns.YearCards
 local StaticData = ns.StaticData
 
 -- Ore, herbs and skins as per-day counters, never as records (docs/ARCHITECTURE.md §6.4):
@@ -9,6 +9,7 @@ local StaticData = ns.StaticData
 local WINDOW = 5
 local MAX_ITEMS_SHOWN = 6
 local KINDS = { "mining", "herbalism", "skinning" }
+local ICON = "Interface\\Icons\\Trade_Mining"
 
 local function itemName(itemID)
     return Compat.GetItemName(itemID) or L.UNKNOWN_ITEM:format(itemID)
@@ -52,6 +53,32 @@ ns.RecordTypes:RegisterCounter("nodes", {
         end
         if #parts == 0 then return nil end
         return table.concat(parts, " · ")
+    end,
+})
+
+-- "212 nodes gathered. Ore deposits mined: 120 · Herbs picked: 92. Most gathered: 523× Copper Ore."
+YearCards:Register({
+    id = "gathering",
+    order = 60,
+    build = function(summary)
+        local counters = summary.rollup.counters
+        local nodes, items = YearCards.Sum(counters.nodes), YearCards.Sum(counters.gather)
+        if nodes + items == 0 then return nil end
+        local card = { title = L.CARD_GATHERING, icon = ICON, lines = {} }
+        if nodes > 0 then
+            card.big, card.caption = YearCards.Number(nodes), YearCards.Plural("CARD_GATHERING_NODES", nodes)
+            card.lines[1] = ns.RecordTypes.counters.nodes.render(counters.nodes)
+        else
+            card.big, card.caption = YearCards.Number(items), YearCards.Plural("CARD_GATHERING_ITEMS", items)
+        end
+        local itemID, count = YearCards.Top(counters.gather)
+        if itemID then
+            if nodes > 0 then
+                card.lines[#card.lines + 1] = YearCards.Plural("CARD_GATHERING_TOTAL", items)
+            end
+            card.lines[#card.lines + 1] = L.CARD_GATHERING_TOP:format(L.GATHER_ITEM:format(count, itemName(itemID)))
+        end
+        return card
     end,
 })
 

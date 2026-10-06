@@ -1,8 +1,8 @@
 # Wayscribe
 
 An automatic journal for your **WoW Forever** character. Wayscribe records what happens while you play,
-groups it by day, shows your last session when you log in, and draws where you went on the world map
-(**Footsteps**). A yearly "Wrapped" is next.
+groups it by day, shows your last session when you log in, draws where you went on the world map
+(**Footsteps**), and looks back on each year, card by card (**Your Year**).
 
 ```
 Saturday, October 3, 2026
@@ -23,7 +23,7 @@ Everything stays in your SavedVariables. Nothing is sent anywhere.
 
 ## Status
 
-**0.4 Footsteps** (in progress). It tracks:
+**0.5 Your Year** (in progress). It tracks:
 
 - level ups
 - professions: learned, skill points per day, ranks 75/150/225/300
@@ -39,7 +39,11 @@ Everything stays in your SavedVariables. Nothing is sent anywhere.
   day's route. Two hours of play take about 3 KB.
 
 The journal is a book: a day list grouped by month on the left, the selected day on the right,
-filters per category, full dates in English or German. There's also a login recap, a settings page
+filters per category, full dates in English or German. Its second tab is **Your Year**: a card for
+each part of your year (levels, dungeons, bosses, companions, deaths, gathering, professions,
+quests, footsteps with the share of Azeroth you walked, time played), turned like pages. A year
+opens on December 1, with a one-time "Your 2026 is ready" at login; past years open any time.
+The whole journal can be exported as text to keep outside the game. There's also a login recap, a settings page
 (Options > AddOns > Wayscribe), a minimap button, an Addon Compartment entry and a key binding
 (Key Bindings > AddOns, unbound by default).
 See the roadmap in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#11-roadmap).
@@ -50,12 +54,14 @@ See the roadmap in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#11-roadmap).
 |---|---|
 | `/ws` or `/wayscribe` | Open or close the journal |
 | `/ws settings` | Open the settings page |
+| `/ws year` | Open Your Year (`/ws year 2026` for a given year) |
+| `/ws export` | The journal as text to copy (`month`, `year` or `all`, the default) |
 | `/ws recap` | Show the last session again |
 | `/ws probe` | Show which game APIs this client offers (also saved to `WayscribeDB.probe`) |
-| `/ws stats` | Entries, days, months and sessions in this character's journal, and the size of its footsteps |
+| `/ws stats` | Entries, days, months and sessions in this character's journal, the size of its footsteps, and how big both are in the saved file |
 | `/ws log` | The last recorded errors |
 | `/ws rebuild` | Recompute firsts and monthly summaries from the journal entries, and fill in quest chains finished before they were known |
-| `/ws dev` | Toggle developer mode (errors also go to BugSack; enables `simulate`) |
+| `/ws dev` | Toggle developer mode (errors also go to BugSack; enables `simulate`; previews this year's Your Year before December) |
 | `/ws simulate LEVEL_UP level=12` | Add a test entry through the real write path; `/ws simulate clear` removes them |
 | `/ws accept` | Resolve a read-only situation (journal of another character, or a journal or footsteps that didn't load) |
 
