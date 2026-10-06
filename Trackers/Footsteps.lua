@@ -47,7 +47,8 @@ ns.RecordTypes:RegisterCounter("travel", {
 local Footsteps = ns.Trackers:New("Footsteps", { label = L.TRACKER_FOOTSTEPS, tooltip = L.TRACKER_FOOTSTEPS_TIP })
 
 function Footsteps:OnEnable()
-    self.live, self.anchor = nil, nil
+    -- seen: the last sampled position, kept point or not.
+    self.live, self.anchor, self.seen = nil, nil, {}
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
     self:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     -- Lifecycle sends LOGOUT before it updates the canary, so the last trail is counted there.
@@ -120,15 +121,19 @@ function Footsteps:Sample()
         if live and now - live.moved > IDLE then self:Close() end
         return
     end
-    if live and (live.c ~= continent or live.f ~= flying or now > live.dayEnd or live.n >= MAX_POINTS) then
+    -- A teleport is measured against the last sample, not the last kept point: a hearthstone is
+    -- cast standing still, and 700 yards after a 10 s cast would look like a walk (build 70235).
+    local seen = self.seen
+    local jumped = seen.c == continent and seen.t
+        and Geometry.Distance(seen.x, seen.y, x, y) > MAX_SPEED * math.max(1, now - seen.t)
+    seen.c, seen.x, seen.y, seen.t = continent, x, y, now
+    if live and (jumped or live.c ~= continent or live.f ~= flying or now > live.dayEnd or live.n >= MAX_POINTS) then
         self:Close()
         live = nil
     end
     if live then
         local step = Geometry.Distance(live.x, live.y, x, y)
-        if step > MAX_SPEED * math.max(1, now - live.moved) then
-            self:Close() -- teleported
-        elseif step >= MIN_STEP then
+        if step >= MIN_STEP then
             self:AddPoint(live, x, y, step, now)
             return
         else
@@ -181,7 +186,8 @@ function Footsteps:Close()
     self.live = nil
     Paths:SetLive(nil)
     self.anchor = { c = live.c, x = live.x, y = live.y }
-    if live.n < 2 then return end
+    -- A trail that went nowhere (a pause right after a reload) isn't worth storing.
+    if live.n < 2 or live.length < MIN_STEP then return end
     local points = Geometry.Quantize(Geometry.Simplify(live.points, TOLERANCE))
     if #points < 4 then return end
     local stored = Paths:AddSegment({

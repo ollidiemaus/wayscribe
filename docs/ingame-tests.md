@@ -114,15 +114,20 @@ about 3.2 KB (budget 10 KB). These checks need the client.
   there. A first fix (re-laying out the lines after drawing) didn't help; lines are now at least
   3 pixels long, with a tail to the player, and drawn again after zooming. Rechecked: the line
   stays whole and follows you on the small map too.*
-- [ ] **Stand still for a minute, then walk on.** The line continues without a gap.
+- [x] **Stand still for a minute, then walk on.** The line continues without a gap. *Yes (2026-10-06).*
 - [ ] **Take a flight.** The flight is a thinner blue line from flight master to flight master, the
   walk before and after joins it. With *Record flight paths* off, the flight leaves no line.
-- [ ] **Hearthstone or a portal.** No line across the jump.
+- [ ] **Hearthstone or a portal.** No line across the jump. *2026-10-06: a hearthstone within
+  Mulgore (no loading screen) drew a straight 688-yard line. The jump was measured from the last
+  kept point, and the 10 s cast standing still made it look like a walk. Jumps are now measured
+  from the previous second's sample. Check again.*
 - [x] **Die and run back as a ghost.** The ghost's way is not drawn. *Yes; after resurrecting, the
   trail goes on from the respawn spot (2026-10-06).*
 - [ ] **Fight a few mobs while moving.** The line has no gaps from combat. (Is the position
   secret in combat? §12 #5)
-- [ ] **`/reload` while walking.** The trail so far stays on the map; recording goes on.
+- [x] **`/reload` while walking.** The trail so far stays on the map; recording goes on. *Yes,
+  with a small gap where the reload was (2026-10-06): a reload ends the trail, and the new one
+  starts where you are once the UI is back.*
 - [ ] **Day page.** The journal shows "Zurückgelegt: 2,4 km" (and "Flugrouten: …" after a
   flight).
 - [ ] **`/ws stats` after about two hours of play.** The "Fußspuren: … KB gepackt" line should be
@@ -151,9 +156,10 @@ about 3.2 KB (budget 10 KB). These checks need the client.
 
 ### Deaths
 
-- [ ] **Die outdoors.** The journal shows "In Mulgore gestorben" (with the time), and the map shows a
+- [x] **Die outdoors.** The journal shows "In Mulgore gestorben" (with the time), and the map shows a
   skull where you died. Mouseover: "Hier gestorben" and the time; the skull keeps its size when
-  zooming. With the map open while dying, the skull appears at once.
+  zooming. With the map open while dying, the skull appears at once. *Entry, skull and tooltip
+  shown (2026-10-06).*
 - [ ] **Next day / Letzte 7 Tage:** yesterday's skull shows with the date in its tooltip; "Heute"
   hides it.
 - [ ] **Die in a dungeon.** The journal names the dungeon ("In Flammenschlund gestorben" or

@@ -127,6 +127,30 @@ describe("recording", function()
         T.same(travel(ns), { ground = 180 }, "the jump is not a distance traveled")
     end)
 
+    -- In game (build 70235), a hearthstone drew a 688-yard line: it is cast standing still for 10 s,
+    -- has no loading screen nearby, and the jump was measured from the last kept point.
+    it("breaks the trail at a hearthstone cast standing still", function()
+        local ns = start()
+        walk(line(0, 0, 0, 100, 10))
+        wait(10) -- the cast
+        walk(line(690, 100, 690, 160, 6))
+        wait(61)
+        local list = trails(ns)
+        T.eq(#list, 2)
+        T.same(decode(ns, list[1]), { 0, 10, 0, 100 })
+        T.same(decode(ns, list[2]), { 690, 110, 690, 160 })
+        T.same(travel(ns), { ground = 90 + 50 }, "the jump is no distance")
+    end)
+
+    it("stores no trail that went nowhere", function()
+        local ns = start()
+        walk(line(0, 0, 0, 100, 10))
+        wait(61)
+        walk({ { 0, 103 } }) -- a new trail begins at the last one's end, 3 yards on
+        wait(61)
+        T.eq(#trails(ns), 1)
+    end)
+
     it("flags flights and joins them to the walk before and after", function()
         local ns = start()
         walk(line(0, 0, 0, 50, 5))

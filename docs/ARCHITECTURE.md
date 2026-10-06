@@ -548,14 +548,16 @@ the player is outdoors (instance type `none`) and trails can be saved. It doesn'
   one API call per second and writes nothing. The trail being recorded lives in memory
   (`Paths:SetLive`) and grows on screen while the map is open.
 - A **trail** (segment) ends on: a loading screen, a continent change, a jump faster than 100 yd/s
-  (a teleport), taxi start or end (flight trails are flagged), death (ghosts aren't followed), more
+  from the previous second's sample (a teleport; measured from the last *kept* point, a hearthstone
+  cast standing still looked like a walk in game), taxi start or end (flight trails are flagged), death (ghosts aren't followed), more
   than 60 s without moving, **midnight** (so every trail belongs to one day), 1800 recorded points
   (bounds the work at the end), turning the feature off, and logout (through the bus's `LOGOUT`).
   A position that is hidden for a moment (combat?) doesn't end the trail unless the pause gets long.
 - The next trail **starts where the last one ended** if the player is within 30 yards of it on the
   same continent, so pauses, flights and midnight leave no gaps on the map.
 - When a trail ends it is simplified with **Douglas-Peucker** (3 yards), rounded to whole yards and
-  packed with the polyline codec.
+  packed with the polyline codec. A trail shorter than 8 yards (a pause right after a reload) isn't
+  stored.
 - Flights are recorded only with *Record flight paths* on (default on).
 
 **Storage** (`WayscribeFootstepsDB`, written only through `Data/Paths.lua`):
