@@ -670,7 +670,8 @@ screenshots (`SCREENSHOT_SUCCEEDED` → "took a screenshot here").
 
 The first probe ran on client `1.60.1` build `70235` (2026-10-06), the 0.2 probe on the same build. The raw output is in
 [forever-probe.md](forever-probe.md). "Exists" means the API or event is there. Whether an event
-actually *fires* for Vanilla content still needs the matching gameplay test.
+actually *fires* for Vanilla content still needs the matching gameplay test; those are listed per
+release in [ingame-tests.md](ingame-tests.md).
 
 | # | Question | Probe (build 70235) | Still open | Fallback if "no" |
 |---|---|---|---|---|

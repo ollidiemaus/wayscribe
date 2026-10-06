@@ -63,4 +63,5 @@ The minimap button needs the libraries in `Libs/`, which the packager fetches (s
 local copy, put LibStub, CallbackHandler-1.0, LibDataBroker-1.1 and LibDBIcon-1.0 there yourself.
 Without them, everything except the minimap button works.
 The architecture, design decisions and the list of APIs still to verify on the Forever client
-are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The checks that need the real client are in
+[docs/ingame-tests.md](docs/ingame-tests.md).
