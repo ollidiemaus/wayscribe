@@ -330,7 +330,9 @@ ADDON_LOADED
     the character name, so a renamed character starts with an empty file. Wayscribe recognizes the
     GUID and shows how to move the old file.
   - This doesn't help if *every* SV file fails to load (canary and journal look like a first
-    install), so an export or backup option stays on the roadmap.
+    install), or when the files are gone (a new computer, a deleted WTF folder). The backup
+    planned for 0.6 (§4.8) covers that: a string the player keeps outside the game and pastes back.
+    It also gives the missing-journal warning a second way out besides copying files.
   - **Trails** (`WayscribeFootstepsDB`, 0.4) get the same checks with their own outcome: a newer schema, a
     failed migration, an unexpected shape, or trails missing while the canary counted some
     (`characters[guid].paths`, the trail `seq`) make **only the trails** read-only, with a chat
@@ -364,6 +366,71 @@ designed now but built later:
   build Phase B from real numbers. Since 0.5 it says how big the journal and the trails are in the
   saved file (`Codec.SavedSize` writes them the way build 70235 does: `["key"] = value,` per line,
   no indentation; it came within one byte of a real 3.4 KB file).
+
+### 4.8 Backup and restore (planned for 0.6)
+
+The text export (0.5, §7) is a copy to read: rendered pages can't be turned back into facts. The
+backup is the restorable counterpart: the character's **facts** as one string, copied out through
+the clipboard like the export, and pasted back to restore them.
+
+**What goes in.** Only what can't be recomputed (principle 1):
+- the journal: `meta` (guid, name, realm, class, created, seq), `players`, every month's days
+  (records and counters) and sessions, and `state` (tracker snapshots and bookkeeping);
+- the trails, optional (they are the bulk): every day's segments as stored, their packed `p`
+  strings unchanged.
+
+Rollups, `firsts` and the day index are caches, so they stay out and are rebuilt on restore
+(`Index:Rebuild`, §4.5). Account settings stay out: they aren't the character's story.
+
+**Format.** `WSB1:` (magic and format version), a header, then the payload:
+- Header: addon version, the journal's and trails' schema versions, the character's guid, name and
+  realm, `seq`, the trail count, the payload's length and a checksum (Adler-32, computed with
+  arithmetic only, like the codec), so a truncated or garbled paste is caught before anything is
+  touched. A half-copied string is the most likely failure.
+- Payload: a compact serializer for plain data. A type tag per value, integers as the codec's
+  zigzag varints, and strings in a string table, since record types and field names repeat
+  thousands of times. Everything is written in the codec's 64-character alphabet, so the string
+  holds nothing an edit box, chat or a text editor treats specially: no `|` (the client's escape
+  character), no quotes, no line breaks. Pure Lua, no WoW API, tested by round trips in plain Lua
+  like the codec.
+- No compression at first. Trails are already packed and the journal's facts shrink a lot with the
+  string table. Measure first (§4.7: about 1 MB of journal and 1–2 MB of trails per active year in
+  the saved file); LibDeflate as an optional packager external is the candidate if pasting turns out
+  too slow.
+
+**Making one.** `/ws backup` and Settings > Data > Backup open the export dialog with the backup
+string selected (with or without footsteps). It's built in a coroutine with a frame budget, so a
+long journal never stalls a frame. It works on a read-only journal too: a journal in safe mode is
+exactly the one worth saving.
+
+**Restoring** never destroys data (principle 3):
+- `/ws restore` and Settings > Data > Restore open a dialog with an empty box to paste into.
+- The string is decoded completely and checked first: the magic, the checksum, the header. A schema
+  newer than this addon's is refused (update the addon); an older one runs the same migrations as a
+  loaded file (§4.6), build-then-swap. Records of unknown types are kept, as everywhere.
+- It only goes into a journal with **no entries** (a new character, a fresh install) or one in the
+  *missing* safe-mode state (the canary says data existed, §4.6). A journal with entries is refused
+  with a message; Settings > Data > Reset empties it first, a deliberate step with its own
+  confirmation. Merging two journals (ids, firsts, overlapping days) isn't worth its risk.
+- A backup of another character (a different guid) asks for confirmation and then takes the current
+  character's identity, like `/ws accept` for a foreign journal. That also covers renames, and
+  transfers that may change the guid.
+- Trails in the backup go into empty or missing trails only, with the same rules, on their own.
+- Then the restored tables are swapped in, the caches rebuilt, the canary stamped, and the UI
+  reloaded (like Reset): the trackers start on the restored state, and the client writes the
+  restored files to disk right away.
+
+**Where.** `Data/Backup.lua` (format, serializer, checks, the swap through `Schema`), the dialogs in
+`UI/Export.lua` next to the text export, `/ws backup` and `/ws restore`.
+
+**Exit criterion.** A simulated year of journal and trails survives backup, wipe and restore
+exactly: the same facts, and caches rebuilt equal to the originals. In game, a journal in the
+missing state can be restored without `/ws accept`, and the backup of a long journal pastes back in
+a few seconds.
+
+**Open until it's measured:** whether one string stays practical for a long journal or needs to be
+split by year (months are independent partitions, so a year is a natural part), and whether it
+needs compression.
 
 ---
 
@@ -811,7 +878,8 @@ dependency mechanism in WoW, so it must match the layer diagram.
 | **0.2 Adventurer** | Professions, Gathering, Bosses, Dungeons (roster + firsts). Settings page, minimap button, keybind, login recap. | A full Ragefire Chasm run produces the expected entries, including after a mid-run `/reload`. |
 | **0.3 Chronicler** | Journal UI polish (book look, filters, day view), quest chains (providers + retroactive rebuild), dates localized deDE/enUS. | A curated chain added after the fact back-fills correctly. |
 | **0.4 Footsteps** | Sampler, segmenting, simplification, codec, world-map overlay, day → path link. Deaths in the journal and as skulls on the map. | 2 h of play stays under ~10 KB packed. No measurable frame-time cost. |
-| **0.5 Your Year** | Recap cards, December prompt, Footsteps coverage ("% of Azeroth walked"). Text export of the journal (a backup the player keeps outside WoW). Archive (Phase B) if `/wayscribe stats` from real users justifies it (not yet: §13). | The recap renders from rollups alone. |
+| **0.5 Your Year** | Recap cards, December prompt, Footsteps coverage ("% of Azeroth walked"). Text export of the journal (a copy to read outside WoW). Archive (Phase B) if `/wayscribe stats` from real users justifies it (not yet: §13). | The recap renders from rollups alone. |
+| **0.6 Backup** | A restorable backup string of the character's facts and trails, and restoring it into an empty or missing journal (§4.8). Closes the gap the missing-DB guard can't cover (§4.6). | A simulated year survives backup, wipe and restore exactly; a missing journal is restored in game. |
 
 **Future tracker ideas** (each is a single-file addition): gold earned and spent, reputation
 milestones, first mount, zones discovered, epic loot, talent milestones, PvP honor kills, guild join,
