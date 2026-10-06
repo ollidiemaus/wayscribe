@@ -668,7 +668,7 @@ screenshots (`SCREENSHOT_SUCCEEDED` → "took a screenshot here").
 
 ## 12. Verify on the Forever beta (run `/ws probe`)
 
-The first probe ran on client `1.60.1` build `70235` (2026-10-06). The raw output is in
+The first probe ran on client `1.60.1` build `70235` (2026-10-06), the 0.2 probe on the same build. The raw output is in
 [forever-probe.md](forever-probe.md). "Exists" means the API or event is there. Whether an event
 actually *fires* for Vanilla content still needs the matching gameplay test.
 
@@ -679,9 +679,9 @@ actually *fires* for Vanilla content still needs the matching gameplay test.
 | 3 | Does world position work outdoors? | ✅ `UnitPosition` works (instance 1 = Kalimdor). ✅ `C_Map.GetWorldPosFromMapPos` returns the same point. **UnitPosition's first return equals the world vector's `.x`.** | Behavior inside instances. | Zone-relative `uiMapID + x,y`. |
 | 4 | Does `C_QuestLine` return data for Vanilla quests? | `C_QuestLine.GetQuestLineInfo` exists. | Call it for a Vanilla chain quest (0.3). | Curated chains only. |
 | 5 | Which values are secret, and when? | `issecretvalue` exists. `UnitLevel` is not secret out of combat. ForeverChronicle saw secret aura data and spellcast arguments. | Values in combat and instances. | `Compat.Safe` everywhere. Capture IDs and resolve names later via `ns.Defer`. |
-| 6 | Gather spell IDs, and does `GetLootSourceInfo` exist? | ✅ `GetLootSourceInfo` exists. `SpellName.db2` (via wago.tools): Vanilla IDs named Mining / Herbalism / Skinning, plus Forever's 1235230 (Mining) and 1235236 (Herb Gathering). | Which spell ID a gather cast actually reports, and whether it's secret. The probe prints the names. | Name match is built in (§6.4); item subclass fallback for nodes. |
+| 6 | Gather spell IDs, and does `GetLootSourceInfo` exist? | ✅ `GetLootSourceInfo` exists. ✅ All gather spell IDs exist and their names resolve in the client's language (0.2 probe, deDE: Bergbau / Kräuterkunde / Kürschnerei; 1235236 = Kräutersammeln). | Which spell ID a gather cast actually reports, and whether it's secret. | Name match is built in (§6.4); item subclass fallback for nodes. |
 | 7 | Does an LFG or dungeon-finder completion event exist? | `LFG_COMPLETION_REWARD` and `SCENARIO_COMPLETED` exist. | Whether they fire for Vanilla dungeons. | Final-boss data table (already the primary signal). |
-| 8 | Do SavedVariables survive a round trip on the current client build? | ✅ Account and character files written on `/reload` and logout, `.bak` holds the previous save, the session was resumed after the reload. | A full relog (should add a second session). Retest on every new client build. | Missing-DB guard (§4.6). |
+| 8 | Do SavedVariables survive a round trip on the current client build? | ✅ Account and character files written on `/reload` and logout, `.bak` holds the previous save, the session was resumed after the reload. ✅ A full relog added a second session (0.2). | Retest on every new client build. | Missing-DB guard (§4.6). |
 
 Other findings:
 - wago.tools lists build 70235 as product `wow_cn_beta`, so its DB2 tables (`DungeonEncounter`, `Map`,
