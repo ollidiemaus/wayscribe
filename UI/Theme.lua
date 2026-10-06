@@ -52,6 +52,7 @@ local CATEGORIES = {
     adventure = { order = 2, color = { 0.56, 0.14, 0.10 } },
     quests = { order = 3, color = { 0.62, 0.42, 0.04 } },
     gathering = { order = 4, color = { 0.20, 0.42, 0.16 } },
+    travel = { order = 5, color = { 0.12, 0.38, 0.42 } },
 }
 local OTHER = { order = 99, color = Theme.INK_FADED }
 

@@ -107,6 +107,16 @@ function Compat:Detect()
     has.itemInfoInstant = C_Item ~= nil and C_Item.GetItemInfoInstant ~= nil
     has.spellNames = (C_Spell ~= nil and C_Spell.GetSpellName ~= nil) or type(GetSpellInfo) == "function"
     has.tradeSkillNames = C_TradeSkillUI ~= nil and C_TradeSkillUI.GetTradeSkillDisplayName ~= nil
+    has.taxiState = type(UnitOnTaxi) == "function"
+    has.worldMapCanvas = self.HasWorldMapCanvas()
+end
+
+-- The default world map with its data provider extension point (Footsteps, docs/ARCHITECTURE.md
+-- §6.8). Asked again when Blizzard_WorldMap loads later than this addon.
+function Compat.HasWorldMapCanvas()
+    return type(WorldMapFrame) == "table" and type(WorldMapFrame.AddDataProvider) == "function"
+        and type(MapCanvasDataProviderMixin) == "table" and type(CreateFromMixins) == "function"
+        and Compat.has.mapWorldPos == true and type(CreateVector2D) == "function"
 end
 
 local function text(value)
@@ -136,6 +146,90 @@ function Compat.GetPlayerMapID()
     local mapID = Compat.Call(C_Map.GetBestMapForUnit, "player")
     return type(mapID) == "number" and mapID or nil
 end
+
+------------------------------------------------------------------------------------------------
+-- World positions (Footsteps). The world is in yards per continent (the Map.db2 instance:
+-- 0 = Eastern Kingdoms, 1 = Kalimdor). x is UnitPosition's first value, which equals C_Map's
+-- world vector .x (verified on build 70235): north is +x, west is +y.
+
+-- Where a point of a map (u, v from 0 to 1) lies in the world: continentID, x, y; or nil.
+function Compat.GetWorldPosFromMapPos(mapID, u, v)
+    if not (Compat.has.mapWorldPos and type(CreateVector2D) == "function") then return nil end
+    local continentID, world = Compat.Call(C_Map.GetWorldPosFromMapPos, mapID, CreateVector2D(u, v))
+    if type(continentID) ~= "number" or type(world) ~= "table" then return nil end
+    local x, y = Compat.Safe(world.x, "number"), Compat.Safe(world.y, "number")
+    if not (x and y) then return nil end
+    return continentID, x, y
+end
+
+-- continentID, x, y of the player; nil inside instances or while the client hides it.
+function Compat.GetPlayerWorldPosition()
+    if Compat.has.unitPosition then
+        local x, y, _, continentID = Compat.Call(UnitPosition, "player")
+        if type(x) == "number" and type(y) == "number" and type(continentID) == "number" then
+            return continentID, x, y
+        end
+        return nil
+    end
+    local mapID = Compat.GetPlayerMapID()
+    if not (mapID and Compat.has.mapPlayerPosition) then return nil end
+    local position = Compat.Call(C_Map.GetPlayerMapPosition, mapID, "player")
+    if type(position) ~= "table" then return nil end
+    local u, v = Compat.Safe(position.x, "number"), Compat.Safe(position.y, "number")
+    if not (u and v) then return nil end
+    return Compat.GetWorldPosFromMapPos(mapID, u, v)
+end
+
+local MAX_MAP_DEPTH = 5
+
+-- The most detailed map showing a world position, or nil. C_Map.GetMapPosFromWorldPos answers
+-- with the continent (1414 for a point in Mulgore on build 70235), so this walks down through
+-- the maps at that point.
+function Compat.GetMapAtWorldPos(continentID, x, y)
+    if not (Compat.has.mapWorldPos and type(CreateVector2D) == "function") then return nil end
+    local world = CreateVector2D(x, y)
+    local mapID, position = Compat.Call(C_Map.GetMapPosFromWorldPos, continentID, world)
+    if type(mapID) ~= "number" then return nil end
+    for _ = 1, MAX_MAP_DEPTH do
+        local u = type(position) == "table" and Compat.Safe(position.x, "number")
+        local v = type(position) == "table" and Compat.Safe(position.y, "number")
+        local info = u and v and Compat.Call(C_Map.GetMapInfoAtPosition, mapID, u, v)
+        local child = type(info) == "table" and Compat.Safe(info.mapID, "number")
+        if not child or child == mapID then break end
+        local _, childPosition = Compat.Call(C_Map.GetMapPosFromWorldPos, continentID, world, child)
+        mapID, position = child, childPosition
+    end
+    return mapID
+end
+
+-- The subzone the player is in ("Red Cloud Mesa"), in the client's language, or nil. No API turns
+-- a subzone back into a name later, so callers keep the text (like boss names).
+function Compat.GetSubZoneName()
+    return text(Compat.Call(GetSubZoneText))
+end
+
+-- A map's name in the client's language (a zone, a dungeon), or nil.
+function Compat.GetMapName(mapID)
+    local info = C_Map and C_Map.GetMapInfo and Compat.Call(C_Map.GetMapInfo, mapID)
+    return type(info) == "table" and text(Compat.Safe(info.name, "string")) or nil
+end
+
+function Compat.GetParentMap(mapID)
+    local info = C_Map and C_Map.GetMapInfo and Compat.Call(C_Map.GetMapInfo, mapID)
+    local parent = type(info) == "table" and Compat.Safe(info.parentMapID, "number")
+    return parent and parent > 0 and parent or nil
+end
+
+function Compat.IsOnTaxi()
+    return Compat.Call(UnitOnTaxi, "player") == true
+end
+
+function Compat.IsDeadOrGhost()
+    return Compat.Call(UnitIsDeadOrGhost, "player") == true
+end
+
+------------------------------------------------------------------------------------------------
+-- Instances, groups, professions, spells and items
 
 -- instanceID (Map.db2 ID, also outdoors: 0 = Eastern Kingdoms, 1 = Kalimdor), instanceType
 -- ("none", "party", "raid", ...), difficultyID, localized name.
@@ -184,11 +278,27 @@ function Compat.GetSkillLineName(skillLine)
     return text(Compat.Call(api, skillLine))
 end
 
+-- Trimmed: some names come with stray spaces (23491 " Extrem sicherer Transporter: Gadgetzan" on
+-- build 70235's German client).
 function Compat.GetSpellName(spellID)
+    local name
     if C_Spell and C_Spell.GetSpellName then
-        return text(Compat.Call(C_Spell.GetSpellName, spellID))
+        name = Compat.Call(C_Spell.GetSpellName, spellID)
+    else
+        name = Compat.Call(GetSpellInfo, spellID)
     end
-    return text(Compat.Call(GetSpellInfo, spellID))
+    return text(type(name) == "string" and name:match("^%s*(.-)%s*$") or nil)
+end
+
+-- A spell's icon (a file ID or path), or nil.
+function Compat.GetSpellIcon(spellID)
+    local icon
+    if C_Spell and C_Spell.GetSpellTexture then
+        icon = Compat.Call(C_Spell.GetSpellTexture, spellID)
+    else
+        icon = Compat.Call(GetSpellTexture, spellID)
+    end
+    return (type(icon) == "number" or type(icon) == "string") and icon or nil
 end
 
 -- Item class and subclass IDs are locale-free (7/7 = Metal & Stone, 7/9 = Herb, 7/6 = Leather).

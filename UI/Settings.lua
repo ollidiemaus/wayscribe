@@ -9,7 +9,9 @@ local SettingsPanel = {}
 ns.SettingsPanel = SettingsPanel
 
 local DATE_FORMATS = { "", "YYYY-MM-DD", "DD.MM.YYYY", "DD/MM/YYYY", "MM/DD/YYYY" }
+local FOOTSTEPS_MODES = { "today", "week", "all", "off" }
 local RESET_POPUP = "WAYSCRIBE_RESET_JOURNAL"
+local DELETE_TRAILS_POPUP = "WAYSCRIBE_DELETE_TRAILS"
 
 local function varType(name)
     return Settings.VarType and Settings.VarType[name] or name:lower()
@@ -27,6 +29,28 @@ end
 
 local function addButton(layout, label, buttonText, onClick, tooltip)
     layout:AddInitializer(CreateSettingsButtonInitializer(label, buttonText, onClick, tooltip, true))
+end
+
+-- A dropdown of string values; options() returns the control's option data.
+local function addDropdown(category, key, label, tooltip, default, get, set, options)
+    local setting = Settings.RegisterProxySetting(category, "Wayscribe_" .. key, varType("String"), label, default, get, set)
+    local create = Settings.CreateDropdown or Settings.CreateDropDown
+    create(category, setting, options, tooltip)
+end
+
+-- A confirmation popup that runs onAccept.
+local function confirm(name, text, onAccept)
+    StaticPopupDialogs[name] = StaticPopupDialogs[name] or {
+        text = text,
+        button1 = L.RESET_ACCEPT,
+        button2 = L.CANCEL,
+        OnAccept = onAccept,
+        showAlert = true,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+    }
+    StaticPopup_Show(name)
 end
 
 local function dateFormatOptions()
@@ -50,12 +74,10 @@ local function addGeneral(category, layout)
     addCheckbox(category, "Minimap", L.SETTINGS_MINIMAP, L.SETTINGS_MINIMAP_TIP, true,
         function() return ns.Minimap:IsShown() end,
         function(value) ns.Minimap:SetShown(value) end)
-    local setting = Settings.RegisterProxySetting(category, "Wayscribe_DateFormat", varType("String"),
-        L.SETTINGS_DATE_FORMAT, "",
+    addDropdown(category, "DateFormat", L.SETTINGS_DATE_FORMAT, L.SETTINGS_DATE_FORMAT_TIP, "",
         function() return ns.Options:Get("dateFormat") end,
-        function(value) ns.Options:Set("dateFormat", value) end)
-    local create = Settings.CreateDropdown or Settings.CreateDropDown
-    create(category, setting, dateFormatOptions, L.SETTINGS_DATE_FORMAT_TIP)
+        function(value) ns.Options:Set("dateFormat", value) end,
+        dateFormatOptions)
 end
 
 local function addTracking(category, layout)
@@ -69,24 +91,44 @@ local function addTracking(category, layout)
     end
 end
 
+local function footstepsModeOptions()
+    local container = Settings.CreateControlTextContainer()
+    for _, mode in ipairs(FOOTSTEPS_MODES) do
+        container:Add(mode, ns.FootstepsMap.ModeLabel(mode))
+    end
+    return container:GetData()
+end
+
+local function confirmDeleteTrails()
+    confirm(DELETE_TRAILS_POPUP, L.DELETE_TRAILS_CONFIRM, function()
+        if not ns.Paths:Wipe() then
+            ns.Print(L.SAFE_MODE_BANNER:format(tostring(ns.Paths.readOnly or ns.safeMode)))
+        end
+    end)
+end
+
+-- The Footsteps tracker's own toggle is in the tracking section, like every tracker's.
+local function addFootsteps(category, layout)
+    addHeader(layout, L.SETTINGS_FOOTSTEPS)
+    addDropdown(category, "FootstepsMode", L.SETTINGS_FOOTSTEPS_MODE, L.SETTINGS_FOOTSTEPS_MODE_TIP, "today",
+        function() return ns.Options:Get("footstepsMode") end,
+        function(value) ns.FootstepsMap:SetMode(value) end,
+        footstepsModeOptions)
+    addCheckbox(category, "FootstepsFlights", L.SETTINGS_FOOTSTEPS_FLIGHTS, L.SETTINGS_FOOTSTEPS_FLIGHTS_TIP, true,
+        function() return ns.Options:Get("footstepsFlights") end,
+        function(value) ns.Options:Set("footstepsFlights", value) end)
+    addButton(layout, L.SETTINGS_FOOTSTEPS_DELETE, L.SETTINGS_FOOTSTEPS_DELETE_BUTTON, confirmDeleteTrails,
+        L.SETTINGS_FOOTSTEPS_DELETE_TIP)
+end
+
 local function confirmReset()
-    StaticPopupDialogs[RESET_POPUP] = StaticPopupDialogs[RESET_POPUP] or {
-        text = L.RESET_CONFIRM,
-        button1 = L.RESET_ACCEPT,
-        button2 = L.CANCEL,
-        OnAccept = function()
-            if ns.Schema:ResetCharacter() then
-                ReloadUI()
-            else
-                ns.Print(L.SAFE_MODE_BANNER:format(tostring(ns.safeMode)))
-            end
-        end,
-        showAlert = true,
-        timeout = 0,
-        whileDead = true,
-        hideOnEscape = true,
-    }
-    StaticPopup_Show(RESET_POPUP)
+    confirm(RESET_POPUP, L.RESET_CONFIRM, function()
+        if ns.Schema:ResetCharacter() then
+            ReloadUI()
+        else
+            ns.Print(L.SAFE_MODE_BANNER:format(tostring(ns.safeMode)))
+        end
+    end)
 end
 
 local function addData(layout)
@@ -103,6 +145,7 @@ function SettingsPanel:Register()
     local category, layout = Settings.RegisterVerticalLayoutCategory(L.ADDON_TITLE)
     addGeneral(category, layout)
     addTracking(category, layout)
+    addFootsteps(category, layout)
     addData(layout)
     Settings.RegisterAddOnCategory(category)
     self.category = category

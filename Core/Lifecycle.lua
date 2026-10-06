@@ -14,16 +14,19 @@ function Lifecycle:ADDON_LOADED(name)
     self:UnregisterEvent("ADDON_LOADED")
     ns.Schema:LoadAccount()
     ns.Schema:LoadCharacter()
+    ns.Schema:LoadPaths()
 end
 
 function Lifecycle:PLAYER_LOGIN()
     ns.Compat:Detect()
     ns.Schema:VerifyIdentity()
+    ns.Schema:VerifyPaths()
     ns.Trackers:EnableAll()
     ns.Bus:Fire("READY")
 end
 
--- Keep this tiny: it is the last chance to change data before the client saves it.
+-- Keep this tiny: it is the last chance to change data before the client saves it. LOGOUT comes
+-- first, so what it writes (the last Footsteps trail) is counted in the canary.
 function Lifecycle:PLAYER_LOGOUT()
     ns.Bus:Fire("LOGOUT")
     ns.Schema:TouchCanary()

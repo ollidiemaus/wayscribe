@@ -1,7 +1,7 @@
 # Wayscribe — Architecture Plan
 
 An automatic, per-character journal for **WoW Forever**. It records what happens while you play,
-groups it by day, and powers a login recap, a **Footsteps** travel map (the Hero's Path idea) and a yearly "Wrapped".
+groups it by day, and powers a login recap, a **Footsteps** travel map and a yearly "Wrapped".
 
 > The name **Wayscribe** was decided on 2026-10-06, after checking that it's free on CurseForge, Wago,
 > WoWInterface and GitHub. It's baked into the SavedVariables names, the folder name and the slash
@@ -18,8 +18,8 @@ feature, not the rule.
    finished sentences. Text, "first time" badges, rollups and recaps are computed from facts. This keeps
    the DB small and localizable, and lets a later release reinterpret old data. For example, a new
    quest-chain definition can light up chains that were completed months ago.
-2. **One write path.** Trackers never touch SavedVariables. Every write goes through `Store`, which
-   validates, partitions, indexes and broadcasts it.
+2. **One write path.** Trackers never touch SavedVariables. Every journal write goes through `Store`,
+   every Footsteps trail through `Paths`; both validate, partition and broadcast what they keep.
 3. **Never destroy data you don't understand.** If loading or migrating fails, or the data comes from a
    newer addon version, the addon goes **read-only (safe mode)**. Because the client saves whatever is
    in memory on logout, a crash at load followed by a "fresh start" would wipe the journal. Safe mode
@@ -37,7 +37,7 @@ feature, not the rule.
 | Fact | Consequence for the design |
 |---|---|
 | SavedVariables (SV) are loaded once before `ADDON_LOADED` and written **only** on clean logout or `/reload`. There is no flush API. | Everything lives in memory during play. A client crash loses that session, and nothing can prevent it. Writes are cheap table inserts. |
-| SV files are Lua source parsed at login. Many small tables and unique constants are slow to load, and very large SV files have historically hit `constant table overflow`. | Bulk data (Hero's Path points) is **string-packed**. Records stay compact. Old data can move to a load-on-demand archive. |
+| SV files are Lua source parsed at login. Many small tables and unique constants are slow to load, and very large SV files have historically hit `constant table overflow`. | Bulk data (Footsteps trails) is **string-packed**. Records stay compact. Old data can move to a load-on-demand archive. |
 | `SavedVariablesPerCharacter` loads only the current character's file. | The journal is per-character by nature, so it gets automatic partitioning for free. |
 | Metatables, functions and userdata are not saved. | The SV tables hold plain data only. Behavior lives in modules that read and write those tables. |
 | **Confirmed:** registering `COMBAT_LOG_EVENT_UNFILTERED` on Forever triggers a protected-action popup (ForeverChronicle had to remove it). | **Never register CLEU.** Use high-level events such as `ENCOUNTER_END`, `BOSS_KILL`, `PLAYER_LEVEL_UP`, `QUEST_TURNED_IN` and `LOOT_*`. |
@@ -53,11 +53,11 @@ flowchart LR
     WoW["WoW events"] --> T["Trackers<br/>(one per feature)"]
     C["Compat<br/>capabilities + API shims"] -.-> T
     SD["StaticData<br/>dungeons, chains, gather spells"] -.-> T
-    T -->|"Store:Append / Store:Count"| S["Store<br/>(single write path)"]
-    S --> DB[("SavedVariables<br/>WayscribeDB / WayscribeCharDB / WayscribePathDB")]
+    T -->|"Store:Append / Store:Count<br/>Paths:AddSegment"| S["Store + Paths<br/>(single write paths)"]
+    S --> DB[("SavedVariables<br/>WayscribeDB / WayscribeCharDB / WayscribeFootstepsDB")]
     S --> IX["Indexes + Rollups<br/>(rebuildable caches)"]
     S -->|"RECORD_ADDED"| BUS(("Internal bus"))
-    BUS --> UI["UI: Journal, Login recap,<br/>Hero's Path, Wrapped"]
+    BUS --> UI["UI: Journal, Login recap,<br/>Footsteps, Wrapped"]
     UI -->|"read API"| S
     RT["RecordTypes registry<br/>schema, render, rollup"] -.-> S
     RT -.-> UI
@@ -65,12 +65,12 @@ flowchart LR
 
 | Layer | Responsibility | May depend on |
 |---|---|---|
-| **Core** | Namespace, lifecycle, module base, event frames, internal bus, error boundary, logging, time/day keys | — |
+| **Core** | Namespace, lifecycle, module base, event frames, internal bus, error boundary, logging, time/day keys, geometry (pure math on trails) | — |
 | **Compat** | Capability detection (`Compat.has.*`), thin API shims (position, professions, instance info), `/wayscribe probe` | Core |
-| **Data** | `Store`, `Schema` (migrations, safe mode), `RecordTypes`, `Index`, `Players` (interning), `Codec` | Core |
+| **Data** | `Store`, `Paths` (Footsteps trails), `Schema` (migrations, safe mode), `RecordTypes`, `Index`, `Players` (interning), `Codec` | Core |
 | **StaticData** | Plain tables: dungeon → final encounter, quest chains, gather spell IDs | — |
 | **Trackers** | Translate game events into facts, holding only the minimal state they need | Core, Compat, Data (write API), StaticData |
-| **UI** | Journal window, login recap, settings, minimap, keybind, Hero's Path overlay, Wrapped | Core, Data (read API), RecordTypes |
+| **UI** | Journal window, login recap, settings, minimap, keybind, Footsteps map, Wrapped | Core, Data (read API), RecordTypes |
 
 Dependencies point one way only. UI never calls trackers, and trackers never call UI. They talk through
 the Store and the bus.
@@ -106,7 +106,8 @@ the Store and the bus.
 
 - Tiny callback registry (or CallbackHandler-1.0). Messages: `RECORD_ADDED`, `COUNTER_CHANGED`,
   `DAY_CHANGED`, `SETTINGS_CHANGED`, `SAFE_MODE`, `REBUILT` (after `/ws rebuild`, so trackers can
-  derive what older facts imply, see §6.7).
+  derive what older facts imply, see §6.7), `LOGOUT` (sent before the canary is stamped, so what it
+  writes is counted), and for Footsteps `PATH_ADDED`, `PATH_LIVE`, `PATH_POINT`, `PATH_WIPED` (§6.8).
 - `ns.Defer(fn)`: work that doesn't need to happen in combat (UI refresh, index maintenance beyond O(1),
   loading the archive) is queued and flushed on `PLAYER_REGEN_ENABLED`.
 - UI refresh is **coalesced**: a dirty flag plus one `C_Timer.After(0, ...)`, so 20 loot events produce
@@ -147,7 +148,7 @@ The data layer is the most important part of the addon and gets the most tests.
 |---|---|---|---|
 | `WayscribeDB` | Account | Settings, minimap position, error log, per-character canaries (§4.6) | Small. Shared across characters. A separate file, so it can vouch for the character files. |
 | `WayscribeCharDB` | Character | Journal records, counters, sessions, indexes, tracker state | The core data. |
-| `WayscribePathDB` | Character | Hero's Path segments (string-packed) | The largest and fastest-growing data. Isolating it means it can be wiped, pruned or moved to load-on-demand without touching the journal. |
+| `WayscribeFootstepsDB` | Character | Footsteps trails (string-packed), written only through `Paths` | The largest and fastest-growing data. Isolating it means it can be wiped, pruned or moved to load-on-demand without touching the journal. It has its own schema version and read-only guard (§4.6). It lives in the same file as the journal (one `Wayscribe.lua` per character), so a file that fails to load takes both. |
 
 ### 4.2 `WayscribeCharDB` layout
 
@@ -234,6 +235,7 @@ ns.RecordTypes:Register("DUNGEON_COMPLETED", {
     rollup   = function(monthRollup, data, r) ... end, -- O(1) update of the month rollup
     merge    = function(yearRollup, monthRollup) ... end, -- combines type-specific rollup fields
     render   = function(data, r) ... end,  -- -> text, icon (localized, at display time)
+    markers  = function(data, r) ... end,  -- optional: { { c, x, y, icon, title }, ... } on the map (0.4)
     upcast   = { [1] = function(data) ... end },  -- optional: version 1 shape -> version 2
 })
 ```
@@ -314,6 +316,11 @@ ADDON_LOADED
     GUID and shows how to move the old file.
   - This doesn't help if *every* SV file fails to load (canary and journal look like a first
     install), so an export or backup option stays on the roadmap.
+  - **Trails** (`WayscribeFootstepsDB`, 0.4) get the same checks with their own outcome: a newer schema, a
+    failed migration, an unexpected shape, or trails missing while the canary counted some
+    (`characters[guid].paths`, the trail `seq`) make **only the trails** read-only, with a chat
+    warning. The journal keeps recording. `/ws accept` starts new trails. When the journal itself
+    is missing, its own guard has already warned, and the trails are left alone.
 - Migrations need **no persistent snapshot inside the SV**. Build-then-swap happens in memory, so if
   the client crashes before saving, the old file is still on disk and the migration simply runs again
   next login. (ForeverChronicle keeps a full DB copy inside its SV during migrations, which doubles
@@ -326,7 +333,7 @@ Estimates for an active player (about 2 h/day):
 | Data | Per day | Per year | Notes |
 |---|---|---|---|
 | Journal records + counters | ~2–4 KB | ~1 MB | 20–50 records/day, counters aggregated |
-| Hero's Path (packed, simplified) | ~3–6 KB | ~1–2 MB | See §6.8 |
+| Footsteps trails (packed, simplified) | ~3–6 KB | ~1–2 MB | See §6.8 |
 | Indexes / rollups | — | < 50 KB | Months × small tables |
 
 That's roughly 2–3 MB per character per year, which is comfortable for a few years. The growth plan is
@@ -334,7 +341,7 @@ designed now but built later:
 
 - **Phase A (v1):** everything lives in the main addon. Partition keys are already month-based.
 - **Phase B (when real data says so):** a load-on-demand companion, `Wayscribe_Archive`, with its own
-  per-character SV. Once a month, out of combat at login, closed **years** (and Hero's Path months older
+  per-character SV. Once a month, out of combat at login, closed **years** (and Footsteps months older
   than N) move from the hot DB into the archive. Browsing an archived year runs
   `C_AddOns.LoadAddOn("Wayscribe_Archive")` on demand. Because rollups stay in the hot DB, the yearly recap
   never needs the archive.
@@ -356,10 +363,17 @@ Compat.has = {
     professionsAPI  = …,   -- GetProfessions/GetProfessionInfo (Mainline) vs GetSkillLineInfo (Classic)
     settingsAPI     = …,   -- Settings.RegisterVerticalLayoutCategory
     lootSourceInfo  = …,   -- GetLootSourceInfo
+    taxiState       = …,   -- UnitOnTaxi (0.4)
+    worldMapCanvas  = …,   -- the world map's data provider extension point (0.4)
 }
 Compat.Safe(v [, expectedType])  -- -> v, or nil if issecretvalue(v) or the type is wrong. Every game value goes through this.
 Compat.Call(fn, ...)             -- pcall + Safe on each return value, for APIs that may error or return secrets
-Compat.GetPlayerWorldPosition()  -- -> continentID, x, y   (nil in instances; 0.4)
+Compat.GetPlayerWorldPosition()  -- -> continentID, x, y in world yards (UnitPosition, else map position); nil in instances
+Compat.GetWorldPosFromMapPos(mapID, u, v) -- -> continentID, x, y of a map point (0.4)
+Compat.GetMapAtWorldPos(continentID, x, y) -- -> the most detailed uiMapID there (0.4)
+Compat.GetParentMap(mapID)       -- -> parentMapID (0.4)
+Compat.IsOnTaxi() / Compat.IsDeadOrGhost()
+Compat.HasWorldMapCanvas()       -- WorldMapFrame takes MapCanvas data providers (0.4)
 Compat.GetProfessionSnapshot()   -- -> { [skillLineID] = { rank, max, name } }
 Compat.GetInstance()             -- -> instanceID, type, difficultyID, name
 Compat.GetGroupMembers()         -- -> array of { guid, name, realm, class }
@@ -437,7 +451,8 @@ second entry, and it falls back to `UnitLevel` when the event argument is secret
 - Because the snapshot is persisted, changes made while the addon was disabled are reconciled at the
   next login without duplicates.
 - Forever's `SkillLine.db2` has child lines (2937–2948) under the classic professions, like Retail's
-  expansion tiers. Whatever `GetProfessionInfo` returns is used as the key. Names come from
+  expansion tiers. Whatever `GetProfessionInfo` returns is used as the key; on build 70235 that is
+  the classic parent (393 for Skinning, §12 #2). Names come from
   `C_TradeSkillUI.GetTradeSkillDisplayName`, then the name cached in the snapshot.
 
 ### 6.4 Gathering (ores, herbs, skins)
@@ -519,42 +534,113 @@ second entry, and it falls back to `UnitLevel` when the event argument is secret
   dated at the end of the day its final quest was turned in (or now, if that's today) and flagged
   `bf`: the journal shows no time of day for it. A quest that already completed a chain, through
   any provider, isn't credited again.
-### 6.8 Hero's Path
+### 6.8 Footsteps
 
-Two data products. Trails are the source of truth; coverage is derived from them.
+The travel map, built in 0.4: `Trackers/Footsteps.lua` records, `UI/FootstepsMap.lua` draws, and the
+data layer stores *trails* (`Data/Paths.lua`, `WayscribeFootstepsDB`). Trails are the source of truth;
+everything else is derived from them or counted next to them.
 
-**Sampling.** A `C_Timer.NewTicker(1)` runs only while the feature is on, the player is outdoors and the
-player is not dead or a ghost. It doesn't use `OnUpdate`.
-- `Compat.GetPlayerWorldPosition()` → `continentID, x, y` in world yards. World coordinates are
-  independent of any one map, so the same trail renders on zone, continent and world maps.
-- Keep a point only if it is more than 8 yards from the last kept point. A standing player costs one API
-  call per second and writes nothing.
-- A **segment** closes on continent change, taxi start or end (flight segments are flagged and drawn
-  differently), entering an instance, more than 60 s idle, or logout.
-- When a segment closes, it is simplified with **Douglas-Peucker** (tolerance about 3 yards) and then
-  encoded.
+**Sampling** (`Trackers/Footsteps.lua`). A `C_Timer.NewTicker(1)` runs only while the feature is on,
+the player is outdoors (instance type `none`) and trails can be saved. It doesn't use `OnUpdate`.
+- `Compat.GetPlayerWorldPosition()` → `continentID, x, y` in world yards (`UnitPosition`, else the
+  map position through `C_Map.GetWorldPosFromMapPos`). World coordinates are independent of any one
+  map, so the same trail renders on zone and continent maps.
+- A point is kept only after moving **8 yards** from the last kept one, so a standing player costs
+  one API call per second and writes nothing. The trail being recorded lives in memory
+  (`Paths:SetLive`) and grows on screen while the map is open.
+- A **trail** (segment) ends on: a loading screen, a continent change, a jump faster than 100 yd/s
+  from the previous second's sample (a teleport; measured from the last *kept* point, a hearthstone
+  cast standing still looked like a walk in game), taxi start or end (flight trails are flagged), death (ghosts aren't followed), more
+  than 60 s without moving, **midnight** (so every trail belongs to one day), 1800 recorded points
+  (bounds the work at the end), turning the feature off, and logout (through the bus's `LOGOUT`).
+  A position that is hidden for a moment (combat?) doesn't end the trail unless the pause gets long.
+- The next trail **starts where the last one ended** if the player is within 30 yards of it on the
+  same continent, so pauses, flights and midnight leave no gaps on the map.
+- When a trail ends it is simplified with **Douglas-Peucker** (3 yards), rounded to whole yards and
+  packed with the polyline codec. A trail shorter than 8 yards (a pause right after a reload) isn't
+  stored.
+- Flights are recorded only with *Record flight paths* on (default on).
+- **Journeys by spell.** A cast (`UNIT_SPELLCAST_SUCCEEDED`, player only) of a travel spell from
+  `StaticData/Travel.lua` notes where it was cast: the hearthstones (with Forever's own), Astral
+  Recall, Teleport: Moonglade, the mage teleports (and Forever's Teleport: Dalaran), and the
+  engineering and other transporters (Everlook, Gadgetzan, and Forever's New Avalon and Mt. Hyjal),
+  matched by ID or by name in the client's language. IDs from build 70235's `SpellName.db2`. When a trail next starts more than 30 yards
+  away (or on another continent) within 60 s, the journey is recorded as
+  `TELEPORT {spell, map, sub, c, x, y, fc?, fx?, fy?}` (category *travel*), dated at the arrival:
+  "Hearthstone to Bloodhoof" / "Ruhestein nach Bloodhoof". The arrival's subzone is read 2 s later,
+  once the client has caught up. Cast inside an instance, only the arrival has a position. A jump
+  without a recognized cast (a summon, a boat's loading screen, a secret spell ID) only breaks
+  the trail.
 
-**Storage** (`WayscribePathDB.months[YYYYMM]`):
+**Storage** (`WayscribeFootstepsDB`, written only through `Data/Paths.lua`):
 ```lua
-{ c = 1, t = 1759490000, d = 640, f = nil, p = "Bx3_a9…" }   -- continent, start, duration, flight, points
+WayscribeFootstepsDB = {
+    schema = 1, seq = 42,                   -- seq: trails ever stored (the canary's count, §4.6)
+    months = { [202610] = { days = { [20261003] = {
+        { c = 1, t = 1759490000, d = 640, f = nil, p = "Bx3_a9…" },   -- continent, start, seconds moving, flight, points
+    } } } },
+}
 ```
-- `p` is a **polyline codec**: quantize to whole yards, delta-encode, zigzag, then write as varints in a
-  64-character printable alphabet.
-- The codec uses arithmetic only (no `bit` library), so it is unit-testable in plain Lua 5.1.
-- A segment of 500 points packs into about 1.5 KB as **one string constant**, instead of 500 tables.
+- Day partitions under month partitions, like the journal: a day's trails need no date math, and a
+  closed year moves as whole month tables.
+- `p` is the **polyline codec** (`Data/Codec.lua`): whole yards, delta-encoded, zigzag, varints in a
+  64-character printable alphabet. Arithmetic only (no `bit` library), unit-tested in plain Lua 5.1.
+- **Distance** goes into the journal as the day counter `travel` (`ground` / `flight` → yards),
+  rendered "Traveled 2.4 miles · Flight paths: 5.1 miles" (km in German). The journal, the login
+  recap and Wrapped get distances without decoding a single trail.
+- **Measured:** two hours of simulated questing (rides, running around between fights, standing in
+  town; about 80 minutes of movement) pack into **about 3.2 KB** in 10 trails. The 0.4 exit criterion
+  is 10 KB; the unit test `footsteps > size budget` keeps it.
 
-**Coverage** (the "% explored" stat and the fog-of-war look) is rasterized from the trails into chunked
-bitsets in a coroutine spread across frames, and cached in memory. It is persisted only if profiling
-shows we need it.
+**Rendering** (`UI/FootstepsMap.lua`): a `MapCanvas` data provider on `WorldMapFrame`, the official
+extension point that HandyNotes also uses.
+- The map's corners (0,0), (1,0) and (0,1) in the world (three `C_Map.GetWorldPosFromMapPos` calls,
+  cached per map) give an affine **world → map transform** (`Core/Geometry.lua`), so drawing needs no
+  API call per point. Maps without world coordinates (the whole world) draw nothing.
+- Lines (pooled `Line` regions on a frame over the canvas, above the explored-area art) are
+  **clipped** to the map (Liang-Barsky) and simplified to the zoom (level of detail: about one screen
+  pixel). Their width is divided by the canvas zoom, so they look the same at every zoom.
+- **No line shorter than 3 pixels** (found in game): on the small map next to the quest log, the
+  trail being recorded (8 yards a point, under a pixel there) broke up, while fullscreen and zoomed
+  maps were fine. Shorter steps are merged until they are long enough, and one tail line runs from
+  the last drawn point to the player. After a zoom by 1.5× or more, the trails are drawn again for
+  the new scale once the zoom has settled.
+- Trails are drawn **newest first** up to 5000 lines, in a coroutine that works at most 4 ms per
+  frame, so even "All" never stalls the map. The trail being recorded is drawn line by line.
+- Ground trails are dark red, flights thinner and blue; today's trails (or the picked day's) are
+  strong, older ones lighter.
+- **Filters:** Today (default), Last 7 days, All, Off, set by a button in the map's upper right corner
+  (Forever shows its own coordinates in the lower left)
+  (a menu where the client has `MenuUtil`, else each click picks the next one) or in settings.
+- **Markers:** record types with a `markers` function (§4.3) put icons on the map for the days
+  shown, each with its title and time (and date, if not today) on mouseover, sized for the screen
+  at every zoom: a skull for a death (§6.9), the spell's icon where a journey by spell left and
+  where it arrived. The map reads them through `Store:GetRecordsOfType`; a new one while the map is
+  open shows at once.
+- **Day → path link:** a journal day with trails shows a *Show on the map* button. It opens the world
+  map at the most detailed map that holds the whole day (the zone, else its parents) and shows that
+  day until the map closes. `C_Map.GetMapPosFromWorldPos` answers with the continent, so
+  `Compat.GetMapAtWorldPos` walks down with `C_Map.GetMapInfoAtPosition` to find the zone.
 
-**Rendering** (v1): a `MapCanvas` data provider on `WorldMapFrame`, the official extension point that
-HandyNotes also uses.
-- World coordinates are converted to the displayed map with `C_Map.GetMapPosFromWorldPos`, then drawn
-  with pooled `Line` textures.
-- The point count per map is capped through simplification tolerance (level of detail) based on map
-  scale.
-- Filters: Today, This week, All, or a specific day. The journal's day page has a **"Show this day's
-  path"** button.
+**Coverage** (the "% of Azeroth walked" stat and a fog-of-war look) moves to 0.5 with Wrapped, its
+only consumer. It will be rasterized from the trails into chunked bitsets in a coroutine and cached
+in memory, persisted only if profiling says so.
+
+### 6.9 Deaths
+- `PLAYER_DEAD` → `DEATH {map, sub?, c?, x?, y?}` in the journal (category *adventure*): the
+  uiMapID from `C_Map.GetBestMapForUnit`, the subzone's name from `GetSubZoneText` and, outdoors,
+  the corpse's continent and position in whole world yards, the same coordinates as Footsteps'
+  trails. Inside instances there is no position, so only the map is kept.
+- Rendered "Died in Red Cloud Mesa, Mulgore" / "In Red Cloud Mesa, Mulgore gestorben". The zone's
+  name is looked up when shown (`Compat.GetMapName`); the subzone is kept as text, because no API
+  names a subzone later (like boss names, §13).
+- **No killer.** Who dealt the killing blow is only in the combat log, which Forever doesn't allow
+  addons (§1), so an entry says where and when, not who.
+- A second `PLAYER_DEAD` within 10 s is the same death.
+- **On the Footsteps map**, a skull marks each death with a position on the days shown (the same
+  Today / Last 7 days / All / picked day as the trails), through the record type's `markers`
+  (§6.8).
+- The month rollup's record count per type already counts deaths, for Wrapped.
 
 ---
 
@@ -562,9 +648,10 @@ HandyNotes also uses.
 
 | Piece | Design |
 |---|---|
-| **Journal window** | Built from the default UI's own pieces, so it looks like Forever's spellbook: `PortraitFrameTemplate` (title, book portrait, close button), Forever's two-page spellbook parchment (`spellbook-page-left/right-c60`, else the retail `spellbook-background-evergreen-*`), spellbook headers (`SystemFont_Huge2` in `SPELLBOOK_FONT_COLOR` over the `spellbook-divider` ornament), spellbook page buttons with "Page 3/12" (`PAGE_NUMBER_WITH_MAX`), the `WowStyle1FilterDropdownTemplate` filter menu and `MinimalScrollBar`s that hide when not needed. Each piece is checked first (`C_XMLUtil.GetTemplateInfo`, `C_Texture.GetAtlasInfo`); without it, plain colors, a dialog border and toggle chips stand in (`UI/Theme.lua`). Forever's page art carries the spellbook's dark top bar in its upper 9% and dark rims at the edges: the pages start under the title bar, the filter menu sits in that bar, and the text lives on a "paper" frame inside the rims (shares of the page size measured from the textures, so it scales with the window). Movable and resizable; size and position are kept in `settings.journal`. Left page: "Scoopz's journal" above the virtualized **day list** (`ScrollBox` + `DataProvider`), newest first, grouped by month; without ScrollBox, a fixed set of rows follows the selection. Right page (`UI/DayView.lua`): the long date, "Today · played 2 h 10 min", the milestones in time order with their time and category marker, then counter summaries, then the day's sessions. Page 1 is the oldest day. Category filters are saved in `settings.journalHidden`. A reader on the newest day follows a new day as it starts. Tabs (**Journal · Footsteps · Wrapped**) arrive with the releases that add those views. |
+| **Journal window** | Built from the default UI's own pieces, so it looks like Forever's spellbook: `PortraitFrameTemplate` (title, book portrait, close button), Forever's two-page spellbook parchment (`spellbook-page-left/right-c60`, else the retail `spellbook-background-evergreen-*`), spellbook headers (`SystemFont_Huge2` in `SPELLBOOK_FONT_COLOR` over the `spellbook-divider` ornament), spellbook page buttons with "Page 3/12" (`PAGE_NUMBER_WITH_MAX`), the `WowStyle1FilterDropdownTemplate` filter menu and `MinimalScrollBar`s that hide when not needed. Each piece is checked first (`C_XMLUtil.GetTemplateInfo`, `C_Texture.GetAtlasInfo`); without it, plain colors, a dialog border and toggle chips stand in (`UI/Theme.lua`). Forever's page art carries the spellbook's dark top bar in its upper 9% and dark rims at the edges: the pages start under the title bar, the filter menu sits in that bar, and the text lives on a "paper" frame inside the rims (shares of the page size measured from the textures, so it scales with the window). Movable and resizable; size and position are kept in `settings.journal`. Left page: "Scoopz's journal" above the virtualized **day list** (`ScrollBox` + `DataProvider`), newest first, grouped by month; without ScrollBox, a fixed set of rows follows the selection. Right page (`UI/DayView.lua`): the long date, "Today · played 2 h 10 min", the milestones in time order with their time and category marker, then counter summaries, then the day's sessions. Page 1 is the oldest day. Category filters are saved in `settings.journalHidden`. A reader on the newest day follows a new day as it starts. A day with Footsteps trails shows *Show on the map* at the bottom of its page (§6.8). There is no tab bar: Footsteps lives on the world map, and Wrapped (0.5) decides whether the journal gets tabs. |
+| **World map** | Footsteps trails and death skulls on `WorldMapFrame` through a MapCanvas data provider, plus a "Footsteps: Today" button that picks the filter (§6.8, §6.9). Without the data provider API, nothing is added and the journal hides its map link. |
 | **Login recap** | On `isInitialLogin` and `state.lastRecapDay ~= today`, 3 s after the loading screen, show the previous session: date, duration, rendered milestones and the counter totals of its day(s) (counters are per day, so they can include another session that day). Simulated entries are left out; an empty session shows nothing. Buttons: *Open journal* (at that day), *Close*, and a *Don't show at login* checkbox wired to the setting. Setting `showLoginRecap` defaults to **on**. `/ws recap` shows it any time. |
-| **Settings** | Blizzard `Settings` API: `RegisterVerticalLayoutCategory`, and `RegisterProxySetting` for every control, so the page reads and writes `ns.Options` / `ns.Trackers` and never owns data. Sections: **General** (login recap, minimap button, date format dropdown), **Tracking** (one toggle per tracker, generated from the registry), **Data** (stats, error log, rebuild indexes, reset with a confirmation popup and a reload). **Footsteps** (enable, record flights) joins in 0.4. Without the API the page is skipped and `/ws settings` says so. |
+| **Settings** | Blizzard `Settings` API: `RegisterVerticalLayoutCategory`, and `RegisterProxySetting` for every control, so the page reads and writes `ns.Options` / `ns.Trackers` and never owns data. Sections: **General** (login recap, minimap button, date format dropdown), **Tracking** (one toggle per tracker, generated from the registry; Footsteps is one of them), **Footsteps** (what the world map shows, record flight paths, delete all trails with a confirmation popup), **Data** (stats, error log, rebuild indexes, reset with a confirmation popup and a reload; reset deletes the trails too). Without the API the page is skipped and `/ws settings` says so. |
 | **Minimap button** | LibDataBroker-1.1 + LibDBIcon-1.0, position and hidden flag in `WayscribeDB.settings.minimap`. Placeholder icon: `Interface\Icons\INV_Misc_Book_09`. Left-click toggles the journal, right-click opens settings. Skipped when the libraries are missing. The Addon Compartment entry comes from the TOC (`AddonCompartmentFunc`), so it works without libraries. |
 | **Keybind** | `Bindings.xml`: `WAYSCRIBE_TOGGLE` under the AddOns category, unbound by default and configurable in the game's Keybindings menu. `BINDING_HEADER_WAYSCRIBE` and `BINDING_NAME_WAYSCRIBE_TOGGLE` are localized. |
 | **Slash** | `/wayscribe` or `/ws` (toggle), plus `settings`, `recap`, `probe`, `stats`, `log`, `rebuild`, `dev`, `simulate <TYPE> …`, `accept`. |
@@ -576,7 +663,7 @@ All UI listens to bus messages. None of it polls.
 
 ## 8. Yearly recap ("Wrapped")
 
-- Data comes from `Store:GetYearSummary(year)` (12 month rollups), plus `firsts` and Hero's Path coverage.
+- Data comes from `Store:GetYearSummary(year)` (12 month rollups), plus `firsts` and Footsteps coverage.
   It's cheap and needs no archive.
 - It's shown as a card slideshow (next and previous). Cards include:
   - Levels gained (from → to) and the day you hit max level
@@ -586,7 +673,7 @@ All UI listens to bus messages. None of it polls.
   - Ores, herbs and skins totals, plus the top item
   - Professions learned and maxed
   - Quest chains completed
-  - Distance traveled and % of Azeroth walked (Hero's Path)
+  - Distance traveled and % of Azeroth walked (Footsteps)
   - Most active month and day, and total play time
 - It becomes available from December 1st, with a one-time "Your 2026 is ready" prompt. It can also be
   opened any time from the tab for any past year.
@@ -602,14 +689,14 @@ Wayscribe.toc
 Bindings.xml               -- key binding (loaded by the client, not listed in the TOC)
 embeds.xml                 -- libs in Libs/ (fetched by the packager via .pkgmeta, git-ignored)
 Locales/   enUS.lua deDE.lua
-Core/      Init.lua Log.lua Time.lua Bus.lua Options.lua Module.lua Trackers.lua Slash.lua Lifecycle.lua
+Core/      Init.lua Log.lua Time.lua Geometry.lua Bus.lua Options.lua Module.lua Trackers.lua Slash.lua Lifecycle.lua
 Compat/    Compat.lua Probe.lua
-Data/      Codec.lua RecordTypes.lua Players.lua Index.lua Store.lua Schema.lua
-StaticData/ Dungeons.lua Gathering.lua QuestChains.lua
+Data/      Codec.lua RecordTypes.lua Players.lua Index.lua Store.lua Paths.lua Schema.lua
+StaticData/ Dungeons.lua Gathering.lua QuestChains.lua Travel.lua
 Trackers/  Session.lua Level.lua Professions.lua Gathering.lua Bosses.lua Dungeons.lua
-           QuestChains.lua HeroPath.lua
+           QuestChains.lua Footsteps.lua Deaths.lua
 UI/        Journal.lua LoginRecap.lua Settings.lua Minimap.lua
-           Theme.lua DayView.lua HeroPathMap.lua Wrapped.lua
+           Theme.lua DayView.lua FootstepsMap.lua Wrapped.lua
 tests/     run.lua testlib.lua wow_stubs.lua serialize.lua <area>_spec.lua …
 docs/      ARCHITECTURE.md forever-probe.md
 .pkgmeta  .luacheckrc  .github/workflows/{ci.yml,release.yml}
@@ -624,8 +711,7 @@ TOC essentials:
 ## Author: ollidiemaus
 ## Version: @project-version@
 ## SavedVariables: WayscribeDB
-## SavedVariablesPerCharacter: WayscribeCharDB, WayscribePathDB
-# (WayscribePathDB is added in 0.4)
+## SavedVariablesPerCharacter: WayscribeCharDB, WayscribeFootstepsDB
 ## IconTexture: Interface\Icons\INV_Misc_Book_09
 ## AddonCompartmentFunc: Wayscribe_OnAddonCompartmentClick
 ```
@@ -671,10 +757,10 @@ dependency mechanism in WoW, so it must match the layer diagram.
 | **0.1 Foundation** | Scaffolding, Core, Compat + probe, Data layer (Store, Schema, RecordTypes, Index, Players, Codec) with tests. Session + Level trackers. Bare journal list. Slash commands. | Tests green. Probe report from the Forever beta committed. A level-up survives logout, `/reload` and relog with no duplicates. |
 | **0.2 Adventurer** | Professions, Gathering, Bosses, Dungeons (roster + firsts). Settings page, minimap button, keybind, login recap. | A full Ragefire Chasm run produces the expected entries, including after a mid-run `/reload`. |
 | **0.3 Chronicler** | Journal UI polish (book look, filters, day view), quest chains (providers + retroactive rebuild), dates localized deDE/enUS. | A curated chain added after the fact back-fills correctly. |
-| **0.4 Footsteps** | Sampler, segmenting, simplification, codec, world-map overlay, day → path link. | 2 h of play stays under ~10 KB packed. No measurable frame-time cost. |
-| **0.5 Wrapped** | Recap cards, December prompt. Text export of the journal (a backup the player keeps outside WoW). Archive (Phase B) if `/wayscribe stats` from real users justifies it. | The recap renders from rollups alone. |
+| **0.4 Footsteps** | Sampler, segmenting, simplification, codec, world-map overlay, day → path link. Deaths in the journal and as skulls on the map. | 2 h of play stays under ~10 KB packed. No measurable frame-time cost. |
+| **0.5 Wrapped** | Recap cards, December prompt, Footsteps coverage ("% of Azeroth walked"). Text export of the journal (a backup the player keeps outside WoW). Archive (Phase B) if `/wayscribe stats` from real users justifies it. | The recap renders from rollups alone. |
 
-**Future tracker ideas** (each is a single-file addition): deaths, gold earned and spent, reputation
+**Future tracker ideas** (each is a single-file addition): gold earned and spent, reputation
 milestones, first mount, zones discovered, epic loot, talent milestones, PvP honor kills, guild join,
 screenshots (`SCREENSHOT_SUCCEEDED` → "took a screenshot here").
 
@@ -690,13 +776,14 @@ release in [ingame-tests.md](ingame-tests.md).
 | # | Question | Probe (build 70235) | Still open | Fallback if "no" |
 |---|---|---|---|---|
 | 1 | Do `ENCOUNTER_END` / `BOSS_KILL` fire for Vanilla dungeon bosses? | Both events exist. ForeverChronicle uses both and merges duplicates. | Kill a dungeon boss (0.2). | NPC-ID detection via `UNIT_HEALTH` on the current target (CLEU is not an option, §1). |
-| 2 | Which profession API works? | ✅ `GetProfessions` / `GetProfessionInfo` (modern). | Values with a profession learned (the probe now prints them). Which skill line ID comes back (parent like 186 or child like 2946)? Does First Aid show up in `GetProfessions`? | — |
-| 3 | Does world position work outdoors? | ✅ `UnitPosition` works (instance 1 = Kalimdor). ✅ `C_Map.GetWorldPosFromMapPos` returns the same point. **UnitPosition's first return equals the world vector's `.x`.** | Behavior inside instances. | Zone-relative `uiMapID + x,y`. |
+| 2 | Which profession API works? | ✅ `GetProfessions` / `GetProfessionInfo` (modern). ✅ With Skinning learned: the parent skill line **393**, rank 3/75, name "Kürschnerei"; it sits in `GetProfessions`' first slot (index 4). | Does First Aid show up in `GetProfessions`? | — |
+| 3 | Does world position work outdoors? | ✅ `UnitPosition` works (instance 1 = Kalimdor). ✅ `C_Map.GetWorldPosFromMapPos` returns the same point. **UnitPosition's first return equals the world vector's `.x`.** ✅ 0.4: the Footsteps transform gives exactly the client's map position. | Behavior inside instances and in combat (0.4 keeps a trail through a short gap). | Zone-relative `uiMapID + x,y`. |
 | 4 | Does `C_QuestLine` return data for Vanilla quests? | `C_QuestLine.GetQuestLineInfo` exists. ❌ The 0.3 probe got nothing for two Mulgore chain quests (747, 752). | Recheck on new client builds. | Curated chains carry the feature (already the first provider). |
 | 5 | Which values are secret, and when? | `issecretvalue` exists. `UnitLevel` is not secret out of combat. ForeverChronicle saw secret aura data and spellcast arguments. | Values in combat and instances. | `Compat.Safe` everywhere. Capture IDs and resolve names later via `ns.Defer`. |
 | 6 | Gather spell IDs, and does `GetLootSourceInfo` exist? | ✅ `GetLootSourceInfo` exists. ✅ All gather spell IDs exist and their names resolve in the client's language (0.2 probe, deDE: Bergbau / Kräuterkunde / Kürschnerei; 1235236 = Kräutersammeln). | Which spell ID a gather cast actually reports, and whether it's secret. | Name match is built in (§6.4); item subclass fallback for nodes. |
 | 7 | Does an LFG or dungeon-finder completion event exist? | `LFG_COMPLETION_REWARD` and `SCENARIO_COMPLETED` exist. | Whether they fire for Vanilla dungeons. | Final-boss data table (already the primary signal). |
 | 8 | Do SavedVariables survive a round trip on the current client build? | ✅ Account and character files written on `/reload` and logout, `.bak` holds the previous save, the session was resumed after the reload. ✅ A full relog added a second session (0.2). | Retest on every new client build. | Missing-DB guard (§4.6). |
+| 9 | Does `WorldMapFrame` take a MapCanvas data provider, and where do the lines land? | ✅ `has.worldMapCanvas`; the trail was drawn in the right place, above the explored-area art. `C_Map.GetMapPosFromWorldPos` answers with the continent (worked around). ✅ Lines at least 3 pixels long stay whole on the small map too. ✅ The map's icons are drawn over the lines. ✅ The journal button opens the map at the zone. | — | No overlay; the journal hides its map link. |
 
 Other findings:
 - wago.tools lists build 70235 as product `wow_cn_beta`, so its DB2 tables (`DungeonEncounter`, `Map`,
@@ -715,12 +802,13 @@ Other findings:
   Compat layer still keeps other flavors cheap to add later.
 - **Day boundary:** calendar midnight in local time (§3.5). A session that runs past midnight
   continues on the next day's page.
-- **Name:** Wayscribe. SVs `WayscribeDB` / `WayscribeCharDB` / `WayscribePathDB`, slash
+- **Name:** Wayscribe. SVs `WayscribeDB` / `WayscribeCharDB` / `WayscribeFootstepsDB` (planned as
+  `WayscribePathDB`, renamed in 0.4 before release), slash
   `/wayscribe` (alias `/ws`). "Diary" was taken on CurseForge.
 - **Companion names:** stored and shown. There's no "hide names" toggle for now.
 
 - **Travel map name:** **Footsteps** (in-game label). "Hero's Path" is taken by another addon and
-  is Nintendo's term. Code and SV keep the internal name `HeroPath`.
+  is Nintendo's term. (The code first kept `HeroPath` as an internal name; 0.4 dropped it, see below.)
 
 ### Decided during 0.2
 
@@ -744,13 +832,45 @@ Other findings:
 - **Back-filled entries carry no time.** Only the day of a turn-in is saved, so they're dated at the
   end of that day, flagged `bf`, and shown without a time.
 - **No tabs yet.** With only the journal there is no tab bar; Footsteps (0.4) and Wrapped (0.5)
-  bring it.
+  bring it. (0.4 put Footsteps on the world map instead, see below.)
 - **The default UI's look, verified first.** A first version drew its own leather and parchment
   from color textures, to depend on no art file; next to Forever's spellbook it looked foreign. The
   journal now uses the client's frame template, spellbook atlases, fonts and colors. The atlas
   names and `SPELLBOOK_FONT_COLOR` were checked against build 70235's `UiTextureAtlasMember` and
   `GlobalColor` tables (wago.tools), and the code checks each piece at runtime before using it,
   falling back to the color drawing.
+
+### Decided during 0.4
+
+- **Footsteps lives on the world map.** The plan had a Footsteps tab in the journal; the world map
+  already is the place for routes, and a tab would only have pointed there. The journal links each
+  day with trails to the map instead. Tabs are decided with Wrapped (0.5).
+- **Trails split at midnight** and are stored per day (`months[m].days[d]`), not as one list per
+  month, so a day's trails are a table lookup and every trail belongs to exactly one journal day.
+- **Distance is a journal counter** (`travel`), written when a trail ends, so the journal, the login
+  recap and Wrapped never decode trails.
+- **Trails have their own guard.** A problem with `WayscribeFootstepsDB` makes only the trails read-only;
+  the journal keeps working (§4.6).
+- **Trails continue after a pause.** A trail ends after a minute without moving (and at midnight, on
+  taxis, at death), but the next one starts at its last point when the player is still there, so
+  the map shows one unbroken route.
+- **Geometry is Core.** Douglas-Peucker, the world-to-map transform and clipping are pure math used
+  by the recorder, the map and the probe, like `Time`.
+- **One name: Footsteps.** Files, modules, the tracker id and the saved variables
+  (`WayscribeFootstepsDB`) say Footsteps, like the game; the data layer calls what it stores *trails*
+  (`Paths`). Renamed before release, so no saved file refers to the old `HeroPath` id or
+  `WayscribePathDB`.
+- **Deaths join 0.4.** A skull on the map where you died belongs to Footsteps, so the Deaths
+  tracker (a future idea until then) came with it. Its records live in the journal, not with the
+  trails: a death is a milestone, the map only reads it.
+- **Journeys by spell join 0.4.** In game, a hearthstone drew a straight line across Mulgore. Besides
+  breaking the trail there, a hearthstone or teleport now gets a journal entry ("Ruhestein nach
+  Bloodhoof") and its spell's icon at both ends on the map. Only a recognized cast counts: a jump
+  alone could be a summon or a boat.
+- **Markers come from record types.** Deaths and journeys declare where they go on the map
+  (`markers`, §4.3), so the map has no per-type code and a future tracker (a screenshot, a rare
+  kill) can add icons the same way.
+- **Coverage moves to 0.5.** "% of Azeroth walked" is a Wrapped card; it's built with Wrapped.
 
 ### Landscape (for positioning)
 

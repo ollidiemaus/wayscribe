@@ -36,6 +36,8 @@ end
 commands.stats = function()
     local stats = ns.Store:GetStats()
     ns.Print(L.STATS_LINE:format(stats.records, stats.days, stats.months, stats.sessions, stats.seq))
+    local paths = ns.Paths:GetStats()
+    ns.Print(L.STATS_PATHS:format(paths.segments, paths.days, paths.bytes / 1024))
 end
 
 commands.log = function()

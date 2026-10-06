@@ -70,6 +70,7 @@ local function newFrame(frameType, name, _, template)
     function frame:SetTitle(text) self.title = text end
     function frame:SetupMenu(generator) self.menuGenerator = generator end
     function frame:GetFrameLevel() return 1 end
+    function frame:SetPoint(...) self.lastPoint = { ... } end
     function frame:SetText(text) self.text = text end
     function frame:CreateFontString()
         local fontString = newFontString()
@@ -82,7 +83,22 @@ local function newFrame(frameType, name, _, template)
         function texture:Hide() self.shown = false end
         function texture:SetShown(shown) self.shown = shown == true end
         function texture:IsShown() return self.shown end
+        function texture:SetTexture(file) self.file = file end
         return permissive(texture)
+    end
+    -- Lines remember where they were drawn (in the frame's coordinates) for map assertions.
+    function frame:CreateLine(_, layer, _, sublevel)
+        local line = { shown = true, layer = layer, sublevel = sublevel }
+        function line:Show() self.shown = true end
+        function line:Hide() self.shown = false end
+        function line:IsShown() return self.shown end
+        function line:SetStartPoint(_, _, x, y) self.x1, self.y1 = x, y end
+        function line:SetEndPoint(_, _, x, y) self.x2, self.y2 = x, y end
+        function line:SetThickness(thickness) self.thickness = thickness end
+        function line:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
+        self.lines = self.lines or {}
+        self.lines[#self.lines + 1] = line
+        return permissive(line)
     end
     function frame:Click(button)
         if self.scripts.OnClick then self.scripts.OnClick(self, button or "LeftButton") end
@@ -142,13 +158,80 @@ local function installUnits(opts)
         if member then return member.class, member.class end
     end
     _G.UnitLevel = function() return state.level end
+    -- UnitPosition: x, y, z, instance (the continent); nil when no position is set.
+    _G.UnitPosition = function(unit)
+        local position = unit == "player" and state.position
+        if position then return position.x, position.y, 0, position.c end
+    end
+    _G.UnitOnTaxi = function() return state.onTaxi == true end
+    _G.UnitIsDeadOrGhost = function() return state.dead == true end
     _G.IsInRaid = function() return #state.group > 4 end
     _G.GetNumGroupMembers = function() return #state.group > 0 and #state.group + 1 or 0 end
     _G.GetNumSubgroupMembers = function() return #state.group end
 end
 
+-- Two maps of Kalimdor (continent 1), laid out like the client's: u runs west to east (world -y),
+-- v north to south (world -x). 1412 is a zone inside the continent map 1414, whose parent 947 (the
+-- world) has no world coordinates. 1412 puts map 0.4416, 0.7706 at world -2894.3, -238.8, like
+-- the probe on build 70235.
+local MAPS = {
+    [1412] = { name = "Mulgore", continent = 1, top = -255.0, left = 2029.9, width = 5137.5, height = 3425, parent = 1414 },
+    [1414] = { name = "Kalimdor", continent = 1, top = 6000, left = 9000, width = 20000, height = 15000, parent = 947 },
+}
+Stubs.MAPS = MAPS
+
+function Stubs.MapToWorld(mapID, u, v)
+    local map = MAPS[mapID]
+    return map.top - v * map.height, map.left - u * map.width
+end
+
+function Stubs.WorldToMap(mapID, x, y)
+    local map = MAPS[mapID]
+    return (map.left - y) / map.width, (map.top - x) / map.height
+end
+
+local function installMaps()
+    _G.CreateVector2D = function(x, y) return { x = x, y = y } end
+    _G.C_Map = {
+        GetBestMapForUnit = function() return state.bestMap or 1411 end,
+        GetWorldPosFromMapPos = function(mapID, position)
+            local map = MAPS[mapID]
+            if not map then return nil end
+            local x, y = Stubs.MapToWorld(mapID, position.x, position.y)
+            return map.continent, { x = x, y = y }
+        end,
+        -- Like the client: the continent's map, unless a map is asked for.
+        GetMapPosFromWorldPos = function(continent, position, overrideMapID)
+            local mapID = overrideMapID or 1414
+            local map = MAPS[mapID]
+            if not map or map.continent ~= continent then return nil end
+            local u, v = Stubs.WorldToMap(mapID, position.x, position.y)
+            return mapID, { x = u, y = v }
+        end,
+        -- The zone at a point of the continent map.
+        GetMapInfoAtPosition = function(mapID, u, v)
+            if mapID ~= 1414 then return nil end
+            local zoneU, zoneV = Stubs.WorldToMap(1412, Stubs.MapToWorld(1414, u, v))
+            if zoneU >= 0 and zoneU <= 1 and zoneV >= 0 and zoneV <= 1 then
+                return { mapID = 1412, parentMapID = 1414 }
+            end
+            return { mapID = 1414, parentMapID = 947 }
+        end,
+        GetPlayerMapPosition = function(mapID)
+            local position, map = state.position, MAPS[mapID]
+            if not (position and map and map.continent == position.c) then return nil end
+            local u, v = Stubs.WorldToMap(mapID, position.x, position.y)
+            return { x = u, y = v }
+        end,
+        GetMapInfo = function(mapID)
+            local map = MAPS[mapID]
+            return { mapID = mapID, name = map and map.name, parentMapID = map and map.parent or 0 }
+        end,
+    }
+end
+
 local function installWorld()
-    _G.C_Map = { GetBestMapForUnit = function() return 1411 end }
+    installMaps()
     _G.GetInstanceInfo = function()
         local i = state.instance
         return i.name, i.type, i.difficulty, "", 5, 0, false, i.id, 0, nil
@@ -162,7 +245,11 @@ local function installWorld()
         if p then return p.name, 0, p.rank, p.max, 0, 0, p.skillLine end
     end
     _G.C_TradeSkillUI = nil
-    _G.C_Spell = { GetSpellName = function(spellID) return state.spellNames[spellID] end }
+    _G.C_Spell = {
+        GetSpellName = function(spellID) return state.spellNames[spellID] end,
+        GetSpellTexture = function(spellID) return state.spellIcons[spellID] end,
+    }
+    _G.GetSubZoneText = function() return state.subZone or "" end
     _G.C_Item = {
         GetItemNameByID = function(itemID) return state.itemNames[itemID] end,
         GetItemInfoInstant = function(itemID)
@@ -240,7 +327,7 @@ function Stubs.InstallScrollBox()
     }
 end
 
--- opts: now, guid, name, realm, level, interface, accountDB, charDB, locale, unknownEvents
+-- opts: now, guid, name, realm, level, interface, accountDB, charDB, footstepsDB, locale, unknownEvents
 function Stubs.Install(opts)
     opts = opts or {}
     state = {
@@ -254,11 +341,13 @@ function Stubs.Install(opts)
         group = {},
         professions = {},
         spellNames = {},
+        spellIcons = {},
         itemNames = {},
         itemClasses = {},
         requestedItems = {},
         questTitles = {},
         cvars = {},
+        tickers = {},
     }
     Stubs.state = state
     for name in pairs(Stubs.namedFrames) do
@@ -282,6 +371,21 @@ function Stubs.Install(opts)
         After = function(seconds, fn)
             state.timers[#state.timers + 1] = { at = state.now + seconds, fn = fn }
         end,
+        -- Fires once per Advance at most; advance in steps of `seconds` to see every tick.
+        NewTicker = function(seconds, fn)
+            local ticker = { cancelled = false }
+            function ticker:Cancel() self.cancelled = true end
+            local function schedule()
+                state.timers[#state.timers + 1] = { at = state.now + seconds, fn = function()
+                    if ticker.cancelled then return end
+                    fn(ticker)
+                    if not ticker.cancelled then schedule() end
+                end }
+            end
+            schedule()
+            state.tickers[#state.tickers + 1] = ticker
+            return ticker
+        end,
     }
     _G.C_AddOns = nil
     _G.C_EventUtils = nil
@@ -295,8 +399,75 @@ function Stubs.Install(opts)
     _G.LibStub = nil
     _G.CreateScrollBoxListLinearView, _G.CreateDataProvider, _G.ScrollUtil, _G.ScrollBoxConstants = nil, nil, nil, nil
     _G.C_XMLUtil, _G.C_Texture = nil, nil
+    _G.MapCanvasDataProviderMixin, _G.CreateFromMixins, _G.OpenWorldMap, _G.MenuUtil = nil, nil, nil, nil
     _G.WayscribeDB = opts.accountDB
     _G.WayscribeCharDB = opts.charDB
+    _G.WayscribeFootstepsDB = opts.footstepsDB
+end
+
+-- The default world map as far as Footsteps uses it: a MapCanvas with data providers, showing
+-- map 1412 on a 1000 x 668 canvas. Call before Stubs.Login().
+function Stubs.InstallWorldMap()
+    local map = newFrame("Frame", "WorldMapFrame")
+    map.shown = false
+    map.providers = {}
+    map.mapID = 1412
+    map.canvasScale = 1
+    local canvas = newFrame("Frame")
+    canvas:SetSize(1000, 668)
+    map.canvas = canvas
+    map.ScrollContainer = newFrame("Frame")
+    function map:GetCanvas() return canvas end
+    function map:GetCanvasScale() return self.canvasScale end
+    function map:GetMapID() return self.mapID end
+    function map:SetMapID(mapID)
+        self.mapID = mapID
+        for _, provider in ipairs(self.providers) do provider:OnMapChanged() end
+    end
+    function map:AddDataProvider(provider)
+        self.providers[#self.providers + 1] = provider
+        provider:OnAdded(self)
+        if self.shown then provider:RefreshAllData() end
+    end
+    function map:Show()
+        if self.shown then return end
+        self.shown = true
+        for _, provider in ipairs(self.providers) do
+            provider:OnShow()
+            provider:RefreshAllData(true)
+        end
+    end
+    function map:Hide()
+        if not self.shown then return end
+        self.shown = false
+        for _, provider in ipairs(self.providers) do provider:OnHide() end
+    end
+    function map:Zoom(scale)
+        self.canvasScale = scale
+        for _, provider in ipairs(self.providers) do provider:OnCanvasScaleChanged() end
+    end
+    _G.MapCanvasDataProviderMixin = {
+        OnAdded = function(self, owner) self.owningMap = owner end,
+        GetMap = function(self) return self.owningMap end,
+        OnMapChanged = function(self) self:RefreshAllData() end,
+        OnShow = function() end,
+        OnHide = function() end,
+        RemoveAllData = function() end,
+        RefreshAllData = function() end,
+        OnCanvasScaleChanged = function() end,
+    }
+    _G.CreateFromMixins = function(...)
+        local object = {}
+        for i = 1, select("#", ...) do
+            for key, value in pairs((select(i, ...))) do object[key] = value end
+        end
+        return object
+    end
+    _G.OpenWorldMap = function(mapID)
+        map:Show()
+        if mapID then map:SetMapID(mapID) end
+    end
+    return map
 end
 
 -- Lua files in TOC order; embeds.xml (the libraries) is skipped, like a copy without Libs.
@@ -359,6 +530,17 @@ function Stubs.SetInstance(id, instanceType, name, difficulty)
     end
 end
 
+-- Where the player stands: continent and world yards; no arguments = no position (instances).
+function Stubs.SetPosition(continent, x, y)
+    state.position = continent and { c = continent, x = x, y = y } or nil
+end
+
+function Stubs.SetTaxi(onTaxi) state.onTaxi = onTaxi end
+-- The map C_Map.GetBestMapForUnit reports (default 1411), and GetSubZoneText (default "").
+function Stubs.SetBestMap(mapID) state.bestMap = mapID end
+function Stubs.SetSubZone(name) state.subZone = name end
+function Stubs.SetDead(dead) state.dead = dead end
+
 -- Group members other than the player: list of { guid, name, realm, class }.
 function Stubs.SetGroup(members) state.group = members end
 
@@ -390,11 +572,14 @@ function Stubs.Relog(opts, reload)
     local saved = {
         accountDB = serialize.RoundTrip(_G.WayscribeDB),
         charDB = serialize.RoundTrip(_G.WayscribeCharDB),
+        footstepsDB = serialize.RoundTrip(_G.WayscribeFootstepsDB),
     }
     local world = {
         instance = state.instance, group = state.group, professions = state.professions,
         spellNames = state.spellNames, itemNames = state.itemNames, itemClasses = state.itemClasses,
-        questTitles = state.questTitles, cvars = state.cvars,
+        questTitles = state.questTitles, cvars = state.cvars, position = state.position,
+        onTaxi = state.onTaxi, dead = state.dead, subZone = state.subZone, bestMap = state.bestMap,
+        spellIcons = state.spellIcons,
     }
     opts = opts or {}
     for key, value in pairs(saved) do

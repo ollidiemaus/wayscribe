@@ -5,7 +5,7 @@
 ## Author: ollidiemaus
 ## Version: @project-version@
 ## SavedVariables: WayscribeDB
-## SavedVariablesPerCharacter: WayscribeCharDB
+## SavedVariablesPerCharacter: WayscribeCharDB, WayscribeFootstepsDB
 ## IconTexture: Interface\Icons\INV_Misc_Book_09
 ## AddonCompartmentFunc: Wayscribe_OnAddonCompartmentClick
 ## Category-enUS: Journal
@@ -22,6 +22,7 @@ Locales\deDE.lua
 Core\Init.lua
 Core\Log.lua
 Core\Time.lua
+Core\Geometry.lua
 Core\Bus.lua
 Core\Options.lua
 Core\Module.lua
@@ -35,11 +36,13 @@ Data\RecordTypes.lua
 Data\Players.lua
 Data\Index.lua
 Data\Store.lua
+Data\Paths.lua
 Data\Schema.lua
 
 StaticData\Dungeons.lua
 StaticData\Gathering.lua
 StaticData\QuestChains.lua
+StaticData\Travel.lua
 
 Trackers\Session.lua
 Trackers\Level.lua
@@ -48,10 +51,13 @@ Trackers\Gathering.lua
 Trackers\Bosses.lua
 Trackers\Dungeons.lua
 Trackers\QuestChains.lua
+Trackers\Footsteps.lua
+Trackers\Deaths.lua
 
 UI\Theme.lua
 UI\DayView.lua
 UI\Journal.lua
+UI\FootstepsMap.lua
 UI\LoginRecap.lua
 UI\Settings.lua
 UI\Minimap.lua

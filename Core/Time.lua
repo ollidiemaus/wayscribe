@@ -57,6 +57,12 @@ function Time.DayEnd(dayKey)
     return time({ year = year, month = month, day = day, hour = 23, min = 59, sec = 59 })
 end
 
+-- The day `days` days later (or earlier, when negative). Noon keeps DST shifts out of the way.
+function Time.ShiftDay(dayKey, days)
+    local year, month, day = Time.SplitDay(dayKey)
+    return Time.DayKey(time({ year = year, month = month, day = day + days, hour = 12, min = 0, sec = 0 }))
+end
+
 -- 1 = Sunday ... 7 = Saturday, like date("*t").wday. Sakamoto's method: arithmetic only.
 local MONTH_OFFSETS = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 }
 function Time.Weekday(dayKey)

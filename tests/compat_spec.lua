@@ -58,6 +58,44 @@ describe("capabilities", function()
         T.same(ns.accountDB.probe.lines, lines)
     end)
 
+    it("probe checks the footsteps' map math against the client's own map position", function()
+        local ns = Stubs.LoadAddon()
+        _G.C_Map.GetBestMapForUnit = function() return 1412 end
+        Stubs.SetPosition(1, Stubs.MapToWorld(1412, 0.4416, 0.7706))
+        Stubs.Login()
+        local found = {}
+        for _, line in ipairs(ns.Probe:Run()) do found[line] = true end
+        T.truthy(found["map.position = 0.4416, 0.7706"])
+        T.truthy(found["map.fromWorld = 0.4416, 0.7706 (5138 x 3425 yd)"])
+        T.truthy(found["map.atWorld = 1412"])
+        T.truthy(found["map.parent = 1414"])
+        T.truthy(found["taxi = false"])
+    end)
+
+    it("finds the player's world position with or without UnitPosition", function()
+        local ns = Stubs.LoadAddon()
+        _G.C_Map.GetBestMapForUnit = function() return 1412 end
+        Stubs.SetPosition(1, -2894.3, -238.8)
+        Stubs.Login()
+        T.same({ ns.Compat.GetPlayerWorldPosition() }, { 1, -2894.3, -238.8 })
+        ns.Compat.has.unitPosition = false
+        local continent, x, y = ns.Compat.GetPlayerWorldPosition()
+        T.eq(continent, 1)
+        T.truthy(math.abs(x + 2894.3) < 0.001 and math.abs(y + 238.8) < 0.001, "through the map position")
+        _G.UnitPosition = function() return Stubs.SECRET, Stubs.SECRET, 0, 1 end
+        ns.Compat.has.unitPosition = true
+        T.eq(ns.Compat.GetPlayerWorldPosition(), nil, "a hidden position is no position")
+    end)
+
+    it("trims spell names, which can come with stray spaces", function()
+        local ns = Stubs.LoadAddon()
+        Stubs.state.spellNames[23491] = " Extrem sicherer Transporter: Gadgetzan"
+        Stubs.state.spellNames[1] = "  "
+        T.eq(ns.Compat.GetSpellName(23491), "Extrem sicherer Transporter: Gadgetzan")
+        T.eq(ns.Compat.GetSpellName(1), nil)
+        T.eq(ns.Compat.GetSpellName(2), nil)
+    end)
+
     it("probe asks the quest line API about the quests in the log", function()
         local ns = Stubs.LoadAddon()
         _G.C_QuestLog.GetNumQuestLogEntries = function() return 3 end

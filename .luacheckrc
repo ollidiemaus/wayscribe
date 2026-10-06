@@ -8,6 +8,7 @@ exclude_files = { ".git/", ".release/", "Libs/", ".lua/", ".luarocks/", ".instal
 globals = {
     "WayscribeDB",
     "WayscribeCharDB",
+    "WayscribeFootstepsDB",
     "SLASH_WAYSCRIBE1",
     "SLASH_WAYSCRIBE2",
     "SlashCmdList",
@@ -21,20 +22,22 @@ globals = {
 -- WoW API the addon reads. Keep this list explicit: an unexpected global is usually a typo.
 read_globals = {
     -- Lua extensions in the WoW client
-    "date", "time", "tinsert", "issecretvalue", "geterrorhandler",
+    "date", "time", "tinsert", "issecretvalue", "geterrorhandler", "debugprofilestop",
     -- Frames and UI
     "CreateFrame", "UIParent", "UISpecialFrames", "DEFAULT_CHAT_FRAME",
     "CreateScrollBoxListLinearView", "CreateDataProvider", "ScrollUtil", "ScrollBoxConstants",
     "Settings", "AddonCompartmentFrame",
     "CreateSettingsListSectionHeaderInitializer", "CreateSettingsButtonInitializer",
     "StaticPopup_Show", "ReloadUI", "PlaySound", "SOUNDKIT", "GameTooltip",
-    "SPELLBOOK_FONT_COLOR", "PAGE_NUMBER_WITH_MAX",
+    "SPELLBOOK_FONT_COLOR", "PAGE_NUMBER_WITH_MAX", "MenuUtil", "InCombatLockdown",
+    "WorldMapFrame", "MapCanvasDataProviderMixin", "CreateFromMixins", "CreateVector2D", "OpenWorldMap",
+    "ToggleWorldMap",
     -- Client and player info
     "GetBuildInfo", "GetLocale", "GetRealmName", "WOW_PROJECT_ID",
-    "UnitGUID", "UnitFullName", "UnitClass", "UnitLevel", "UnitPosition",
+    "UnitGUID", "UnitFullName", "UnitClass", "UnitLevel", "UnitPosition", "UnitOnTaxi", "UnitIsDeadOrGhost",
     "IsInRaid", "GetNumGroupMembers", "GetNumSubgroupMembers",
     "GetInstanceInfo", "GetProfessions", "GetProfessionInfo", "GetNumSkillLines", "GetSkillLineInfo",
-    "GetSpellInfo", "GetAddOnMetadata", "GetCVar",
+    "GetSpellInfo", "GetSpellTexture", "GetSubZoneText", "GetAddOnMetadata", "GetCVar",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "GetLootSourceInfo",
     -- Namespaces
     "C_AddOns", "C_CVar", "C_EventUtils", "C_Item", "C_Map", "C_QuestLine", "C_QuestLog", "C_Spell", "C_Texture",

@@ -9,6 +9,8 @@ local _, ns = ...
 --   rollup    function(monthRollup, data, record), O(1) update of the month summary
 --   merge     function(target, source), combines type-specific rollup fields (year summary)
 --   render    function(data, record) -> text [, icon], localized at display time
+--   markers   function(data, record) -> { { c, x, y, icon, title }, ... }: places on the world
+--             map (continent and world yards), drawn by the Footsteps map
 --   upcast    { [fromVersion] = function(data) -> data in version fromVersion + 1 }
 local RecordTypes = { defs = {}, counters = {} }
 ns.RecordTypes = RecordTypes
@@ -118,6 +120,30 @@ function RecordTypes:Render(record)
         return ns.L.ENTRY_UNREADABLE:format(tostring(record.type))
     end
     return text, icon
+end
+
+-- The record types with map markers, sorted.
+function RecordTypes:MarkerTypes()
+    local list = {}
+    for name, def in pairs(self.defs) do
+        if def.markers then list[#list + 1] = name end
+    end
+    table.sort(list)
+    return list
+end
+
+-- Never errors: a broken markers function only loses its own markers.
+function RecordTypes:Markers(record)
+    local def = self.defs[record.type]
+    if not (def and def.markers) then return {} end
+    local ok, list = pcall(function()
+        return def.markers(self:CurrentData(def, record), record)
+    end)
+    if not ok then
+        ns.Log:Error("markers:" .. tostring(record.type), list)
+        return {}
+    end
+    return type(list) == "table" and list or {}
 end
 
 ------------------------------------------------------------------------------------------------

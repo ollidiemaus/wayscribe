@@ -159,3 +159,119 @@ Notes:
   follow it.
 - The same session saved the journal window's size and position, and the back-fill check stored
   `state.questChains = 1` at login without errors.
+
+## Client 1.60.1, build 70235, Wayscribe 0.4 (2026-10-06)
+
+Same character (level 1 Tauren Druid), standing in Mulgore, German client. Every line the 0.3
+probe printed came back the same, plus `has.taxiState = true` and `has.worldMapCanvas = true`.
+The lines new in 0.4:
+
+```text
+has.taxiState = true
+has.worldMapCanvas = true
+event.PLAYER_CONTROL_LOST = true
+event.PLAYER_CONTROL_GAINED = true
+event.PLAYER_UNGHOST = true
+map.best = 1412
+map.position = 0.4422, 0.7712
+map.world = continent 1 at -2896.8, -242.5
+unitPosition = -2896.8, -242.5 (instance 1)
+taxi = false
+deadOrGhost = false
+worldMap.frame = true
+map.corners = 1:266.7,2479.2 1:266.7,-3675.0 1:-3835.4,2479.2
+map.fromWorld = 0.4422, 0.7712 (6154 x 4102 yd)
+map.atWorld = 1414
+map.parent = 1414
+```
+
+Notes:
+- **The world-to-map transform is right:** Footsteps' own math (`map.fromWorld`, from the map's
+  corners and `UnitPosition`) gives exactly the client's `map.position`. Mulgore is 6154 × 4102
+  yards; its corners confirm that north is +x and west is +y.
+- `C_Map.GetMapPosFromWorldPos` without a map ID answers with the continent (1414 Kalimdor), not
+  the zone. `Compat.GetMapAtWorldPos` now walks down with `C_Map.GetMapInfoAtPosition`, so the
+  journal's map button opens Mulgore.
+- The world map takes MapCanvas data providers. The session's trail (one trail of 1807 yards over
+  six minutes, stored at logout) was drawn on Mulgore in the right place, above the explored-area
+  art.
+
+## Client 1.60.1, build 70235, Wayscribe 0.4, Skinning learned (2026-10-06)
+
+Same character, now level 2, after learning Skinning, standing in Mulgore. Every other line came
+back as in the 0.4 probe above. The lines that changed:
+
+```text
+map.position = 0.4875, 0.8099
+map.fromWorld = 0.4875, 0.8098 (6154 x 4102 yd)
+map.atWorld = 1412
+professions = 4, nil, nil, nil, nil
+level = 2
+profession.393 = Kürschnerei 3/75 (skill line name: Kürschnerei)
+```
+
+Notes:
+- **Answers §12 #2:** `GetProfessionInfo` returns the classic parent skill line (393 Skinning), not
+  one of Forever's child lines (2937–2948). Rank and maximum come back (3/75), and
+  `C_TradeSkillUI.GetTradeSkillDisplayName` names it in the client's language.
+- `GetProfessions` reports the profession at index 4 in its first slot (prof1).
+- The journal recorded `PROFESSION_LEARNED {skillLine = 393}` with the first-time mark, and the real
+  level-up to 2 with its map (1412).
+- `map.atWorld` now names the zone (1412), after the fix that walks down from the continent.
+
+## Client 1.60.1, build 70235, Wayscribe 0.4, travel spells (2026-10-06)
+
+Same character (level 2), standing in Bloodhoof. The lines new since the Skinning probe:
+
+```text
+spell.travel.8690 = Ruhestein
+spell.travel.556 = Astraler Rückruf
+spell.travel.3561 = Teleportieren: Stormwind
+spell.travel.3562 = Teleportieren: Ironforge
+spell.travel.3563 = Teleportieren: Undercity
+spell.travel.3565 = Teleportieren: Darnassus
+spell.travel.3566 = Teleportieren: Thunder Bluff
+spell.travel.3567 = Teleportieren: Orgrimmar
+subZone = Bloodhoof
+```
+
+Notes:
+- Every travel spell resolves to its German name, so journeys are matched by name as well as ID.
+- `GetSubZoneText` answers outdoors ("Bloodhoof"); deaths and journeys keep this text.
+- The travel spell list was then extended from build 70235's `SpellName.db2` (via wago.tools):
+  Teleport: Moonglade 18960, Forever's Teleport: Dalaran 1297659, Dimensional Ripper - Everlook
+  23486 (not 23442, which is its effect), Ultrasafe Transporter: Gadgetzan 23489/23491, and
+  Forever's hearthstones and transporters. The next probe prints their names.
+
+## Client 1.60.1, build 70235, Wayscribe 0.4, extended travel spells (2026-10-06)
+
+Same character, in Bloodhoof, after the travel spell list grew:
+
+```text
+spell.travel.8690 = Ruhestein
+spell.travel.1235126 = Ruhestein der Argentumdämmerung
+spell.travel.1312670 = Bröckelnder Ruhestein
+spell.travel.556 = Astraler Rückruf
+spell.travel.18960 = Teleportieren: Moonglade
+spell.travel.3561 = Teleportieren: Stormwind
+spell.travel.3562 = Teleportieren: Ironforge
+spell.travel.3563 = Teleportieren: Undercity
+spell.travel.3565 = Teleportieren: Darnassus
+spell.travel.3566 = Teleportieren: Thunder Bluff
+spell.travel.3567 = Teleportieren: Orgrimmar
+spell.travel.1297659 = Teleportieren: Dalaran
+spell.travel.23486 = Dimensionszerfetzer-Everlook
+spell.travel.23489 = Extrem sicherer Transporter nach Gadgetzan
+spell.travel.23491 =  Extrem sicherer Transporter: Gadgetzan
+spell.travel.1226213 = Halbwegs sicherer Transporter: Neu-Avalon
+spell.travel.1266932 = EZ-Thro-Feldtransporter: Gadgetzan
+spell.travel.1266934 = EZ- und SAF-Feldtransporter: Hyjal
+spell.travel.1266936 = Dimensionstransporter: Hyjal
+subZone = Bloodhoof
+```
+
+Notes:
+- All 19 travel spells exist on the client and have German names, including Forever's own
+  (Hearthstone of the Dawn is "Ruhestein der Argentumdämmerung").
+- 23491's name starts with a space in the client's data. `Compat.GetSpellName` now trims names, so
+  the journal never shows it.

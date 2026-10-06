@@ -284,6 +284,7 @@ local function showPage()
     ui.pageText:SetText(index and pattern:format(#state.days - index + 1, #state.days) or "")
     ui.older:SetEnabled(index ~= nil and index < #state.days)
     ui.newer:SetEnabled(index ~= nil and index > 1)
+    ui.pathLink:SetShown(state.selected ~= nil and ns.FootstepsMap:CanShow() and ns.Paths:HasDay(state.selected))
 end
 
 local function showTooltip(button)
@@ -313,6 +314,22 @@ local function createPageButton(page, direction, tooltip, step)
     return button
 end
 
+-- "Show on the map" for days with footsteps: the default UI's button, level with the page controls.
+-- (Plain text in ink was too easy to miss.)
+local function createPathLink(paper)
+    local insets = DayView.INSETS
+    local link = CreateFrame("Button", nil, paper, "UIPanelButtonTemplate")
+    link:SetPoint("BOTTOMLEFT", insets.spine, insets.bottom - 35)
+    link:SetText(L.FOOTSTEPS_SHOW_DAY)
+    local width = link:GetTextWidth()
+    link:SetSize(math.max(type(width) == "number" and width or 0, 100) + 24, 22)
+    link.tooltip = L.FOOTSTEPS_SHOW_DAY_TIP
+    link:SetScript("OnClick", function() Journal:ShowPath() end)
+    link:SetScript("OnEnter", showTooltip)
+    link:SetScript("OnLeave", hideTooltip)
+    ui.pathLink = link
+end
+
 local function createPageControls(paper)
     local insets = DayView.INSETS
     ui.newer = createPageButton(paper, "Next", L.PAGE_NEWER, -1)
@@ -322,6 +339,7 @@ local function createPageControls(paper)
     ui.pageText = Theme.Text(paper, "text")
     ui.pageText:SetPoint("RIGHT", ui.older, "LEFT", -8, 0)
     ui.pageText:SetJustifyH("RIGHT")
+    createPathLink(paper)
 end
 
 ------------------------------------------------------------------------------------------------
@@ -540,6 +558,13 @@ function Journal:Turn(step)
     end
 end
 
+-- The selected day's footsteps on the world map.
+function Journal:ShowPath()
+    if state.selected then
+        ns.SafeCall("footsteps:show", ns.FootstepsMap.ShowDay, ns.FootstepsMap, state.selected)
+    end
+end
+
 -- Opens the journal at dayKey, or at the newest day.
 function Journal:Open(dayKey)
     if not ui.frame then
@@ -590,3 +615,7 @@ ns.Bus:On("ITEM_NAMES_LOADED", Journal, Journal.RequestRefresh)
 ns.Bus:On("SETTINGS_CHANGED", Journal, Journal.OnChanged)
 ns.Bus:On("SAFE_MODE", Journal, Journal.OnChanged)
 ns.Bus:On("REBUILT", Journal, Journal.OnChanged)
+-- Whether a day has footsteps decides the page's map link.
+ns.Bus:On("PATH_ADDED", Journal, Journal.RequestRefresh)
+ns.Bus:On("PATH_LIVE", Journal, Journal.RequestRefresh)
+ns.Bus:On("PATH_WIPED", Journal, Journal.RequestRefresh)
