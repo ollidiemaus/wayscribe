@@ -2,23 +2,23 @@ local _, ns = ...
 local L, Compat, Store, Time, RecordTypes, Theme, DayView =
     ns.L, ns.Compat, ns.Store, ns.Time, ns.RecordTypes, ns.Theme, ns.DayView
 
--- The journal window, drawn as a book (docs/ARCHITECTURE.md §7). The left page holds the filter
--- chips and the day list (newest first, grouped by month); the right page shows the selected day,
--- with buttons to turn to the next older or newer one. The list is a virtualized ScrollBox where
--- the client has one; otherwise a fixed set of rows follows the selection.
+-- The journal window, built like the default UI's spellbook (docs/ARCHITECTURE.md §7): a portrait
+-- frame with a filter menu in its top bar and an open book below. The left page lists the days
+-- (newest first, grouped by month), the right page shows the selected day, with page controls to
+-- turn to the next older or newer one. The list is a virtualized ScrollBox where the client has
+-- one; otherwise a fixed set of rows follows the selection.
 local Journal = {}
 ns.Journal = Journal
 
-local WIDTH, HEIGHT = 780, 540
-local MIN_WIDTH, MIN_HEIGHT = 640, 400
-local INSET = 14       -- leather around the pages
-local TOP = 40         -- title bar
-local LIST_WIDTH = 230
-local SPINE = 12
-local ROW_HEIGHT = 20
+local WIDTH, HEIGHT = 900, 620
+local MIN_WIDTH, MIN_HEIGHT = 720, 480
+local TITLE_BAR = 22   -- the frame's title bar
+local TOP_BAR = 60     -- title bar plus a bar for the filter, when the page art has none
+local BOOK_SIDE = 7    -- frame border around the pages
+local ROW_HEIGHT = 24
 local CHIP_HEIGHT = 20
-local CHIP_GAP = 4
-local PAGE_MARGIN = 46 -- the day page's text area: page padding plus its scroll bar
+local CHIP_WIDTH = 96
+local GOLD, GREY = { 1, 0.82, 0 }, { 0.5, 0.5, 0.5 } -- text on the frame's dark top bar
 
 local ui = {}
 Journal.ui = ui
@@ -34,12 +34,28 @@ local function indexOf(list, value)
     return nil
 end
 
--- Filters are saved per account: settings.journalHidden[category] = true hides a category.
+------------------------------------------------------------------------------------------------
+-- Filters, saved per account: settings.journalHidden[category] = true hides a category.
+
+local function hiddenCategories()
+    return ns.Options:Table("journalHidden")
+end
+
 local function visibilityFilter()
-    local hidden = ns.Options:Table("journalHidden")
+    local hidden = hiddenCategories()
     return function(category)
         return hidden[category] ~= true
     end
+end
+
+function Journal:IsCategoryShown(category)
+    return hiddenCategories()[category] ~= true
+end
+
+function Journal:SetCategoryShown(category, shown)
+    hiddenCategories()[category] = not shown or nil
+    state.listDirty = true
+    self:Refresh()
 end
 
 local function buildList()
@@ -64,7 +80,7 @@ local function buildList()
 end
 
 ------------------------------------------------------------------------------------------------
--- Day list
+-- Day list (the left page)
 
 local function updateRow(row)
     row.selected:SetShown(row.dayKey ~= nil and row.dayKey == state.selected)
@@ -79,18 +95,18 @@ end
 -- Called for every row the list shows; a ScrollBox reuses rows, so everything is set each time.
 local function initRow(row, element)
     if not row.label then
-        row.selected = Theme.Fill(row, Theme.INK, "BACKGROUND", 0, 0.12)
+        row.selected = Theme.Highlight(row)
         Theme.Fill(row, Theme.INK, "HIGHLIGHT", 0, 0.06)
         row.label = Theme.Text(row, "text")
-        row.label:SetPoint("LEFT", 8, 0)
+        row.label:SetPoint("LEFT", 10, 0)
         row.detail = Theme.Text(row, "small", Theme.INK_FADED)
-        row.detail:SetPoint("RIGHT", -6, 0)
+        row.detail:SetPoint("RIGHT", -8, 0)
         row.detail:SetJustifyH("RIGHT")
         row:SetScript("OnClick", onRowClick)
     end
     row.dayKey = element.dayKey
     if element.monthKey then
-        Theme.Style(row.label, "label")
+        Theme.Style(row.label, "heading")
         row.label:SetText(Time.FormatMonth(element.monthKey))
         row.detail:SetText("")
         row:EnableMouse(false)
@@ -103,23 +119,34 @@ local function initRow(row, element)
     updateRow(row)
 end
 
-local function createScrollList(page, top)
+-- The list's area on the left page's paper, below its header.
+local function listInsets()
+    local insets = DayView.INSETS
+    return insets.outer, insets.top + 64, insets.spine, 14
+end
+
+local function createScrollList(page)
+    local left, top, right, bottom = listInsets()
     local box = CreateFrame("Frame", nil, page, "WowScrollBoxList")
-    box:SetPoint("TOPLEFT", 6, -top)
-    box:SetPoint("BOTTOMRIGHT", -20, 8)
+    box:SetPoint("TOPLEFT", left - 10, -top)
+    box:SetPoint("BOTTOMRIGHT", -(right + 16), bottom)
     local bar = CreateFrame("EventFrame", nil, page, "MinimalScrollBar")
-    bar:SetPoint("TOPLEFT", box, "TOPRIGHT", 4, 0)
-    bar:SetPoint("BOTTOMLEFT", box, "BOTTOMRIGHT", 4, 0)
+    bar:SetPoint("TOPLEFT", box, "TOPRIGHT", 6, 0)
+    bar:SetPoint("BOTTOMLEFT", box, "BOTTOMRIGHT", 6, 0)
     local view = CreateScrollBoxListLinearView()
     view:SetElementExtent(ROW_HEIGHT)
     view:SetElementInitializer("Button", initRow)
     ScrollUtil.InitScrollBoxListWithScrollBar(box, bar, view)
+    if ScrollUtil.AddManagedScrollBarVisibilityBehavior then
+        ScrollUtil.AddManagedScrollBarVisibilityBehavior(box, bar)
+    end
     ui.scrollBox = box
 end
 
 -- Without a ScrollBox: as many rows as fit, showing the part of the list around the selection.
 local function showFixedList()
-    local available = ui.frame:GetHeight() - TOP - (ui.bannerHeight or 0) - INSET - ui.listTop - 8
+    local left, top, right, bottom = listInsets()
+    local available = (ui.paperHeight or 0) - top - bottom
     local count = math.max(1, math.floor(available / ROW_HEIGHT))
     local selectedIndex = indexOf(state.elements, state.byDay[state.selected]) or 1
     local first = math.max(1, math.min(selectedIndex - math.floor(count / 2), #state.elements - count + 1))
@@ -129,10 +156,10 @@ local function showFixedList()
         local row = ui.fixedRows[i]
         if element then
             if not row then
-                row = CreateFrame("Button", nil, ui.listPage)
+                row = CreateFrame("Button", nil, ui.listPaper)
                 row:SetHeight(ROW_HEIGHT)
-                row:SetPoint("TOPLEFT", 6, -(ui.listTop + (i - 1) * ROW_HEIGHT))
-                row:SetPoint("TOPRIGHT", -6, -(ui.listTop + (i - 1) * ROW_HEIGHT))
+                row:SetPoint("TOPLEFT", left - 10, -(top + (i - 1) * ROW_HEIGHT))
+                row:SetPoint("TOPRIGHT", -right, -(top + (i - 1) * ROW_HEIGHT))
                 ui.fixedRows[i] = row
             end
             initRow(row, element)
@@ -164,37 +191,58 @@ local function showSelection()
     end
 end
 
+-- "Scoopz's journal" above the list, like a spellbook category header.
+local function createListHeader(paper)
+    local insets = DayView.INSETS
+    ui.listTitle = Theme.Text(paper, "title")
+    ui.listTitle:SetPoint("TOPLEFT", insets.outer, -insets.top)
+    ui.listTitle:SetPoint("TOPRIGHT", -insets.spine, -insets.top)
+    ui.listTitle:SetWordWrap(false)
+    local divider = Theme.Divider(paper)
+    divider:SetPoint("TOPLEFT", ui.listTitle, "BOTTOMLEFT", -12, -4)
+    divider:SetPoint("TOPRIGHT", ui.listTitle, "BOTTOMRIGHT", 12, -4)
+end
+
 ------------------------------------------------------------------------------------------------
--- Filter chips
+-- Filter: the default UI's filter menu in the top bar, or a row of toggle chips.
+
+local function setupFilterMenu(dropdown)
+    local categories = Theme.FilterCategories(RecordTypes:Categories())
+    dropdown:SetupMenu(function(_, root)
+        for _, category in ipairs(categories) do
+            root:CreateCheckbox(Theme.CategoryLabel(category),
+                function(value) return Journal:IsCategoryShown(value) end,
+                function(value) Journal:SetCategoryShown(value, not Journal:IsCategoryShown(value)) end,
+                category)
+        end
+    end)
+end
 
 local function updateChip(chip)
-    local shown = ns.Options:Table("journalHidden")[chip.category] ~= true
+    local shown = Journal:IsCategoryShown(chip.category)
     chip.shown = shown
-    chip.label:SetTextColor(unpack(shown and Theme.INK or Theme.INK_FADED))
+    chip.label:SetTextColor(unpack(shown and GOLD or GREY))
     chip.marker:SetAlpha(shown and 1 or 0.25)
 end
 
 local function onChipClick(chip)
-    local hidden = ns.Options:Table("journalHidden")
-    hidden[chip.category] = not hidden[chip.category] or nil
+    Journal:SetCategoryShown(chip.category, not Journal:IsCategoryShown(chip.category))
     updateChip(chip)
-    state.listDirty = true
-    Journal:Refresh()
 end
 
-local function createChip(page, category, column, line, width)
-    local chip = CreateFrame("Button", nil, page)
+local function createChip(parent, category, index)
+    local chip = CreateFrame("Button", nil, parent)
     chip.category = category
-    chip:SetSize(width, CHIP_HEIGHT)
-    chip:SetPoint("TOPLEFT", 8 + column * (width + CHIP_GAP), -(8 + line * (CHIP_HEIGHT + CHIP_GAP)))
-    Theme.Fill(chip, Theme.PAPER_EDGE, "BACKGROUND", 0, 0.6)
-    Theme.Fill(chip, Theme.INK, "HIGHLIGHT", 0, 0.08)
+    chip:SetSize(CHIP_WIDTH, CHIP_HEIGHT)
+    chip:SetPoint("RIGHT", -(index - 1) * (CHIP_WIDTH + 4), 0)
+    Theme.Fill(chip, { 0, 0, 0 }, "BACKGROUND", 0, 0.35)
+    Theme.Fill(chip, { 1, 1, 1 }, "HIGHLIGHT", 0, 0.08)
     local color = Theme.CategoryColor(category)
     chip.marker = chip:CreateTexture(nil, "ARTWORK")
     chip.marker:SetSize(8, 8)
     chip.marker:SetPoint("LEFT", 6, 0)
     chip.marker:SetColorTexture(color[1], color[2], color[3], 1)
-    chip.label = Theme.Text(chip, "small")
+    chip.label = chip:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     chip.label:SetPoint("LEFT", chip.marker, "RIGHT", 5, 0)
     chip.label:SetText(Theme.CategoryLabel(category))
     chip:SetScript("OnClick", onChipClick)
@@ -202,40 +250,78 @@ local function createChip(page, category, column, line, width)
     return chip
 end
 
--- Two chips per line, one per category in use. Returns the height they take.
-local function createFilters(page)
-    local categories = Theme.FilterCategories(RecordTypes:Categories())
-    local width = (LIST_WIDTH - 16 - CHIP_GAP) / 2
-    ui.chips = {}
-    for i, category in ipairs(categories) do
-        ui.chips[i] = createChip(page, category, (i - 1) % 2, math.floor((i - 1) / 2), width)
+-- In a bar of its own above the book; layoutPages moves it into the page art's top bar.
+local function createFilter(frame)
+    local bar = CreateFrame("Frame", nil, frame)
+    bar:SetSize(1, CHIP_HEIGHT + 4)
+    bar:SetFrameLevel(frame:GetFrameLevel() + 20)
+    ui.filterBar = bar
+    if Compat.has.filterDropdown then
+        local dropdown = CreateFrame("DropdownButton", nil, bar, "WowStyle1FilterDropdownTemplate")
+        dropdown:SetPoint("RIGHT")
+        setupFilterMenu(dropdown)
+        ui.filter = dropdown
+        return
     end
-    return 8 + math.ceil(#categories / 2) * (CHIP_HEIGHT + CHIP_GAP) + 4
+    -- Rightmost chip first, so they read left to right in category order.
+    local categories = Theme.FilterCategories(RecordTypes:Categories())
+    ui.chips = {}
+    for i = #categories, 1, -1 do
+        ui.chips[i] = createChip(bar, categories[i], #categories - i + 1)
+    end
 end
 
 ------------------------------------------------------------------------------------------------
--- Day page and navigation
-
-local function pageWidth()
-    return ui.frame:GetWidth() - 2 * INSET - LIST_WIDTH - SPINE - PAGE_MARGIN
-end
+-- Day page and page controls (the right page)
 
 local function showPage()
     local page = state.selected and DayView.Build(state.selected, visibilityFilter())
     local hasDays = Store.db ~= nil and #Store:GetDayKeys() > 0
-    DayView:Show(page, pageWidth(), hasDays and L.JOURNAL_NOTHING_SHOWN or L.JOURNAL_EMPTY)
+    DayView:Show(page, ui.paperWidth, hasDays and L.JOURNAL_NOTHING_SHOWN or L.JOURNAL_EMPTY)
+    -- Page 1 is the oldest day, like the first page of a diary.
     local index = indexOf(state.days, state.selected)
+    local pattern = type(PAGE_NUMBER_WITH_MAX) == "string" and PAGE_NUMBER_WITH_MAX or L.PAGE_NUMBER
+    ui.pageText:SetText(index and pattern:format(#state.days - index + 1, #state.days) or "")
     ui.older:SetEnabled(index ~= nil and index < #state.days)
     ui.newer:SetEnabled(index ~= nil and index > 1)
 end
 
-local function createNavButton(page, text, point, x, step)
-    local button = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
-    button:SetSize(100, 22)
-    button:SetPoint(point, x, 10)
-    button:SetText(text)
+local function showTooltip(button)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(button, "ANCHOR_TOP")
+    GameTooltip:SetText(button.tooltip)
+    GameTooltip:Show()
+end
+
+local function hideTooltip()
+    if GameTooltip then GameTooltip:Hide() end
+end
+
+-- The spellbook's page buttons (the same art as the default UI's PagingControls).
+local function createPageButton(page, direction, tooltip, step)
+    local button = CreateFrame("Button", nil, page)
+    button:SetSize(32, 32)
+    local art = "Interface\\Buttons\\UI-SpellbookIcon-" .. direction .. "Page-"
+    button:SetNormalTexture(art .. "Up")
+    button:SetPushedTexture(art .. "Down")
+    button:SetDisabledTexture(art .. "Disabled")
+    button:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+    button.tooltip = tooltip
     button:SetScript("OnClick", function() Journal:Turn(step) end)
+    button:SetScript("OnEnter", showTooltip)
+    button:SetScript("OnLeave", hideTooltip)
     return button
+end
+
+local function createPageControls(paper)
+    local insets = DayView.INSETS
+    ui.newer = createPageButton(paper, "Next", L.PAGE_NEWER, -1)
+    ui.newer:SetPoint("BOTTOMRIGHT", -insets.outer + 6, insets.bottom - 40)
+    ui.older = createPageButton(paper, "Prev", L.PAGE_OLDER, 1)
+    ui.older:SetPoint("RIGHT", ui.newer, "LEFT", -4, 0)
+    ui.pageText = Theme.Text(paper, "text")
+    ui.pageText:SetPoint("RIGHT", ui.older, "LEFT", -8, 0)
+    ui.pageText:SetJustifyH("RIGHT")
 end
 
 ------------------------------------------------------------------------------------------------
@@ -277,6 +363,7 @@ local function createResizeGrip(frame)
     local grip = CreateFrame("Button", nil, frame)
     grip:SetSize(16, 16)
     grip:SetPoint("BOTTOMRIGHT", -2, 2)
+    grip:SetFrameLevel(frame:GetFrameLevel() + 10)
     grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
     grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
     grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
@@ -287,8 +374,32 @@ local function createResizeGrip(frame)
     end)
 end
 
-local function createChrome(frame)
+-- The default UI's portrait frame, or a plain dialog border on a client without it.
+local function createFrame()
+    if Compat.has.portraitFrame then
+        local frame = CreateFrame("Frame", "WayscribeJournalFrame", UIParent, "PortraitFrameTemplate")
+        frame:SetTitle(L.JOURNAL_TITLE)
+        frame:SetPortraitToAsset("Interface\\Icons\\INV_Misc_Book_09")
+        return frame
+    end
+    local frame = CreateFrame("Frame", "WayscribeJournalFrame", UIParent, "BackdropTemplate")
+    frame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 32,
+        insets = { left = 11, right = 12, top = 12, bottom = 11 },
+    })
+    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("TOP", 0, -14)
+    title:SetText(L.JOURNAL_TITLE)
+    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", -4, -4)
+    return frame
+end
+
+local function setupWindow(frame)
     frame:SetFrameStrata("HIGH")
+    frame:SetToplevel(true)
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
     frame:EnableMouse(true)
@@ -301,61 +412,76 @@ local function createChrome(frame)
         frame:StopMovingOrSizing()
         saveGeometry(frame)
     end)
-    frame:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        edgeSize = 14,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    frame:SetBackdropColor(unpack(Theme.COVER))
-    frame:SetBackdropBorderColor(unpack(Theme.COVER_EDGE))
-
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", 0, -14)
-    title:SetText(L.JOURNAL_TITLE)
-    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", -4, -4)
-
-    ui.banner = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    ui.banner:SetPoint("TOPLEFT", INSET + 4, -TOP)
-    ui.banner:SetPoint("TOPRIGHT", -INSET - 4, -TOP)
-    ui.banner:SetJustifyH("LEFT")
-    ui.banner:SetTextColor(1, 0.45, 0.4)
 end
 
+-- Two pages with a paper frame inside each: the part of the art meant for text.
 local function createPages(frame)
-    ui.book = CreateFrame("Frame", nil, frame)
-    local left = CreateFrame("Frame", nil, ui.book)
+    local book = CreateFrame("Frame", nil, frame)
+    local left = CreateFrame("Frame", nil, book)
     left:SetPoint("TOPLEFT")
-    left:SetPoint("BOTTOMLEFT")
-    left:SetWidth(LIST_WIDTH)
-    Theme.Page(left)
-    local spine = ui.book:CreateTexture(nil, "BACKGROUND")
-    spine:SetPoint("TOPLEFT", left, "TOPRIGHT", 0, 0)
-    spine:SetPoint("BOTTOMLEFT", left, "BOTTOMRIGHT", 0, 0)
-    spine:SetWidth(SPINE)
-    spine:SetColorTexture(unpack(Theme.SPINE))
-    local right = CreateFrame("Frame", nil, ui.book)
-    right:SetPoint("TOPLEFT", left, "TOPRIGHT", SPINE, 0)
+    left:SetPoint("BOTTOMRIGHT", book, "BOTTOM")
+    ui.rims = Theme.Page(left, "left")
+    local right = CreateFrame("Frame", nil, book)
+    right:SetPoint("TOPLEFT", book, "TOP")
     right:SetPoint("BOTTOMRIGHT")
-    Theme.Page(right)
+    ui.rightRims = Theme.Page(right, "right")
+    -- Page art with its own top bar starts right under the title bar.
+    ui.bookTop = ui.rims.top > 0 and TITLE_BAR or TOP_BAR
+    book:SetPoint("TOPLEFT", BOOK_SIDE, -ui.bookTop)
+    book:SetPoint("BOTTOMRIGHT", -BOOK_SIDE, BOOK_SIDE)
+    ui.leftPage, ui.rightPage = left, right
+    -- A read-only journal says why, in the top bar; on the page so the art doesn't cover it.
+    ui.banner = left:CreateFontString(nil, "OVERLAY", "GameFontRedSmall")
+    ui.banner:SetJustifyH("LEFT")
+    ui.banner:SetMaxLines(2)
+    ui.listPaper = CreateFrame("Frame", nil, left)
+    ui.rightPaper = CreateFrame("Frame", nil, right)
 
-    ui.listPage = left
-    ui.listTop = createFilters(left)
+    createListHeader(ui.listPaper)
     if Compat.has.scrollBox then
-        createScrollList(left, ui.listTop)
+        createScrollList(ui.listPaper)
     end
-    DayView:Create(right)
-    ui.older = createNavButton(right, L.PAGE_OLDER, "BOTTOMLEFT", 16, 1)
-    ui.newer = createNavButton(right, L.PAGE_NEWER, "BOTTOMRIGHT", -16, -1)
+    DayView:Create(ui.rightPaper)
+    createPageControls(ui.rightPaper)
+end
+
+-- The rims scale with the page, so the paper, the filter and the banner move on every resize.
+local function layoutPages()
+    local width = (ui.frame:GetWidth() - 2 * BOOK_SIDE) / 2
+    local height = ui.frame:GetHeight() - ui.bookTop - BOOK_SIDE
+    local left, right = ui.rims, ui.rightRims
+    ui.listPaper:ClearAllPoints()
+    ui.listPaper:SetPoint("TOPLEFT", left.outer * width, -left.top * height)
+    ui.listPaper:SetPoint("BOTTOMRIGHT", -left.spine * width, left.bottom * height)
+    ui.rightPaper:ClearAllPoints()
+    ui.rightPaper:SetPoint("TOPLEFT", right.spine * width, -right.top * height)
+    ui.rightPaper:SetPoint("BOTTOMRIGHT", -right.outer * width, right.bottom * height)
+    ui.paperWidth = width * (1 - right.spine - right.outer)
+    ui.paperHeight = height * (1 - left.top - left.bottom)
+
+    ui.filterBar:ClearAllPoints()
+    ui.banner:ClearAllPoints()
+    local band = left.top * height
+    if band > 0 then
+        local barY = -(band - ui.filterBar:GetHeight()) / 2
+        ui.filterBar:SetPoint("TOPRIGHT", ui.rightPage, "TOPRIGHT", -(right.outer * width + 12), barY)
+        ui.banner:SetPoint("LEFT", ui.leftPage, "TOPLEFT", 64, -band / 2)
+        ui.banner:SetPoint("RIGHT", ui.leftPage, "TOPRIGHT", -16, -band / 2)
+    else
+        ui.filterBar:SetPoint("TOPRIGHT", ui.frame, "TOPRIGHT", -14, -28)
+        ui.banner:SetPoint("TOPLEFT", ui.frame, "TOPLEFT", 64, -30)
+        ui.banner:SetPoint("RIGHT", ui.frame, "CENTER")
+    end
 end
 
 local function createWindow()
-    local frame = CreateFrame("Frame", "WayscribeJournalFrame", UIParent, "BackdropTemplate")
+    Theme.Resolve()
+    local frame = createFrame()
     ui.frame = frame
     restoreGeometry(frame)
-    createChrome(frame)
+    setupWindow(frame)
     createPages(frame)
+    createFilter(frame)
     createResizeGrip(frame)
     frame:Hide()
     tinsert(UISpecialFrames, "WayscribeJournalFrame") -- closes with Escape
@@ -363,13 +489,10 @@ local function createWindow()
     frame:SetScript("OnSizeChanged", function() Journal:RequestRefresh() end)
 end
 
--- A read-only journal says why, above the pages.
-local function updateBanner()
+local function updateHeaders()
     ui.banner:SetText(ns.safeMode and L.SAFE_MODE_BANNER:format(ns.safeMode) or "")
-    ui.bannerHeight = ns.safeMode and (ui.banner:GetStringHeight() + 6) or 0
-    ui.book:ClearAllPoints()
-    ui.book:SetPoint("TOPLEFT", INSET, -(TOP + ui.bannerHeight))
-    ui.book:SetPoint("BOTTOMRIGHT", -INSET, INSET)
+    local name = Store.db and Store.db.meta.name
+    ui.listTitle:SetText(name and L.JOURNAL_OF:format(name) or L.JOURNAL_TITLE)
 end
 
 ------------------------------------------------------------------------------------------------
@@ -378,7 +501,8 @@ end
 function Journal:Refresh()
     state.refreshPending = false
     if not ui.frame or not ui.frame:IsShown() then return end
-    updateBanner()
+    layoutPages()
+    updateHeaders()
     if state.listDirty then
         -- Whoever reads the newest day keeps reading the newest day when a new one starts.
         local followNewest = state.selected == nil or state.selected == state.days[1]

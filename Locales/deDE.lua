@@ -27,6 +27,7 @@ L.CLOSE = "Schließen"
 L.CANCEL = "Abbrechen"
 
 -- Journal
+L.JOURNAL_OF = "Tagebuch von %s"
 L.JOURNAL_EMPTY = "Dein Tagebuch ist noch leer. Zeit für ein Abenteuer!"
 L.JOURNAL_NOTHING_SHOWN = "Mit diesen Filtern gibt es nichts anzuzeigen."
 L.ENTRY_UNREADABLE = "(unlesbarer Eintrag: %s)"
@@ -34,8 +35,9 @@ L.PAGE_PLAYED = "%s gespielt"
 L.PAGE_SESSIONS = "Sitzungen: %s"
 L.PAGE_NOW = "jetzt"
 L.PAGE_EMPTY = "Mit diesen Filtern steht auf dieser Seite nichts."
-L.PAGE_OLDER = "< Älter"
-L.PAGE_NEWER = "Neuer >"
+L.PAGE_OLDER = "Älterer Tag"
+L.PAGE_NEWER = "Neuerer Tag"
+L.PAGE_NUMBER = "Seite %d/%d"
 
 -- Journal filters
 L.CATEGORY_PROGRESS = "Fortschritt"

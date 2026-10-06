@@ -509,8 +509,8 @@ second entry, and it falls back to `UnitLevel` when the event argument is secret
      storylines, class quests, legendaries), each with one final quest per faction or variant. Its
      names are locale strings (`CHAIN_<id>`).
   2. **`C_QuestLine`** (if `Compat.has.questLines`): the turned-in quest is the last of a quest line
-     with at least two quests. The line's name is captured at turn-in. Whether this API knows
-     Vanilla quests is still open (§12 #4); without it, only curated chains are recognized.
+     with at least two quests. The line's name is captured at turn-in. On build 70235 the API has
+     no data for Vanilla quests (§12 #4), so in practice only curated chains are recognized.
 - The record is `QUEST_CHAIN_COMPLETED {chain | questLine, quest, title?}` with
   `firstKey = "CHAIN:"..chain` or `"QUESTLINE:"..questLine`. A chain is recorded once.
 - **Retroactive.** The quest ID list makes curated chains reproducible. When a release adds chains,
@@ -562,7 +562,7 @@ HandyNotes also uses.
 
 | Piece | Design |
 |---|---|
-| **Journal window** | A book: leather cover, parchment pages, ink colors and one color per category (`UI/Theme.lua`, color textures and client fonts only, no art files). Movable and resizable; size and position are kept in `settings.journal`. Left page: category **filter chips** (built from the record type and counter registries, saved in `settings.journalHidden`) above the virtualized **day list** (`ScrollBox` + `DataProvider`), newest first, grouped by month. Without ScrollBox, a fixed set of rows follows the selection. Right page (`UI/DayView.lua`): the long date, "Today · played 2 h 10 min", the milestones in time order with their time and category marker, then counter summaries, then the day's sessions; *Older* / *Newer* turn the page. A reader on the newest day follows a new day as it starts. Tabs (**Journal · Footsteps · Wrapped**) arrive with the releases that add those views. |
+| **Journal window** | Built from the default UI's own pieces, so it looks like Forever's spellbook: `PortraitFrameTemplate` (title, book portrait, close button), Forever's two-page spellbook parchment (`spellbook-page-left/right-c60`, else the retail `spellbook-background-evergreen-*`), spellbook headers (`SystemFont_Huge2` in `SPELLBOOK_FONT_COLOR` over the `spellbook-divider` ornament), spellbook page buttons with "Page 3/12" (`PAGE_NUMBER_WITH_MAX`), the `WowStyle1FilterDropdownTemplate` filter menu and `MinimalScrollBar`s that hide when not needed. Each piece is checked first (`C_XMLUtil.GetTemplateInfo`, `C_Texture.GetAtlasInfo`); without it, plain colors, a dialog border and toggle chips stand in (`UI/Theme.lua`). Forever's page art carries the spellbook's dark top bar in its upper 9% and dark rims at the edges: the pages start under the title bar, the filter menu sits in that bar, and the text lives on a "paper" frame inside the rims (shares of the page size measured from the textures, so it scales with the window). Movable and resizable; size and position are kept in `settings.journal`. Left page: "Scoopz's journal" above the virtualized **day list** (`ScrollBox` + `DataProvider`), newest first, grouped by month; without ScrollBox, a fixed set of rows follows the selection. Right page (`UI/DayView.lua`): the long date, "Today · played 2 h 10 min", the milestones in time order with their time and category marker, then counter summaries, then the day's sessions. Page 1 is the oldest day. Category filters are saved in `settings.journalHidden`. A reader on the newest day follows a new day as it starts. Tabs (**Journal · Footsteps · Wrapped**) arrive with the releases that add those views. |
 | **Login recap** | On `isInitialLogin` and `state.lastRecapDay ~= today`, 3 s after the loading screen, show the previous session: date, duration, rendered milestones and the counter totals of its day(s) (counters are per day, so they can include another session that day). Simulated entries are left out; an empty session shows nothing. Buttons: *Open journal* (at that day), *Close*, and a *Don't show at login* checkbox wired to the setting. Setting `showLoginRecap` defaults to **on**. `/ws recap` shows it any time. |
 | **Settings** | Blizzard `Settings` API: `RegisterVerticalLayoutCategory`, and `RegisterProxySetting` for every control, so the page reads and writes `ns.Options` / `ns.Trackers` and never owns data. Sections: **General** (login recap, minimap button, date format dropdown), **Tracking** (one toggle per tracker, generated from the registry), **Data** (stats, error log, rebuild indexes, reset with a confirmation popup and a reload). **Footsteps** (enable, record flights) joins in 0.4. Without the API the page is skipped and `/ws settings` says so. |
 | **Minimap button** | LibDataBroker-1.1 + LibDBIcon-1.0, position and hidden flag in `WayscribeDB.settings.minimap`. Placeholder icon: `Interface\Icons\INV_Misc_Book_09`. Left-click toggles the journal, right-click opens settings. Skipped when the libraries are missing. The Addon Compartment entry comes from the TOC (`AddonCompartmentFunc`), so it works without libraries. |
@@ -682,7 +682,7 @@ screenshots (`SCREENSHOT_SUCCEEDED` → "took a screenshot here").
 
 ## 12. Verify on the Forever beta (run `/ws probe`)
 
-The first probe ran on client `1.60.1` build `70235` (2026-10-06), the 0.2 probe on the same build. The raw output is in
+The first probe ran on client `1.60.1` build `70235` (2026-10-06), the 0.2 and 0.3 probes on the same build. The raw output is in
 [forever-probe.md](forever-probe.md). "Exists" means the API or event is there. Whether an event
 actually *fires* for Vanilla content still needs the matching gameplay test; those are listed per
 release in [ingame-tests.md](ingame-tests.md).
@@ -692,7 +692,7 @@ release in [ingame-tests.md](ingame-tests.md).
 | 1 | Do `ENCOUNTER_END` / `BOSS_KILL` fire for Vanilla dungeon bosses? | Both events exist. ForeverChronicle uses both and merges duplicates. | Kill a dungeon boss (0.2). | NPC-ID detection via `UNIT_HEALTH` on the current target (CLEU is not an option, §1). |
 | 2 | Which profession API works? | ✅ `GetProfessions` / `GetProfessionInfo` (modern). | Values with a profession learned (the probe now prints them). Which skill line ID comes back (parent like 186 or child like 2946)? Does First Aid show up in `GetProfessions`? | — |
 | 3 | Does world position work outdoors? | ✅ `UnitPosition` works (instance 1 = Kalimdor). ✅ `C_Map.GetWorldPosFromMapPos` returns the same point. **UnitPosition's first return equals the world vector's `.x`.** | Behavior inside instances. | Zone-relative `uiMapID + x,y`. |
-| 4 | Does `C_QuestLine` return data for Vanilla quests? | `C_QuestLine.GetQuestLineInfo` exists. Since 0.3 the probe asks it about the first five quests in the log (`questLine.<id>`). | Run the 0.3 probe with quests in the log. | Curated chains only (already the first provider). |
+| 4 | Does `C_QuestLine` return data for Vanilla quests? | `C_QuestLine.GetQuestLineInfo` exists. ❌ The 0.3 probe got nothing for two Mulgore chain quests (747, 752). | Recheck on new client builds. | Curated chains carry the feature (already the first provider). |
 | 5 | Which values are secret, and when? | `issecretvalue` exists. `UnitLevel` is not secret out of combat. ForeverChronicle saw secret aura data and spellcast arguments. | Values in combat and instances. | `Compat.Safe` everywhere. Capture IDs and resolve names later via `ns.Defer`. |
 | 6 | Gather spell IDs, and does `GetLootSourceInfo` exist? | ✅ `GetLootSourceInfo` exists. ✅ All gather spell IDs exist and their names resolve in the client's language (0.2 probe, deDE: Bergbau / Kräuterkunde / Kürschnerei; 1235236 = Kräutersammeln). | Which spell ID a gather cast actually reports, and whether it's secret. | Name match is built in (§6.4); item subclass fallback for nodes. |
 | 7 | Does an LFG or dungeon-finder completion event exist? | `LFG_COMPLETION_REWARD` and `SCENARIO_COMPLETED` exist. | Whether they fire for Vanilla dungeons. | Final-boss data table (already the primary signal). |
@@ -745,8 +745,12 @@ Other findings:
   end of that day, flagged `bf`, and shown without a time.
 - **No tabs yet.** With only the journal there is no tab bar; Footsteps (0.4) and Wrapped (0.5)
   bring it.
-- **Book look from color textures.** Parchment, spine and markers are solid colors, fonts are the
-  client's own. Nothing depends on an art file whose path might differ on Forever.
+- **The default UI's look, verified first.** A first version drew its own leather and parchment
+  from color textures, to depend on no art file; next to Forever's spellbook it looked foreign. The
+  journal now uses the client's frame template, spellbook atlases, fonts and colors. The atlas
+  names and `SPELLBOOK_FONT_COLOR` were checked against build 70235's `UiTextureAtlasMember` and
+  `GlobalColor` tables (wago.tools), and the code checks each piece at runtime before using it,
+  falling back to the color drawing.
 
 ### Landscape (for positioning)
 

@@ -34,8 +34,11 @@ local function newFontString()
     return permissive(fontString)
 end
 
-local function newFrame(_, name)
-    local frame = { events = {}, scripts = {}, shown = true, width = 0, height = 0, regions = {}, name = name }
+local function newFrame(frameType, name, _, template)
+    local frame = {
+        events = {}, scripts = {}, shown = true, width = 0, height = 0, regions = {}, name = name,
+        frameType = frameType, template = template,
+    }
     function frame:RegisterEvent(event)
         if state.unknownEvents[event] then error("Attempt to register unknown event \"" .. event .. "\"") end
         self.events[event] = true
@@ -64,6 +67,9 @@ local function newFrame(_, name)
     function frame:GetChecked() return self.checked == true end
     function frame:SetEnabled(enabled) self.disabled = not enabled end
     function frame:IsEnabled() return not self.disabled end
+    function frame:SetTitle(text) self.title = text end
+    function frame:SetupMenu(generator) self.menuGenerator = generator end
+    function frame:GetFrameLevel() return 1 end
     function frame:SetText(text) self.text = text end
     function frame:CreateFontString()
         local fontString = newFontString()
@@ -182,6 +188,23 @@ local function installWorld()
     _G.C_CVar = { GetCVar = function(name) return state.cvars[name] end }
 end
 
+-- The default UI's templates and atlases the journal asks for, as a client confirms them.
+-- Includes the ScrollBox double. Call before Stubs.Login().
+function Stubs.InstallNativeUI()
+    Stubs.InstallScrollBox()
+    local templates = {
+        PortraitFrameTemplate = true, WowStyle1FilterDropdownTemplate = true,
+        WowScrollBoxList = true, MinimalScrollBar = true,
+    }
+    _G.C_XMLUtil = { GetTemplateInfo = function(name) return templates[name] and { type = "Frame" } or nil end }
+    _G.C_Texture = { GetAtlasInfo = function(name) return name:find("^spellbook%-") and { width = 1 } or nil end }
+    _G.ScrollUtil.InitScrollFrameWithScrollBar = function(scrollFrame, scrollBar)
+        scrollFrame.scrollBar = scrollBar
+        scrollFrame:SetScript("OnScrollRangeChanged", function() end)
+    end
+    _G.ScrollUtil.AddManagedScrollBarVisibilityBehavior = function() end
+end
+
 -- ScrollBox, as far as the journal uses it. Every element gets its own row (no virtualization),
 -- created through the view's initializer like the client does. Call before Stubs.Login().
 function Stubs.InstallScrollBox()
@@ -271,6 +294,7 @@ function Stubs.Install(opts)
     _G.Settings = nil
     _G.LibStub = nil
     _G.CreateScrollBoxListLinearView, _G.CreateDataProvider, _G.ScrollUtil, _G.ScrollBoxConstants = nil, nil, nil, nil
+    _G.C_XMLUtil, _G.C_Texture = nil, nil
     _G.WayscribeDB = opts.accountDB
     _G.WayscribeCharDB = opts.charDB
 end

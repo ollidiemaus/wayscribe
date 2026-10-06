@@ -7,13 +7,6 @@ local L, Compat, Store, Time, RecordTypes, Theme = ns.L, ns.Compat, ns.Store, ns
 local DayView = {}
 ns.DayView = DayView
 
-local TIME_WIDTH = 60
-local MARKER_SIZE = 6
-local ICON_SIZE = 14
-local TEXT_INDENT = TIME_WIDTH + 16
-local LINE_GAP = 5
-local SECTION_GAP = 12
-
 -- Whether a filter (isVisible(category) -> boolean) leaves anything on this day.
 function DayView.HasVisible(dayKey, isVisible)
     local day = Store:GetDay(dayKey)
@@ -76,31 +69,71 @@ function DayView.Build(dayKey, isVisible)
 end
 
 ------------------------------------------------------------------------------------------------
--- Drawing
+-- Drawing: a spellbook-style header (date, divider, subtitle) above a scrolling list of lines.
+
+-- Space between the edges of the paper (the page without its rims) and the text; the bottom
+-- leaves room for the page controls.
+DayView.INSETS = { spine = 26, outer = 30, top = 18, bottom = 46 }
+local SCROLLBAR = 20
 
 local ui = {}
 local rows = {}
 DayView.ui = ui
 
-function DayView:Create(parent)
-    ui.title = Theme.Text(parent, "title")
-    ui.title:SetPoint("TOPLEFT", 16, -14)
-    ui.title:SetPoint("TOPRIGHT", -16, -14)
-    ui.subtitle = Theme.Text(parent, "small", Theme.INK_FADED)
-    ui.subtitle:SetPoint("TOPLEFT", ui.title, "BOTTOMLEFT", 0, -4)
-    local rule = parent:CreateTexture(nil, "ARTWORK")
-    rule:SetColorTexture(Theme.INK_FADED[1], Theme.INK_FADED[2], Theme.INK_FADED[3], 0.5)
-    rule:SetHeight(1)
-    rule:SetPoint("TOPLEFT", 16, -58)
-    rule:SetPoint("TOPRIGHT", -16, -58)
+-- The width of the text column on paper `paperWidth` wide.
+function DayView.TextWidth(paperWidth)
+    return paperWidth - DayView.INSETS.spine - DayView.INSETS.outer - SCROLLBAR
+end
 
-    ui.scroll = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
-    ui.scroll:SetPoint("TOPLEFT", 16, -66)
-    ui.scroll:SetPoint("BOTTOMRIGHT", -30, 40)
+-- The default UI's thin scroll bar, shown only when the page doesn't fit; or the classic one.
+local function createScroll(parent)
+    local insets = DayView.INSETS
+    local native = Compat.has.scrollFrameBar
+    local scroll = CreateFrame("ScrollFrame", nil, parent, not native and "UIPanelScrollFrameTemplate" or nil)
+    scroll:SetPoint("TOPLEFT", insets.spine, -(insets.top + 70))
+    scroll:SetPoint("BOTTOMRIGHT", -(insets.outer + SCROLLBAR), insets.bottom)
+    if native then
+        local bar = CreateFrame("EventFrame", nil, parent, "MinimalScrollBar")
+        bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 8, 0)
+        bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 8, 0)
+        ScrollUtil.InitScrollFrameWithScrollBar(scroll, bar)
+        scroll:EnableMouseWheel(true)
+        bar:Hide() -- until the page is longer than the space it has
+        local onRangeChanged = scroll:GetScript("OnScrollRangeChanged")
+        scroll:SetScript("OnScrollRangeChanged", function(frame, horizontal, vertical)
+            if onRangeChanged then onRangeChanged(frame, horizontal, vertical) end
+            bar:SetShown((vertical or 0) > 0.5)
+        end)
+        ui.scrollBar = bar
+    end
+    return scroll
+end
+
+-- parent is the right page's paper.
+function DayView:Create(parent)
+    local insets = DayView.INSETS
+    ui.title = Theme.Text(parent, "title")
+    ui.title:SetPoint("TOPLEFT", insets.spine, -insets.top)
+    ui.title:SetPoint("TOPRIGHT", -insets.outer, -insets.top)
+    ui.title:SetWordWrap(false)
+    local divider = Theme.Divider(parent)
+    divider:SetPoint("TOPLEFT", ui.title, "BOTTOMLEFT", -12, -4)
+    divider:SetPoint("TOPRIGHT", ui.title, "BOTTOMRIGHT", 12, -4)
+    ui.subtitle = Theme.Text(parent, "small", Theme.INK_FADED)
+    ui.subtitle:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 12, -4)
+
+    ui.scroll = createScroll(parent)
     ui.content = CreateFrame("Frame", nil, ui.scroll)
     ui.content:SetSize(1, 1)
     ui.scroll:SetScrollChild(ui.content)
 end
+
+local TIME_WIDTH = 64
+local MARKER_SIZE = 6
+local ICON_SIZE = 16
+local TEXT_INDENT = TIME_WIDTH + 18
+local LINE_GAP = 6
+local SECTION_GAP = 14
 
 local function getRow(index)
     local row = rows[index]
@@ -136,13 +169,13 @@ local function placeMarker(row, line, y)
     row.icon:Hide()
     if line.icon then
         row.icon:ClearAllPoints()
-        row.icon:SetPoint("TOPLEFT", content, "TOPLEFT", TIME_WIDTH + 4, -y + 1)
+        row.icon:SetPoint("TOPLEFT", content, "TOPLEFT", TIME_WIDTH + 1, -y + 1)
         row.icon:SetTexture(line.icon)
         row.icon:Show()
     elseif line.category then
         local color = Theme.CategoryColor(line.category)
         row.marker:ClearAllPoints()
-        row.marker:SetPoint("TOPLEFT", content, "TOPLEFT", TIME_WIDTH + 8, -y - 4)
+        row.marker:SetPoint("TOPLEFT", content, "TOPLEFT", TIME_WIDTH + 6, -y - 5)
         row.marker:SetColorTexture(color[1], color[2], color[3], 1)
         row.marker:Show()
     end
@@ -153,15 +186,15 @@ local function placeRow(index, y, width, line)
     local row = getRow(index)
     local content = ui.content
     local indent = line.category and TEXT_INDENT or 0
+    Theme.Style(row.text, line.faded and "small" or "text", line.faded and Theme.INK_FADED or Theme.INK)
     row.text:ClearAllPoints()
     row.text:SetPoint("TOPLEFT", content, "TOPLEFT", indent, -y)
     row.text:SetWidth(math.max(width - indent, 1))
-    row.text:SetTextColor(unpack(line.faded and Theme.INK_FADED or Theme.INK))
     row.text:SetText(line.text)
     row.text:Show()
     if line.time then
         row.time:ClearAllPoints()
-        row.time:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -y)
+        row.time:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -y - 1)
         row.time:SetText(line.time)
         row.time:Show()
     else
@@ -172,7 +205,8 @@ local function placeRow(index, y, width, line)
 end
 
 -- page = DayView.Build(...) or nil; emptyText is shown when there is no page at all.
-function DayView:Show(page, width, emptyText)
+function DayView:Show(page, paperWidth, emptyText)
+    local width = DayView.TextWidth(paperWidth)
     ui.content:SetWidth(width)
     if not page or page.dayKey ~= self.shownDay then
         ui.scroll:SetVerticalScroll(0)

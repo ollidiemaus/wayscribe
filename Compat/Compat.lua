@@ -62,6 +62,19 @@ function Compat.EventExists(event)
     return ok
 end
 
+-- Whether an XML template exists: true or false, or nil when the client can't tell.
+function Compat.HasTemplate(name)
+    local getInfo = C_XMLUtil and C_XMLUtil.GetTemplateInfo
+    if not getInfo then return nil end
+    return Compat.Call(getInfo, name) ~= nil
+end
+
+-- Whether a texture atlas exists (atlas names are checked against the client's own list).
+function Compat.HasAtlas(name)
+    local getInfo = C_Texture and C_Texture.GetAtlasInfo
+    return getInfo ~= nil and Compat.Call(getInfo, name) ~= nil
+end
+
 -- Resolved at PLAYER_LOGIN; the full list is printed by /ws probe.
 function Compat:Detect()
     local has = self.has
@@ -84,6 +97,12 @@ function Compat:Detect()
     has.lootSourceInfo = type(GetLootSourceInfo) == "function"
     has.scrollBox = type(CreateScrollBoxListLinearView) == "function" and type(CreateDataProvider) == "function"
         and ScrollUtil ~= nil and ScrollUtil.InitScrollBoxListWithScrollBar ~= nil
+        and self.HasTemplate("WowScrollBoxList") ~= false and self.HasTemplate("MinimalScrollBar") ~= false
+    -- The journal's native look (docs/ARCHITECTURE.md §7): the default UI's frame, scroll bar and
+    -- filter menu. Each is only used when this client can confirm it exists.
+    has.portraitFrame = self.HasTemplate("PortraitFrameTemplate") == true
+    has.scrollFrameBar = has.scrollBox and ScrollUtil.InitScrollFrameWithScrollBar ~= nil
+    has.filterDropdown = self.HasTemplate("WowStyle1FilterDropdownTemplate") == true
     has.addonCompartment = AddonCompartmentFrame ~= nil
     has.itemInfoInstant = C_Item ~= nil and C_Item.GetItemInfoInstant ~= nil
     has.spellNames = (C_Spell ~= nil and C_Spell.GetSpellName ~= nil) or type(GetSpellInfo) == "function"

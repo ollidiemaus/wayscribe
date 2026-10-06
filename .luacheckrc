@@ -27,7 +27,8 @@ read_globals = {
     "CreateScrollBoxListLinearView", "CreateDataProvider", "ScrollUtil", "ScrollBoxConstants",
     "Settings", "AddonCompartmentFrame",
     "CreateSettingsListSectionHeaderInitializer", "CreateSettingsButtonInitializer",
-    "StaticPopup_Show", "ReloadUI", "PlaySound", "SOUNDKIT",
+    "StaticPopup_Show", "ReloadUI", "PlaySound", "SOUNDKIT", "GameTooltip",
+    "SPELLBOOK_FONT_COLOR", "PAGE_NUMBER_WITH_MAX",
     -- Client and player info
     "GetBuildInfo", "GetLocale", "GetRealmName", "WOW_PROJECT_ID",
     "UnitGUID", "UnitFullName", "UnitClass", "UnitLevel", "UnitPosition",
@@ -36,8 +37,8 @@ read_globals = {
     "GetSpellInfo", "GetAddOnMetadata", "GetCVar",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "GetLootSourceInfo",
     -- Namespaces
-    "C_AddOns", "C_CVar", "C_EventUtils", "C_Item", "C_Map", "C_QuestLine", "C_QuestLog", "C_Spell", "C_Timer",
-    "C_TradeSkillUI",
+    "C_AddOns", "C_CVar", "C_EventUtils", "C_Item", "C_Map", "C_QuestLine", "C_QuestLog", "C_Spell", "C_Texture",
+    "C_Timer", "C_TradeSkillUI", "C_XMLUtil",
     -- Libraries (optional, see embeds.xml)
     "LibStub",
 }

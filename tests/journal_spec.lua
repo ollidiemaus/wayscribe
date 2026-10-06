@@ -222,6 +222,8 @@ describe("entries", function()
             "Sitzungen: 12:00 - jetzt",
         })
         T.same(listTexts(ns), { "Oktober 2026", "Sonntag, 4. | Heute", "Samstag, 3. | Gestern" })
+        T.eq(ns.Journal.ui.pageText:GetText(), "Seite 1/2")
+        T.eq(ns.Journal.ui.listTitle:GetText(), "Tagebuch von Tester")
     end)
 end)
 
@@ -254,20 +256,78 @@ describe("without a ScrollBox", function()
     end)
 end)
 
+describe("the default UI's look", function()
+    local function native()
+        local ns = Stubs.LoadAddon({ level = 11 })
+        Stubs.InstallNativeUI()
+        Stubs.Login()
+        Stubs.Fire("PLAYER_LEVEL_UP", 12)
+        Stubs.Advance(DAY)
+        Stubs.Fire("PLAYER_LEVEL_UP", 13)
+        ns.Journal:Toggle()
+        return ns
+    end
+
+    -- What the filter menu would show: { label, isSelected(), toggle() } per checkbox.
+    local function menuItems(dropdown)
+        local items = {}
+        local root = {}
+        function root:CreateCheckbox(text, isSelected, setSelected, data)
+            items[#items + 1] = {
+                label = text,
+                isSelected = function() return isSelected(data) end,
+                toggle = function() setSelected(data) end,
+            }
+        end
+        dropdown.menuGenerator(dropdown, root)
+        return items
+    end
+
+    it("uses the portrait frame, spellbook pages and page controls", function()
+        local ns = native()
+        local frame = _G.WayscribeJournalFrame
+        T.eq(frame.template, "PortraitFrameTemplate")
+        T.eq(frame.title, "Wayscribe")
+        T.truthy(ns.Compat.has.portraitFrame)
+        T.eq(ns.Journal.ui.listTitle:GetText(), "Tester's journal")
+        T.eq(ns.Journal.ui.pageText:GetText(), "Page 2/2", "the newest day is the last page")
+        ns.Journal.ui.older:Click()
+        T.eq(ns.Journal.ui.pageText:GetText(), "Page 1/2")
+        T.truthy(ns.DayView.ui.scrollBar, "the thin scroll bar")
+        T.eq(#ns.Log:GetEntries(), 0)
+    end)
+
+    it("filters through the default UI's filter menu", function()
+        local ns = native()
+        T.eq(ns.Journal.ui.chips, nil)
+        local items = menuItems(ns.Journal.ui.filter)
+        local labels = {}
+        for i, item in ipairs(items) do labels[i] = item.label end
+        T.same(labels, { "Progress", "Adventure", "Quests", "Gathering" })
+        T.truthy(items[1].isSelected())
+        items[1].toggle()
+        T.falsy(items[1].isSelected())
+        T.eq(ns.accountDB.settings.journalHidden.progress, true)
+        T.same(listTexts(ns), {}, "both days only had level ups")
+        items[1].toggle()
+        T.same(listTexts(ns), { "October 2026", "Sunday 4 | Today", "Saturday 3 | Yesterday" })
+    end)
+end)
+
 describe("window", function()
     it("remembers its size", function()
         local ns = twoDays()
         ns.Journal:Toggle()
         local frame = _G.WayscribeJournalFrame
-        frame:SetSize(700, 480)
+        frame:SetSize(760, 500)
         frame:GetScript("OnDragStop")(frame)
-        T.eq(ns.accountDB.settings.journal.width, 700)
-        T.eq(ns.accountDB.settings.journal.height, 480)
+        T.eq(ns.accountDB.settings.journal.width, 760)
+        T.eq(ns.accountDB.settings.journal.height, 500)
 
         Stubs.Relog()
         Stubs.ns.Journal:Toggle()
-        T.eq(_G.WayscribeJournalFrame:GetWidth(), 700)
-        T.eq(_G.WayscribeJournalFrame:GetHeight(), 480)
+        T.eq(_G.WayscribeJournalFrame:GetWidth(), 760)
+        T.eq(_G.WayscribeJournalFrame:GetHeight(), 500)
     end)
 
     it("opens at the login recap's day", function()

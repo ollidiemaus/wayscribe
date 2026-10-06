@@ -39,6 +39,7 @@ L.CANCEL = "Cancel"
 
 -- Journal
 L.JOURNAL_TITLE = "Wayscribe"
+L.JOURNAL_OF = "%s's journal"
 L.JOURNAL_EMPTY = "Your journal is still empty. Go on an adventure!"
 L.JOURNAL_NOTHING_SHOWN = "Nothing to show with these filters."
 L.ENTRY_UNREADABLE = "(unreadable entry: %s)"
@@ -48,8 +49,9 @@ L.PAGE_SESSIONS = "Sessions: %s"
 L.PAGE_SESSION_RANGE = "%s - %s"
 L.PAGE_NOW = "now"
 L.PAGE_EMPTY = "Nothing on this page with these filters."
-L.PAGE_OLDER = "< Older"
-L.PAGE_NEWER = "Newer >"
+L.PAGE_OLDER = "Older day"
+L.PAGE_NEWER = "Newer day"
+L.PAGE_NUMBER = "Page %d/%d"
 
 -- Journal filters
 L.CATEGORY_PROGRESS = "Progress"

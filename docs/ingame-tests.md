@@ -58,27 +58,29 @@ day, once). These checks need the client.
 
 ### Journal
 
-- [ ] **The book opens and looks right.** `/ws`: leather cover, two parchment pages, readable dark
-  text without shadows, the long date in the title font ("Samstag, 3. Oktober 2026"). Screenshot
-  it.
-- [ ] **Day list.** Month headings, "Heute"/"Gestern" on the right, mouse wheel and scroll bar work
-  (ScrollBox). Clicking a day shows it; the selected row is highlighted.
-- [ ] **Turning pages.** *< Älter* / *Neuer >* move one day and are disabled at the ends. Is the
-  page-turn sound there?
-- [ ] **Filter chips.** Turn off *Sammeln*: ore lines disappear, days with only ore leave the list.
-  After `/reload` the filter is still off.
-- [ ] **Resize and move.** Drag the corner grip and the cover; after `/reload` size and position
-  are kept. Long entries wrap at the new width.
-- [ ] **Live updates.** With the journal open on today, kill a mob with loot or level up: the page
-  updates without flicker.
-- [ ] **Times** show as `14:05` with the 24-hour clock on and `2:05 PM` with it off (Game Menu >
-  Options > the clock setting), after reopening the journal.
+- [x] **It looks like the spellbook.** `/ws` next to the spellbook: the same frame (portrait with
+  the book icon, title "Wayscribe"), the same two-page parchment, headers in the spellbook's dark
+  brown with the ornament line, "Seite 3/12" with the spellbook's arrow buttons. Screenshot it. Do
+  the text margins fit the page art (nothing on the torn edge or the spine)? *Yes (2026-10-06,
+  after moving the text off the page art's top bar and darkening the secondary text). The filter
+  menu opens with the four categories; times and sessions show in 24-hour format.*
+- [ ] **Day list.** Month headings, "Heute"/"Gestern" on the right, the selected day has a soft
+  shadow. The thin scroll bar appears only with more days than fit.
+- [ ] **Turning pages.** The arrows move one day, are disabled at the ends and play the page sound.
+- [ ] **Filter menu.** *Filter* in the top bar opens checkboxes per category. Turn off *Sammeln*:
+  ore lines disappear, days with only ore leave the list. After `/reload` it's still off.
+- [ ] **Resize and move.** Drag the corner grip and the title bar; after `/reload` size and position
+  are kept. The parchment stretches with the window; long entries wrap at the new width.
+- [ ] **Live updates.** With the journal open on today, loot ore or level up: the page updates
+  without flicker.
+- [ ] **Times** show as `14:05` with the 24-hour clock on and `2:05 PM` with it off.
 - [ ] **Login recap** *Tagebuch öffnen* opens the journal at the recap's day.
 
 ### Quest chains
 
-- [ ] **`/ws probe` with a few quests in the log.** Paste the `questLine.*` and `questTitle.*` lines
-  into forever-probe.md. Answers §12 #4: does `C_QuestLine` know Vanilla quests?
+- [x] **`/ws probe` with a few quests in the log.** Paste the `questLine.*` and `questTitle.*` lines
+  into forever-probe.md. Answers §12 #4: does `C_QuestLine` know Vanilla quests? *No: nothing for
+  747 and 752 (2026-10-06), so only curated chains count.*
 - [ ] **Turn in any quest.** The day shows "Quests abgegeben: 1".
 - [ ] **Complete a curated chain**, the easiest being the druid bear form (Body and Heart) or the
   Defias Brotherhood. Expect "Questreihe abgeschlossen: …" with the time.
