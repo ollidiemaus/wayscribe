@@ -180,11 +180,26 @@ function Compat.GetPlayerWorldPosition()
     return Compat.GetWorldPosFromMapPos(mapID, u, v)
 end
 
--- The most detailed map showing a world position, or nil.
+local MAX_MAP_DEPTH = 5
+
+-- The most detailed map showing a world position, or nil. C_Map.GetMapPosFromWorldPos answers
+-- with the continent (1414 for a point in Mulgore on build 70235), so this walks down through
+-- the maps at that point.
 function Compat.GetMapAtWorldPos(continentID, x, y)
     if not (Compat.has.mapWorldPos and type(CreateVector2D) == "function") then return nil end
-    local mapID = Compat.Call(C_Map.GetMapPosFromWorldPos, continentID, CreateVector2D(x, y))
-    return type(mapID) == "number" and mapID or nil
+    local world = CreateVector2D(x, y)
+    local mapID, position = Compat.Call(C_Map.GetMapPosFromWorldPos, continentID, world)
+    if type(mapID) ~= "number" then return nil end
+    for _ = 1, MAX_MAP_DEPTH do
+        local u = type(position) == "table" and Compat.Safe(position.x, "number")
+        local v = type(position) == "table" and Compat.Safe(position.y, "number")
+        local info = u and v and Compat.Call(C_Map.GetMapInfoAtPosition, mapID, u, v)
+        local child = type(info) == "table" and Compat.Safe(info.mapID, "number")
+        if not child or child == mapID then break end
+        local _, childPosition = Compat.Call(C_Map.GetMapPosFromWorldPos, continentID, world, child)
+        mapID, position = child, childPosition
+    end
+    return mapID
 end
 
 function Compat.GetParentMap(mapID)

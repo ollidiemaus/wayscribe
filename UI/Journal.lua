@@ -314,16 +314,15 @@ local function createPageButton(page, direction, tooltip, step)
     return button
 end
 
--- "Show on the map", in ink on the page, for days with footsteps.
+-- "Show on the map" for days with footsteps: the default UI's button, level with the page controls.
+-- (Plain text in ink was too easy to miss.)
 local function createPathLink(paper)
     local insets = DayView.INSETS
-    local link = CreateFrame("Button", nil, paper)
-    link:SetPoint("BOTTOMLEFT", insets.spine - 4, insets.bottom - 34)
-    Theme.Fill(link, Theme.INK, "HIGHLIGHT", 0, 0.08)
-    link.label = Theme.Text(link, "text")
-    link.label:SetPoint("LEFT", 4, 0)
-    link.label:SetText(L.FOOTSTEPS_SHOW_DAY)
-    link:SetSize(math.max(link.label:GetStringWidth(), 120) + 8, 20)
+    local link = CreateFrame("Button", nil, paper, "UIPanelButtonTemplate")
+    link:SetPoint("BOTTOMLEFT", insets.spine, insets.bottom - 35)
+    link:SetText(L.FOOTSTEPS_SHOW_DAY)
+    local width = link:GetTextWidth()
+    link:SetSize(math.max(type(width) == "number" and width or 0, 100) + 24, 22)
     link.tooltip = L.FOOTSTEPS_SHOW_DAY_TIP
     link:SetScript("OnClick", function() Journal:ShowPath() end)
     link:SetScript("OnEnter", showTooltip)

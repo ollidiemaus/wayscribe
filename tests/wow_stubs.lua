@@ -70,6 +70,8 @@ local function newFrame(frameType, name, _, template)
     function frame:SetTitle(text) self.title = text end
     function frame:SetupMenu(generator) self.menuGenerator = generator end
     function frame:GetFrameLevel() return 1 end
+    function frame:SetScale(scale) self.scale = scale end
+    function frame:GetScale() return self.scale or 1 end
     function frame:SetText(text) self.text = text end
     function frame:CreateFontString()
         local fontString = newFontString()
@@ -92,7 +94,10 @@ local function newFrame(frameType, name, _, template)
         function line:IsShown() return self.shown end
         function line:SetStartPoint(_, _, x, y) self.x1, self.y1 = x, y end
         function line:SetEndPoint(_, _, x, y) self.x2, self.y2 = x, y end
-        function line:SetThickness(thickness) self.thickness = thickness end
+        function line:SetThickness(thickness)
+            self.thickness = thickness
+            self.thicknessSets = (self.thicknessSets or 0) + 1
+        end
         function line:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
         self.lines = self.lines or {}
         self.lines[#self.lines + 1] = line
@@ -198,14 +203,22 @@ local function installMaps()
             local x, y = Stubs.MapToWorld(mapID, position.x, position.y)
             return map.continent, { x = x, y = y }
         end,
-        GetMapPosFromWorldPos = function(continent, position)
-            for _, mapID in ipairs({ 1412, 1414 }) do
-                local u, v = Stubs.WorldToMap(mapID, position.x, position.y)
-                if MAPS[mapID].continent == continent and u >= 0 and u <= 1 and v >= 0 and v <= 1 then
-                    return mapID, { x = u, y = v }
-                end
+        -- Like the client: the continent's map, unless a map is asked for.
+        GetMapPosFromWorldPos = function(continent, position, overrideMapID)
+            local mapID = overrideMapID or 1414
+            local map = MAPS[mapID]
+            if not map or map.continent ~= continent then return nil end
+            local u, v = Stubs.WorldToMap(mapID, position.x, position.y)
+            return mapID, { x = u, y = v }
+        end,
+        -- The zone at a point of the continent map.
+        GetMapInfoAtPosition = function(mapID, u, v)
+            if mapID ~= 1414 then return nil end
+            local zoneU, zoneV = Stubs.WorldToMap(1412, Stubs.MapToWorld(1414, u, v))
+            if zoneU >= 0 and zoneU <= 1 and zoneV >= 0 and zoneV <= 1 then
+                return { mapID = 1412, parentMapID = 1414 }
             end
-            return nil
+            return { mapID = 1414, parentMapID = 947 }
         end,
         GetPlayerMapPosition = function(mapID)
             local position, map = state.position, MAPS[mapID]

@@ -587,13 +587,19 @@ extension point that HandyNotes also uses.
   canvas pixel). Their width is divided by the canvas zoom, so they look the same at every zoom.
 - Trails are drawn **newest first** up to 5000 lines, in a coroutine that works at most 4 ms per
   frame, so even "All" never stalls the map. The trail being recorded is drawn line by line.
+- **Settling** (found in game): lines drawn into a map that was already open stayed invisible
+  until a zoom, while lines drawn as it opened showed. On the frame after drawing into an open
+  map, the line layer's scale is nudged and the new lines' width set again, which is what a zoom
+  does.
 - Ground trails are dark red, flights thinner and blue; today's trails (or the picked day's) are
   strong, older ones lighter.
-- **Filters:** Today (default), Last 7 days, All, Off, set by a button in the map's lower left corner
+- **Filters:** Today (default), Last 7 days, All, Off, set by a button in the map's upper right corner
+  (Forever shows its own coordinates in the lower left)
   (a menu where the client has `MenuUtil`, else each click picks the next one) or in settings.
-- **Day → path link:** a journal day with trails shows *Show on the map*. It opens the world map at
-  the most detailed map that holds the whole day (the zone, else its parents) and shows that day
-  until the map closes.
+- **Day → path link:** a journal day with trails shows a *Show on the map* button. It opens the world
+  map at the most detailed map that holds the whole day (the zone, else its parents) and shows that
+  day until the map closes. `C_Map.GetMapPosFromWorldPos` answers with the continent, so
+  `Compat.GetMapAtWorldPos` walks down with `C_Map.GetMapInfoAtPosition` to find the zone.
 
 **Coverage** (the "% of Azeroth walked" stat and a fog-of-war look) moves to 0.5 with Wrapped, its
 only consumer. It will be rasterized from the trails into chunked bitsets in a coroutine and cached
@@ -734,13 +740,13 @@ release in [ingame-tests.md](ingame-tests.md).
 |---|---|---|---|---|
 | 1 | Do `ENCOUNTER_END` / `BOSS_KILL` fire for Vanilla dungeon bosses? | Both events exist. ForeverChronicle uses both and merges duplicates. | Kill a dungeon boss (0.2). | NPC-ID detection via `UNIT_HEALTH` on the current target (CLEU is not an option, §1). |
 | 2 | Which profession API works? | ✅ `GetProfessions` / `GetProfessionInfo` (modern). | Values with a profession learned (the probe now prints them). Which skill line ID comes back (parent like 186 or child like 2946)? Does First Aid show up in `GetProfessions`? | — |
-| 3 | Does world position work outdoors? | ✅ `UnitPosition` works (instance 1 = Kalimdor). ✅ `C_Map.GetWorldPosFromMapPos` returns the same point. **UnitPosition's first return equals the world vector's `.x`.** | Behavior inside instances and in combat (0.4 keeps a trail through a short gap). Does the probe's `map.fromWorld` (our transform) match `map.position` (the client's)? | Zone-relative `uiMapID + x,y`. |
+| 3 | Does world position work outdoors? | ✅ `UnitPosition` works (instance 1 = Kalimdor). ✅ `C_Map.GetWorldPosFromMapPos` returns the same point. **UnitPosition's first return equals the world vector's `.x`.** ✅ 0.4: the Footsteps transform gives exactly the client's map position. | Behavior inside instances and in combat (0.4 keeps a trail through a short gap). | Zone-relative `uiMapID + x,y`. |
 | 4 | Does `C_QuestLine` return data for Vanilla quests? | `C_QuestLine.GetQuestLineInfo` exists. ❌ The 0.3 probe got nothing for two Mulgore chain quests (747, 752). | Recheck on new client builds. | Curated chains carry the feature (already the first provider). |
 | 5 | Which values are secret, and when? | `issecretvalue` exists. `UnitLevel` is not secret out of combat. ForeverChronicle saw secret aura data and spellcast arguments. | Values in combat and instances. | `Compat.Safe` everywhere. Capture IDs and resolve names later via `ns.Defer`. |
 | 6 | Gather spell IDs, and does `GetLootSourceInfo` exist? | ✅ `GetLootSourceInfo` exists. ✅ All gather spell IDs exist and their names resolve in the client's language (0.2 probe, deDE: Bergbau / Kräuterkunde / Kürschnerei; 1235236 = Kräutersammeln). | Which spell ID a gather cast actually reports, and whether it's secret. | Name match is built in (§6.4); item subclass fallback for nodes. |
 | 7 | Does an LFG or dungeon-finder completion event exist? | `LFG_COMPLETION_REWARD` and `SCENARIO_COMPLETED` exist. | Whether they fire for Vanilla dungeons. | Final-boss data table (already the primary signal). |
 | 8 | Do SavedVariables survive a round trip on the current client build? | ✅ Account and character files written on `/reload` and logout, `.bak` holds the previous save, the session was resumed after the reload. ✅ A full relog added a second session (0.2). | Retest on every new client build. | Missing-DB guard (§4.6). |
-| 9 | Does `WorldMapFrame` take a MapCanvas data provider, and where do the lines land? | `has.worldMapCanvas` and `worldMap.frame` in the 0.4 probe. | Lines above the explored-area art and below the pins? The button not hidden behind the map's own controls? Does `OpenWorldMap(mapID)` exist? | No overlay; the journal hides its map link. |
+| 9 | Does `WorldMapFrame` take a MapCanvas data provider, and where do the lines land? | ✅ `has.worldMapCanvas`; the trail was drawn in the right place, above the explored-area art. `C_Map.GetMapPosFromWorldPos` answers with the continent (worked around). | Lines drawn into an open map needed a zoom to show (settling added, recheck). Below the pins? Does `OpenWorldMap(mapID)` exist? | No overlay; the journal hides its map link. |
 
 Other findings:
 - wago.tools lists build 70235 as product `wow_cn_beta`, so its DB2 tables (`DungeonEncounter`, `Map`,

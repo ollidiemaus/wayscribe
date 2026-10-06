@@ -95,17 +95,21 @@ about 3.2 KB (budget 10 KB). These checks need the client.
 
 ### Probe
 
-- [ ] **`/ws probe` outdoors, standing in a zone.** Paste the new lines (`has.taxiState`,
+- [x] **`/ws probe` outdoors, standing in a zone.** Paste the new lines (`has.taxiState`,
   `has.worldMapCanvas`, `worldMap.frame`, `taxi`, `map.corners`, `map.fromWorld`, `map.atWorld`,
   `map.parent`) into forever-probe.md. `map.fromWorld` must match `map.position` to about three
-  decimals: that proves the world-to-map transform. (§12 #3, #9)
+  decimals: that proves the world-to-map transform. (§12 #3, #9) *Exact match, 0.4422, 0.7712
+  (2026-10-06). `map.atWorld` gave the continent, not the zone; fixed by walking down the maps.*
 - [ ] **`/ws probe` inside a dungeon.** Is `unitPosition` nil there? (§12 #3)
 
 ### Recording
 
 - [ ] **Walk and ride for a few minutes, then open the world map.** A dark red line follows your
   way, ending where you stand, and keeps growing while the map stays open. Does it lie on the roads
-  you took (not mirrored or shifted)?
+  you took (not mirrored or shifted)? *First test (2026-10-06): in the right place on the full-screen
+  map. On the small map (with the quest log), lines drawn while it stayed open didn't show until a
+  zoom. Since then, lines drawn into an open map are settled on the next frame the way a zoom does
+  it. Check again: keep the small map open while walking; the line must grow.*
 - [ ] **Stand still for a minute, then walk on.** The line continues without a gap.
 - [ ] **Take a flight.** The flight is a thinner blue line from flight master to flight master, the
   walk before and after joins it. With *Record flight paths* off, the flight leaves no line.
@@ -125,12 +129,12 @@ about 3.2 KB (budget 10 KB). These checks need the client.
 
 - [ ] **Where the lines land.** Above the map art and explored areas, below the quest and flight
   master icons? Zooming in keeps the lines equally thin.
-- [ ] **The "Fußspuren: Heute" button** (lower left of the map) isn't hidden behind the map's own
-  controls. Its menu switches between Heute, Letzte 7 Tage, Alle and Aus; older days are lighter.
+- [ ] **The "Fußspuren: Heute" button** (upper right of the map) isn't hidden behind the map's own
+  controls. *At first it sat in the lower left, over the client's own coordinates; moved.* Its menu switches between Heute, Letzte 7 Tage, Alle and Aus; older days are lighter.
 - [ ] **Zone, continent, world.** The trail shows on the zone and the continent map; the world map
   (all of Azeroth) shows none and no error.
-- [ ] **From the journal.** On a day with trails, *Auf der Karte zeigen* opens the map at that
-  day's zone with only that day; does the map come up in front of the journal? After closing the
+- [ ] **From the journal.** On a day with trails, the *Auf der Karte zeigen* button (now a real
+  button; the text link was easy to miss) opens the map at that day's zone with only that day; does the map come up in front of the journal? After closing the
   map, it shows "Heute" again.
 - [ ] **Settings:** the Fußspuren section (map dropdown, flights, *Alle Spuren löschen* with its
   confirmation). Try deleting only on a test character.

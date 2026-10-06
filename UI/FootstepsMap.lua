@@ -26,8 +26,9 @@ local STYLES = {
 local RECENT_ALPHA, OLDER_ALPHA = 0.9, 0.5
 local MAX_PARENTS = 10
 
+-- settled: how many of the lines were drawn before the last settle (see below).
 local function newPool(sublevel)
-    return { lines = {}, used = 0, sublevel = sublevel }
+    return { lines = {}, used = 0, settled = 0, sublevel = sublevel }
 end
 
 -- day: a day picked in the journal, shown until the map closes; job: the drawing coroutine;
@@ -90,6 +91,33 @@ local function transformFor(mapID)
 end
 
 ------------------------------------------------------------------------------------------------
+-- Settling. In game (build 70235), lines drawn into a map that was already open stayed invisible
+-- until the map was zoomed, while lines drawn as it opened showed. A zoom rescales the canvas and
+-- (through OnCanvasScaleChanged) sets the lines' width again; so on the frame after drawing into
+-- an open map, the same happens: the line layer's scale is nudged and the new lines' width set again.
+local SETTLE_SCALE = 0.9999
+
+local function settle()
+    view.settlePending = false
+    if not (view.frame and FootstepsMap:IsDrawing()) then return end
+    view.nudged = not view.nudged
+    view.frame:SetScale(view.nudged and SETTLE_SCALE or 1)
+    for _, pool in ipairs({ view.trails, view.liveTrail }) do
+        for i = pool.settled + 1, pool.used do
+            local line = pool.lines[i]
+            line:SetThickness(STYLES[line.style].width / view.scale)
+        end
+        pool.settled = pool.used
+    end
+end
+
+local function requestSettle()
+    if view.settlePending then return end
+    view.settlePending = true
+    C_Timer.After(0, settle)
+end
+
+------------------------------------------------------------------------------------------------
 -- Lines
 
 local function clearPool(pool)
@@ -97,6 +125,7 @@ local function clearPool(pool)
         pool.lines[i]:Hide()
     end
     pool.used = 0
+    pool.settled = 0
 end
 
 -- A line in map coordinates (0..1), clipped to the map. False once MAX_LINES are in use.
@@ -117,6 +146,7 @@ local function drawLine(pool, u1, v1, u2, v2, style, alpha)
     line:SetThickness(spec.width / view.scale)
     line:SetColorTexture(spec.color[1], spec.color[2], spec.color[3], alpha)
     line:Show()
+    requestSettle()
     return true
 end
 
@@ -334,12 +364,13 @@ local function hideTooltip()
     if GameTooltip then GameTooltip:Hide() end
 end
 
--- In the map's lower left corner, above the canvas and its pins.
+-- In the map's upper right corner, above the canvas and its pins. (The lower left holds the
+-- client's own coordinates on Forever.)
 function FootstepsMap:CreateButton(map)
     local anchor = map.ScrollContainer or map
     local button = CreateFrame("Button", nil, map, "UIPanelButtonTemplate")
     button:SetSize(160, 22)
-    button:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", 8, 8)
+    button:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", -8, -8)
     button:SetFrameLevel(math.min(anchor:GetFrameLevel() + 500, 9000))
     button:SetScript("OnClick", function(owner) self:OnButtonClick(owner) end)
     button:SetScript("OnEnter", showTooltip)

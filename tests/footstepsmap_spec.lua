@@ -129,6 +129,22 @@ describe("world map", function()
         T.eq(#trails(ns), 1)
     end)
 
+    -- In game, lines drawn into an open map only showed after a zoom (build 70235).
+    it("settles lines drawn into an open map on the next frame, like a zoom does", function()
+        local ns, map = start()
+        map:Show()
+        local frame = ns.FootstepsMap.view.frame
+        walkOnMap(1412, 0.2, 0.5, 0.21, 0.5)
+        Stubs.Advance(0)
+        T.truthy(frame.scale ~= nil, "the line layer was rescaled")
+        local lines = live(ns)
+        T.truthy(#lines >= 2)
+        for _, line in ipairs(lines) do
+            T.truthy(line.thicknessSets >= 2, "the width is set again after drawing")
+            T.eq(line.thickness, 2.5)
+        end
+    end)
+
     it("keeps lines equally wide at every zoom", function()
         local ns, map = start()
         trail(1412, 0.2, 0.5, 0.6, 0.5)

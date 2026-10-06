@@ -159,3 +159,39 @@ Notes:
   follow it.
 - The same session saved the journal window's size and position, and the back-fill check stored
   `state.questChains = 1` at login without errors.
+
+## Client 1.60.1, build 70235, Wayscribe 0.4 (2026-10-06)
+
+Same character (level 1 Tauren Druid), standing in Mulgore, German client. Every line the 0.3
+probe printed came back the same, plus `has.taxiState = true` and `has.worldMapCanvas = true`.
+The lines new in 0.4:
+
+```text
+has.taxiState = true
+has.worldMapCanvas = true
+event.PLAYER_CONTROL_LOST = true
+event.PLAYER_CONTROL_GAINED = true
+event.PLAYER_UNGHOST = true
+map.best = 1412
+map.position = 0.4422, 0.7712
+map.world = continent 1 at -2896.8, -242.5
+unitPosition = -2896.8, -242.5 (instance 1)
+taxi = false
+deadOrGhost = false
+worldMap.frame = true
+map.corners = 1:266.7,2479.2 1:266.7,-3675.0 1:-3835.4,2479.2
+map.fromWorld = 0.4422, 0.7712 (6154 x 4102 yd)
+map.atWorld = 1414
+map.parent = 1414
+```
+
+Notes:
+- **The world-to-map transform is right:** Footsteps' own math (`map.fromWorld`, from the map's
+  corners and `UnitPosition`) gives exactly the client's `map.position`. Mulgore is 6154 × 4102
+  yards; its corners confirm that north is +x and west is +y.
+- `C_Map.GetMapPosFromWorldPos` without a map ID answers with the continent (1414 Kalimdor), not
+  the zone. `Compat.GetMapAtWorldPos` now walks down with `C_Map.GetMapInfoAtPosition`, so the
+  journal's map button opens Mulgore.
+- The world map takes MapCanvas data providers. The session's trail (one trail of 1807 yards over
+  six minutes, stored at logout) was drawn on Mulgore in the right place, above the explored-area
+  art.
