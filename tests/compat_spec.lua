@@ -57,4 +57,26 @@ describe("capabilities", function()
         T.eq(lines[1]:find("probe failed"), nil, lines[1])
         T.same(ns.accountDB.probe.lines, lines)
     end)
+
+    it("probe asks the quest line API about the quests in the log", function()
+        local ns = Stubs.LoadAddon()
+        _G.C_QuestLog.GetNumQuestLogEntries = function() return 3 end
+        _G.C_QuestLog.GetInfo = function(index)
+            return ({ { isHeader = true, title = "Mulgore" }, { questID = 747 }, { questID = 748 } })[index]
+        end
+        _G.C_QuestLine = {
+            GetQuestLineInfo = function(questID)
+                if questID == 747 then return { questLineID = 12, questLineName = "The Hunt" } end
+            end,
+            GetQuestLineQuests = function() return { 747, 750 } end,
+        }
+        Stubs.state.questTitles[747] = "The Hunt Begins"
+        Stubs.Login()
+        local found = {}
+        for _, line in ipairs(ns.Probe:Run()) do found[line] = true end
+        T.truthy(found["questLine.747 = 12 The Hunt (2 quests, last 750)"])
+        T.truthy(found["questTitle.747 = The Hunt Begins"])
+        T.truthy(found["questLine.748 = nil"])
+        T.truthy(found["questLog.asked = 2"])
+    end)
 end)

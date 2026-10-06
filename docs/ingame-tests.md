@@ -50,3 +50,38 @@ gather spell names and libraries are all present.
 ### Secret values
 
 - [ ] After a session with lots of combat, `/ws log` has no errors from trackers. (§12 #5)
+
+## 0.3 Chronicler (open)
+
+Unit tests cover the exit criterion (a curated chain added after the fact back-fills on the right
+day, once). These checks need the client.
+
+### Journal
+
+- [ ] **The book opens and looks right.** `/ws`: leather cover, two parchment pages, readable dark
+  text without shadows, the long date in the title font ("Samstag, 3. Oktober 2026"). Screenshot
+  it.
+- [ ] **Day list.** Month headings, "Heute"/"Gestern" on the right, mouse wheel and scroll bar work
+  (ScrollBox). Clicking a day shows it; the selected row is highlighted.
+- [ ] **Turning pages.** *< Älter* / *Neuer >* move one day and are disabled at the ends. Is the
+  page-turn sound there?
+- [ ] **Filter chips.** Turn off *Sammeln*: ore lines disappear, days with only ore leave the list.
+  After `/reload` the filter is still off.
+- [ ] **Resize and move.** Drag the corner grip and the cover; after `/reload` size and position
+  are kept. Long entries wrap at the new width.
+- [ ] **Live updates.** With the journal open on today, kill a mob with loot or level up: the page
+  updates without flicker.
+- [ ] **Times** show as `14:05` with the 24-hour clock on and `2:05 PM` with it off (Game Menu >
+  Options > the clock setting), after reopening the journal.
+- [ ] **Login recap** *Tagebuch öffnen* opens the journal at the recap's day.
+
+### Quest chains
+
+- [ ] **`/ws probe` with a few quests in the log.** Paste the `questLine.*` and `questTitle.*` lines
+  into forever-probe.md. Answers §12 #4: does `C_QuestLine` know Vanilla quests?
+- [ ] **Turn in any quest.** The day shows "Quests abgegeben: 1".
+- [ ] **Complete a curated chain**, the easiest being the druid bear form (Body and Heart) or the
+  Defias Brotherhood. Expect "Questreihe abgeschlossen: …" with the time.
+- [ ] **Back-fill on a real journal.** Developer mode, then
+  `/ws simulate QUEST_CHAIN_COMPLETED chain=DEFIAS quest=166` shows how a chain entry reads;
+  `/ws simulate clear` removes it.

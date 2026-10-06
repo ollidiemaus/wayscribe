@@ -45,7 +45,8 @@ end
 
 -- Adds a milestone record. data must be a fresh table owned by the journal from now on.
 -- opts.ts: timestamp (default now); opts.dedupeKey: skip if seen this session;
--- opts.simulated: mark as test data (/ws simulate). Returns the record, or nil plus a reason.
+-- opts.simulated: mark as test data (/ws simulate); opts.backfill: derived later from older facts,
+-- so only the day is known, not the time. Returns the record, or nil plus a reason.
 function Store:Append(typeName, data, opts)
     if not self:IsWritable() then return nil, "read-only" end
     local def = ns.RecordTypes:Get(typeName)
@@ -70,6 +71,9 @@ function Store:Append(typeName, data, opts)
     local record = { id = db.meta.seq, ts = ts, type = typeName, v = def.version, data = data }
     if opts and opts.simulated then
         record.sim = true
+    end
+    if opts and opts.backfill then
+        record.bf = true
     end
     local day, month = self:GetOrCreateDay(ts)
     day.records[#day.records + 1] = record
@@ -208,6 +212,30 @@ function Store:GetActivity(fromTs, toTs)
     return records, counters
 end
 
+-- Sessions overlapping fromTs..toTs, oldest first, as { s, e, open }. The current session ends now
+-- (open = true); one that never ended (a crash) is left at its start.
+function Store:GetSessions(fromTs, toTs)
+    local found = {}
+    if not self.db then return found end
+    local current = self:GetCurrentSession()
+    local now = Time.Now()
+    for monthKey, month in pairs(self.db.months) do
+        if type(monthKey) == "number" and type(month.sessions) == "table" then
+            for _, session in ipairs(month.sessions) do
+                if type(session) == "table" and type(session.s) == "number" then
+                    local isOpen = session.e == nil and session == current
+                    local stop = session.e or (isOpen and now) or session.s
+                    if session.s <= toTs and stop >= fromTs then
+                        found[#found + 1] = { s = session.s, e = stop, open = isOpen or nil }
+                    end
+                end
+            end
+        end
+    end
+    table.sort(found, function(a, b) return a.s < b.s end)
+    return found
+end
+
 -- The most recent session before the current one (for the login recap), or nil.
 function Store:GetPreviousSession()
     if not self.db then return nil end
@@ -314,9 +342,13 @@ end
 ------------------------------------------------------------------------------------------------
 -- Maintenance
 
+-- Recomputes the caches, then lets listeners derive what older facts imply (REBUILT): a quest
+-- chain defined after its final quest was turned in is back-filled then.
 function Store:Rebuild()
     if not self:IsWritable() then return nil end
-    return ns.Index:Rebuild(self.db)
+    local total = ns.Index:Rebuild(self.db)
+    ns.Bus:Fire("REBUILT")
+    return total
 end
 
 -- Removes /ws simulate test data, then rebuilds everything derived from it.

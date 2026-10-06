@@ -39,7 +39,13 @@ describe("journal window", function()
         Stubs.state.itemNames[2770] = "Copper Ore"
         ns.Store:Count("gather", 2770, 3)
         ns.Slash:Handle("")
-        T.same(Stubs.AllTexts(), { "Wayscribe", "", "2026-10-03", "Reached level 12", "Gathered 3× Copper Ore" })
+        T.truthy(_G.WayscribeJournalFrame:IsShown())
+        T.eq(ns.DayView.ui.title:GetText(), "Saturday, October 3, 2026")
+        T.same(Stubs.Texts(ns.DayView.ui.content), {
+            "12:00 PM", "Reached level 12",
+            "Gathered 3× Copper Ore",
+            "Sessions: 12:00 PM - now",
+        })
         T.eq(#ns.Log:GetEntries(), 0)
     end)
 end)

@@ -5,6 +5,16 @@ if GetLocale() ~= "deDE" then return end
 local L = ns.L
 
 L.DATE_FORMAT = "DD.MM.YYYY"
+L.DATE_LONG = "{weekday}, {day}. {month} {year}"
+L.DATE_LIST = "{weekday}, {day}."
+L.WEEKDAYS = { "Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag" }
+L.MONTHS = {
+    "Januar", "Februar", "März", "April", "Mai", "Juni",
+    "Juli", "August", "September", "Oktober", "November", "Dezember",
+}
+L.TODAY = "Heute"
+L.YESTERDAY = "Gestern"
+L.CLOCK_24H = true
 L.DURATION_UNDER_MINUTE = "unter einer Minute"
 L.DURATION_MINUTES = "%d Min."
 L.DURATION_HOURS = "%d Std. %d Min."
@@ -18,8 +28,20 @@ L.CANCEL = "Abbrechen"
 
 -- Journal
 L.JOURNAL_EMPTY = "Dein Tagebuch ist noch leer. Zeit für ein Abenteuer!"
-L.JOURNAL_MORE_DAYS = "%d ältere Tage werden noch nicht angezeigt."
+L.JOURNAL_NOTHING_SHOWN = "Mit diesen Filtern gibt es nichts anzuzeigen."
 L.ENTRY_UNREADABLE = "(unlesbarer Eintrag: %s)"
+L.PAGE_PLAYED = "%s gespielt"
+L.PAGE_SESSIONS = "Sitzungen: %s"
+L.PAGE_NOW = "jetzt"
+L.PAGE_EMPTY = "Mit diesen Filtern steht auf dieser Seite nichts."
+L.PAGE_OLDER = "< Älter"
+L.PAGE_NEWER = "Neuer >"
+
+-- Journal filters
+L.CATEGORY_PROGRESS = "Fortschritt"
+L.CATEGORY_ADVENTURE = "Abenteuer"
+L.CATEGORY_QUESTS = "Quests"
+L.CATEGORY_GATHERING = "Sammeln"
 
 -- Trackers and record types
 L.TRACKER_LEVEL = "Stufenaufstiege"
@@ -46,6 +68,24 @@ L.TRACKER_BOSSES_TIP = "Jeder Boss, den du besiegst: in Dungeons, Schlachtzügen
 L.BOSS_KILLED = "%s besiegt"
 L.BOSS_KILLED_FIRST = "%s zum ersten Mal besiegt"
 L.UNKNOWN_BOSS = "Boss %d"
+
+L.TRACKER_QUESTS = "Quests und Questreihen"
+L.TRACKER_QUESTS_TIP = "Abgegebene Quests, pro Tag gezählt, und die bekannten Questreihen, die du abschließt."
+L.COUNTER_QUESTS = "Quests abgegeben: %d"
+L.QUEST_CHAIN_COMPLETED = "Questreihe abgeschlossen: %s"
+L.UNKNOWN_CHAIN = "Quest %d"
+L.CHAINS_BACKFILLED = "%d früher abgeschlossene Questreihen wurden in dein Tagebuch eingetragen."
+L.CHAIN_ONYXIA = "Zugang zu Onyxias Hort"
+L.CHAIN_UBRS = "Schlüssel zur Oberen Schwarzfelsspitze"
+L.CHAIN_SCHOLOMANCE = "Der Schlüssel zur Scholomance"
+L.CHAIN_AHNQIRAJ = "Die Öffnung der Tore von Ahn'Qiraj"
+L.CHAIN_DEFIAS = "Die Defias-Bruderschaft"
+L.CHAIN_MISSING_DIPLOMAT = "Der vermisste Diplomat"
+L.CHAIN_TIRION = "Die Erlösung von Tirion Fordring"
+L.CHAIN_BEAR_FORM = "Die Bärengestalt des Druiden"
+L.CHAIN_DREADSTEED = "Das Schreckensross des Hexenmeisters"
+L.CHAIN_CHARGER = "Das Streitross des Paladins"
+L.CHAIN_THUNDERFURY = "Donnerzorn, Gesegnete Klinge des Windsuchers"
 
 L.TRACKER_DUNGEONS = "Dungeons und Schlachtzüge"
 L.TRACKER_DUNGEONS_TIP = "Jeder Besuch mit deiner Gruppe, seiner Dauer und den besiegten Bossen."
@@ -84,7 +124,7 @@ L.SETTINGS_LOGIN_RECAP_TIP = "Zeigt beim ersten Einloggen des Tages, was in dein
 L.SETTINGS_MINIMAP = "Minimap-Symbol"
 L.SETTINGS_MINIMAP_TIP = "Linksklick öffnet das Tagebuch, Rechtsklick diese Einstellungen. Der Eintrag im Addon-Menü bleibt in jedem Fall."
 L.SETTINGS_DATE_FORMAT = "Datumsformat"
-L.SETTINGS_DATE_FORMAT_TIP = "Wie Tage im Tagebuch angezeigt werden."
+L.SETTINGS_DATE_FORMAT_TIP = "Wie kurze Daten angezeigt werden, zum Beispiel in der Sitzungsübersicht. Tagebuchseiten zeigen immer das volle Datum."
 L.SETTINGS_DATE_LOCALE = "Sprachstandard (%s)"
 L.SETTINGS_SHOW = "Anzeigen"
 L.SETTINGS_STATS = "Tagebuch-Statistik"
@@ -93,7 +133,7 @@ L.SETTINGS_LOG = "Fehlerprotokoll"
 L.SETTINGS_LOG_TIP = "Die zuletzt aufgezeichneten Fehler (auch /ws log)."
 L.SETTINGS_REBUILD = "Indizes neu aufbauen"
 L.SETTINGS_REBUILD_BUTTON = "Neu aufbauen"
-L.SETTINGS_REBUILD_TIP = "Berechnet die Erst-Markierungen und Monatsübersichten aus den Tagebucheinträgen neu (auch /ws rebuild)."
+L.SETTINGS_REBUILD_TIP = "Berechnet die Erst-Markierungen und Monatsübersichten aus den Tagebucheinträgen neu und trägt Questreihen nach, die abgeschlossen wurden, bevor sie bekannt waren (auch /ws rebuild)."
 L.SETTINGS_RESET = "Tagebuch zurücksetzen"
 L.SETTINGS_RESET_BUTTON = "Zurücksetzen..."
 L.SETTINGS_RESET_TIP = "Löscht das gesamte Tagebuch dieses Charakters. Du wirst vorher gefragt."

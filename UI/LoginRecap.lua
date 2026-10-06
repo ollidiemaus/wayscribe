@@ -96,9 +96,10 @@ local function createWindow()
 
     local open = createButton(frame, L.RECAP_OPEN, function()
         frame:Hide()
-        ns.Journal:Toggle()
+        ns.Journal:Open(frame.day)
     end)
     open:SetPoint("BOTTOMRIGHT", frame, "BOTTOM", -4, PADDING)
+    frame.openButton = open
     local close = createButton(frame, L.CLOSE, function() frame:Hide() end)
     close:SetPoint("BOTTOMLEFT", frame, "BOTTOM", 4, PADDING)
 
@@ -133,6 +134,7 @@ function LoginRecap:Show(recap)
     if not frame then
         createWindow()
     end
+    frame.day = recap.day
     local when = Time.FormatDay(recap.day)
     subtitle:SetText(recap.duration and L.RECAP_SUBTITLE:format(when, Time.FormatDuration(recap.duration)) or when)
     dontShow:SetChecked(not ns.Options:Get("showLoginRecap"))
