@@ -156,8 +156,10 @@ about 3.2 KB (budget 10 KB). These checks need the client.
 
 ### Journeys
 
-- [ ] **`/ws probe`:** the `spell.travel.*` lines name Ruhestein, Astraler Rückruf and the mage
-  teleports in German; `subZone` names where you stand.
+- [x] **`/ws probe`:** the `spell.travel.*` lines name Ruhestein, Astraler Rückruf and the mage
+  teleports in German; `subZone` names where you stand. *All eight named, `subZone = Bloodhoof`
+  (2026-10-06). The list has since grown (Moonglade, Dalaran, the transporters); the next probe
+  shows their names.*
 - [ ] **Hearthstone within a zone** (e.g. to Bloodhoof). The journal shows "Ruhestein nach
   Bloodhoof" under *Reisen*, at the time you arrived. The map shows the hearthstone's icon where
   you cast it and where you arrived; mouseover: "Ruhestein nach Bloodhoof" and "Mit Ruhestein

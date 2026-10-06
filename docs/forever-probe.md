@@ -218,3 +218,27 @@ Notes:
 - The journal recorded `PROFESSION_LEARNED {skillLine = 393}` with the first-time mark, and the real
   level-up to 2 with its map (1412).
 - `map.atWorld` now names the zone (1412), after the fix that walks down from the continent.
+
+## Client 1.60.1, build 70235, Wayscribe 0.4, travel spells (2026-10-06)
+
+Same character (level 2), standing in Bloodhoof. The lines new since the Skinning probe:
+
+```text
+spell.travel.8690 = Ruhestein
+spell.travel.556 = Astraler Rückruf
+spell.travel.3561 = Teleportieren: Stormwind
+spell.travel.3562 = Teleportieren: Ironforge
+spell.travel.3563 = Teleportieren: Undercity
+spell.travel.3565 = Teleportieren: Darnassus
+spell.travel.3566 = Teleportieren: Thunder Bluff
+spell.travel.3567 = Teleportieren: Orgrimmar
+subZone = Bloodhoof
+```
+
+Notes:
+- Every travel spell resolves to its German name, so journeys are matched by name as well as ID.
+- `GetSubZoneText` answers outdoors ("Bloodhoof"); deaths and journeys keep this text.
+- The travel spell list was then extended from build 70235's `SpellName.db2` (via wago.tools):
+  Teleport: Moonglade 18960, Forever's Teleport: Dalaran 1297659, Dimensional Ripper - Everlook
+  23486 (not 23442, which is its effect), Ultrasafe Transporter: Gadgetzan 23489/23491, and
+  Forever's hearthstones and transporters. The next probe prints their names.

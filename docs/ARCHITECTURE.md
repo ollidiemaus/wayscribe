@@ -561,8 +561,10 @@ the player is outdoors (instance type `none`) and trails can be saved. It doesn'
   stored.
 - Flights are recorded only with *Record flight paths* on (default on).
 - **Journeys by spell.** A cast (`UNIT_SPELLCAST_SUCCEEDED`, player only) of a travel spell from
-  `StaticData/Travel.lua` (Hearthstone, Astral Recall, the mage teleports; matched by ID or by name
-  in the client's language) notes where it was cast. When a trail next starts more than 30 yards
+  `StaticData/Travel.lua` notes where it was cast: the hearthstones (with Forever's own), Astral
+  Recall, Teleport: Moonglade, the mage teleports (and Forever's Teleport: Dalaran), and the
+  engineering and other transporters (Everlook, Gadgetzan, and Forever's New Avalon and Mt. Hyjal),
+  matched by ID or by name in the client's language. IDs from build 70235's `SpellName.db2`. When a trail next starts more than 30 yards
   away (or on another continent) within 60 s, the journey is recorded as
   `TELEPORT {spell, map, sub, c, x, y, fc?, fx?, fy?}` (category *travel*), dated at the arrival:
   "Hearthstone to Bloodhoof" / "Ruhestein nach Bloodhoof". The arrival's subzone is read 2 s later,
