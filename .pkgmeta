@@ -1,0 +1,6 @@
+package-as: Wayscribe
+
+ignore:
+  - docs
+  - tests
+  - README.md

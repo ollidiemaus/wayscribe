@@ -1,0 +1,42 @@
+## Interface: 16001
+## Title: Wayscribe
+## Notes: An automatic journal of your character's adventures.
+## Notes-deDE: Ein automatisches Tagebuch der Abenteuer deines Charakters.
+## Author: ollidiemaus
+## Version: @project-version@
+## SavedVariables: WayscribeDB
+## SavedVariablesPerCharacter: WayscribeCharDB
+## IconTexture: Interface\Icons\INV_Misc_Book_09
+## Category-enUS: Journal
+## Category-deDE: Tagebuch
+
+# Load order follows the layers in docs/ARCHITECTURE.md:
+# Locales -> Core -> Compat -> Data -> Trackers -> UI.
+
+Locales\enUS.lua
+Locales\deDE.lua
+
+Core\Init.lua
+Core\Log.lua
+Core\Time.lua
+Core\Bus.lua
+Core\Module.lua
+Core\Trackers.lua
+
+Compat\Compat.lua
+Compat\Probe.lua
+
+Data\Codec.lua
+Data\RecordTypes.lua
+Data\Players.lua
+Data\Index.lua
+Data\Store.lua
+Data\Schema.lua
+
+Trackers\Session.lua
+Trackers\Level.lua
+
+UI\Journal.lua
+
+Core\Slash.lua
+Core\Lifecycle.lua
