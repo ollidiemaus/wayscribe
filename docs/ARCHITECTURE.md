@@ -105,7 +105,8 @@ the Store and the bus.
 ### 3.3 Internal bus and deferral
 
 - Tiny callback registry (or CallbackHandler-1.0). Messages: `RECORD_ADDED`, `COUNTER_CHANGED`,
-  `DAY_CHANGED`, `SETTINGS_CHANGED`, `SAFE_MODE`.
+  `DAY_CHANGED`, `SETTINGS_CHANGED`, `SAFE_MODE`, `REBUILT` (after `/ws rebuild`, so trackers can
+  derive what older facts imply, see §6.7).
 - `ns.Defer(fn)`: work that doesn't need to happen in combat (UI refresh, index maintenance beyond O(1),
   loading the archive) is queued and flushed on `PLAYER_REGEN_ENABLED`.
 - UI refresh is **coalesced**: a dirty flag plus one `C_Timer.After(0, ...)`, so 20 loot events produce
@@ -127,7 +128,12 @@ the Store and the bus.
 - Day key: integer `YYYYMMDD` (`20261003`). Month key: `YYYYMM`. Both are computed from local time when
   the record is written. Days roll over at **calendar midnight** (decided). There's no configurable
   rollover hour, so a day key never depends on a setting.
-- Display format is a setting: locale default (deDE → `03.10.2026`) or a manual override.
+- Short dates (login recap) follow a setting: locale default (deDE → `03.10.2026`) or a manual
+  override. Journal pages spell the date out from locale tables, because `date("%A")` is always
+  English in the client: "Saturday, October 3, 2026" / "Samstag, 3. Oktober 2026". The weekday is
+  computed from the day key (Sakamoto's method), so it needs no `time()` call.
+- Times of day follow the game's 24-hour clock setting (`timeMgrUseMilitaryTime`), else the
+  language's habit (enUS `2:05 PM`, deDE `14:05`).
 
 ---
 
@@ -186,7 +192,7 @@ WayscribeCharDB = {
                     counters = {                  -- high-frequency facts are aggregated, not listed
                         gather = { [2770] = 23, [2835] = 4 },     -- itemID -> count
                         nodes  = { mining = 12 },
-                        quests = { 840, 841, 788 },               -- questIDs turned in today
+                        quests = { [840] = 1, [841] = 1 },        -- questID -> turned in today
                     },
                 },
             },
@@ -243,7 +249,9 @@ Store:Count(path, key, n)           -- counters: Store:Count("gather", itemID, 3
 Store:SetState(tracker, tbl)        -- resumable tracker state
 ```
 
-`Append` runs these steps, each O(1):
+`Append` options: `ts` (default now), `dedupeKey`, `simulated` (`/ws simulate`, record flag `sim`)
+and `backfill` (derived later from older facts; record flag `bf`, see §6.7). `Append` runs these
+steps, each O(1):
 
 1. Refuse if in safe mode.
 2. Look up the record type. An unknown type is a programming error and is logged.
@@ -261,7 +269,7 @@ Store:SetState(tracker, tbl)        -- resumable tracker state
 ```lua
 Store:GetDayKeys()                    -- sorted array (built in memory at load, never persisted)
 Store:GetDay(dayKey)                  -- records (time-sorted) + counters
-Store:GetSessions(fromTs, toTs)
+Store:GetSessions(fromTs, toTs)       -- overlapping sessions; the open one ends now
 Store:GetMonthSummary(ym) / Store:GetYearSummary(y) -- rollups + play time; year = sum of 12 months
 Store:GetFirst(key)
 ```
@@ -359,6 +367,9 @@ Compat.GetLootSlots()            -- -> { [slot] = { itemID, quantity } }, source
 Compat.GetItemName(itemID)       -- -> name, or nil and the item is requested (ITEM_NAMES_LOADED follows)
 Compat.GetItemClass(itemID)      -- -> classID, subclassID (locale-free)
 Compat.GetSpellName(spellID) / Compat.GetSkillLineName(skillLineID)
+Compat.GetQuestTitle(questID)    -- C_QuestLog title, nil until the client has the quest
+Compat.GetQuestLineEnd(questID)  -- questLineID, name if questID is the last quest of a line (0.3)
+Compat.Uses24HourClock()         -- the game's clock setting, nil without one
 ```
 
 **`/wayscribe probe`** prints a capability report (which APIs exist and what they return right now). We run
@@ -491,20 +502,23 @@ second entry, and it falls back to `UnitLevel` when the event argument is secret
 - Rollups: `dungeons[instanceID]` and `companions[playerID]` (both run types count toward companions).
 
 ### 6.7 Quest chains
-Pluggable **chain providers**, tried in order:
-
-1. `C_QuestLine` (if `Compat.has.questLines`): on turn-in, look up the questline. If this quest is the
-   last one in the line, the chain is complete.
-2. **Curated data** (`StaticData/QuestChains.lua`) for well-known Vanilla chains (class quests,
-   attunements, famous storylines), keyed by the final questID.
-
-- Every `QUEST_TURNED_IN` also does `Store:Count("quests", …)` (the questID list per day), because that's
-  a cheap fact.
-- That list makes chains **retroactive**: when a later release adds chain definitions, `/wayscribe rebuild`
-  scans the stored questIDs and back-fills `QUEST_CHAIN_COMPLETED` records with the correct dates.
-- The record is `QUEST_CHAIN_COMPLETED {chainID | questLineID, finalQuestID, title}`. The title is
-  captured at turn-in, while the quest log has it.
-
+- Every `QUEST_TURNED_IN` does `Store:Count("quests", questID)`: the quest IDs turned in per day.
+  That cheap fact is what chains are derived from.
+- Pluggable **chain providers**, asked in order; the first match wins:
+  1. **Curated data** (`StaticData/QuestChains.lua`): well-known Vanilla chains (attunements, keys,
+     storylines, class quests, legendaries), each with one final quest per faction or variant. Its
+     names are locale strings (`CHAIN_<id>`).
+  2. **`C_QuestLine`** (if `Compat.has.questLines`): the turned-in quest is the last of a quest line
+     with at least two quests. The line's name is captured at turn-in. On build 70235 the API has
+     no data for Vanilla quests (§12 #4), so in practice only curated chains are recognized.
+- The record is `QUEST_CHAIN_COMPLETED {chain | questLine, quest, title?}` with
+  `firstKey = "CHAIN:"..chain` or `"QUESTLINE:"..questLine`. A chain is recorded once.
+- **Retroactive.** The quest ID list makes curated chains reproducible. When a release adds chains,
+  it bumps `StaticData.QuestChainsVersion`; the next login compares it with `state.questChains`
+  and back-fills. `/ws rebuild` back-fills too (on the `REBUILT` message). A back-filled record is
+  dated at the end of the day its final quest was turned in (or now, if that's today) and flagged
+  `bf`: the journal shows no time of day for it. A quest that already completed a chain, through
+  any provider, isn't credited again.
 ### 6.8 Hero's Path
 
 Two data products. Trails are the source of truth; coverage is derived from them.
@@ -548,8 +562,8 @@ HandyNotes also uses.
 
 | Piece | Design |
 |---|---|
-| **Journal window** | Movable, resizable frame. Left: virtualized day list (`ScrollBox` + `DataProvider`), newest first. Right: the selected day's page, with milestones in time order, then counter summaries, then sessions. Category filter chips. Tabs: **Journal · Footsteps · Wrapped · Stats**. |
-| **Login recap** | On `isInitialLogin` and `state.lastRecapDay ~= today`, 3 s after the loading screen, show the previous session: date, duration, rendered milestones and the counter totals of its day(s) (counters are per day, so they can include another session that day). Simulated entries are left out; an empty session shows nothing. Buttons: *Open journal*, *Close*, and a *Don't show at login* checkbox wired to the setting. Setting `showLoginRecap` defaults to **on**. `/ws recap` shows it any time. |
+| **Journal window** | Built from the default UI's own pieces, so it looks like Forever's spellbook: `PortraitFrameTemplate` (title, book portrait, close button), Forever's two-page spellbook parchment (`spellbook-page-left/right-c60`, else the retail `spellbook-background-evergreen-*`), spellbook headers (`SystemFont_Huge2` in `SPELLBOOK_FONT_COLOR` over the `spellbook-divider` ornament), spellbook page buttons with "Page 3/12" (`PAGE_NUMBER_WITH_MAX`), the `WowStyle1FilterDropdownTemplate` filter menu and `MinimalScrollBar`s that hide when not needed. Each piece is checked first (`C_XMLUtil.GetTemplateInfo`, `C_Texture.GetAtlasInfo`); without it, plain colors, a dialog border and toggle chips stand in (`UI/Theme.lua`). Forever's page art carries the spellbook's dark top bar in its upper 9% and dark rims at the edges: the pages start under the title bar, the filter menu sits in that bar, and the text lives on a "paper" frame inside the rims (shares of the page size measured from the textures, so it scales with the window). Movable and resizable; size and position are kept in `settings.journal`. Left page: "Scoopz's journal" above the virtualized **day list** (`ScrollBox` + `DataProvider`), newest first, grouped by month; without ScrollBox, a fixed set of rows follows the selection. Right page (`UI/DayView.lua`): the long date, "Today · played 2 h 10 min", the milestones in time order with their time and category marker, then counter summaries, then the day's sessions. Page 1 is the oldest day. Category filters are saved in `settings.journalHidden`. A reader on the newest day follows a new day as it starts. Tabs (**Journal · Footsteps · Wrapped**) arrive with the releases that add those views. |
+| **Login recap** | On `isInitialLogin` and `state.lastRecapDay ~= today`, 3 s after the loading screen, show the previous session: date, duration, rendered milestones and the counter totals of its day(s) (counters are per day, so they can include another session that day). Simulated entries are left out; an empty session shows nothing. Buttons: *Open journal* (at that day), *Close*, and a *Don't show at login* checkbox wired to the setting. Setting `showLoginRecap` defaults to **on**. `/ws recap` shows it any time. |
 | **Settings** | Blizzard `Settings` API: `RegisterVerticalLayoutCategory`, and `RegisterProxySetting` for every control, so the page reads and writes `ns.Options` / `ns.Trackers` and never owns data. Sections: **General** (login recap, minimap button, date format dropdown), **Tracking** (one toggle per tracker, generated from the registry), **Data** (stats, error log, rebuild indexes, reset with a confirmation popup and a reload). **Footsteps** (enable, record flights) joins in 0.4. Without the API the page is skipped and `/ws settings` says so. |
 | **Minimap button** | LibDataBroker-1.1 + LibDBIcon-1.0, position and hidden flag in `WayscribeDB.settings.minimap`. Placeholder icon: `Interface\Icons\INV_Misc_Book_09`. Left-click toggles the journal, right-click opens settings. Skipped when the libraries are missing. The Addon Compartment entry comes from the TOC (`AddonCompartmentFunc`), so it works without libraries. |
 | **Keybind** | `Bindings.xml`: `WAYSCRIBE_TOGGLE` under the AddOns category, unbound by default and configurable in the game's Keybindings menu. `BINDING_HEADER_WAYSCRIBE` and `BINDING_NAME_WAYSCRIBE_TOGGLE` are localized. |
@@ -668,7 +682,7 @@ screenshots (`SCREENSHOT_SUCCEEDED` → "took a screenshot here").
 
 ## 12. Verify on the Forever beta (run `/ws probe`)
 
-The first probe ran on client `1.60.1` build `70235` (2026-10-06), the 0.2 probe on the same build. The raw output is in
+The first probe ran on client `1.60.1` build `70235` (2026-10-06), the 0.2 and 0.3 probes on the same build. The raw output is in
 [forever-probe.md](forever-probe.md). "Exists" means the API or event is there. Whether an event
 actually *fires* for Vanilla content still needs the matching gameplay test; those are listed per
 release in [ingame-tests.md](ingame-tests.md).
@@ -678,7 +692,7 @@ release in [ingame-tests.md](ingame-tests.md).
 | 1 | Do `ENCOUNTER_END` / `BOSS_KILL` fire for Vanilla dungeon bosses? | Both events exist. ForeverChronicle uses both and merges duplicates. | Kill a dungeon boss (0.2). | NPC-ID detection via `UNIT_HEALTH` on the current target (CLEU is not an option, §1). |
 | 2 | Which profession API works? | ✅ `GetProfessions` / `GetProfessionInfo` (modern). | Values with a profession learned (the probe now prints them). Which skill line ID comes back (parent like 186 or child like 2946)? Does First Aid show up in `GetProfessions`? | — |
 | 3 | Does world position work outdoors? | ✅ `UnitPosition` works (instance 1 = Kalimdor). ✅ `C_Map.GetWorldPosFromMapPos` returns the same point. **UnitPosition's first return equals the world vector's `.x`.** | Behavior inside instances. | Zone-relative `uiMapID + x,y`. |
-| 4 | Does `C_QuestLine` return data for Vanilla quests? | `C_QuestLine.GetQuestLineInfo` exists. | Call it for a Vanilla chain quest (0.3). | Curated chains only. |
+| 4 | Does `C_QuestLine` return data for Vanilla quests? | `C_QuestLine.GetQuestLineInfo` exists. ❌ The 0.3 probe got nothing for two Mulgore chain quests (747, 752). | Recheck on new client builds. | Curated chains carry the feature (already the first provider). |
 | 5 | Which values are secret, and when? | `issecretvalue` exists. `UnitLevel` is not secret out of combat. ForeverChronicle saw secret aura data and spellcast arguments. | Values in combat and instances. | `Compat.Safe` everywhere. Capture IDs and resolve names later via `ns.Defer`. |
 | 6 | Gather spell IDs, and does `GetLootSourceInfo` exist? | ✅ `GetLootSourceInfo` exists. ✅ All gather spell IDs exist and their names resolve in the client's language (0.2 probe, deDE: Bergbau / Kräuterkunde / Kürschnerei; 1235236 = Kräutersammeln). | Which spell ID a gather cast actually reports, and whether it's secret. | Name match is built in (§6.4); item subclass fallback for nodes. |
 | 7 | Does an LFG or dungeon-finder completion event exist? | `LFG_COMPLETION_REWARD` and `SCENARIO_COMPLETED` exist. | Whether they fire for Vanilla dungeons. | Final-boss data table (already the primary signal). |
@@ -719,6 +733,24 @@ Other findings:
 - **Captured names.** Boss and instance names are stored as captured from the client (localized),
   like quest titles in §6.7, because no API resolves those IDs to names later.
 - **Libraries are packager externals**, not committed, and optional at runtime.
+
+### Decided during 0.3
+
+- **Curated chains before quest lines.** The plan asked `C_QuestLine` first. Curated chains now
+  win: their names are chosen and translated, and only they can be matched again later, so a live
+  entry and a back-filled one always agree on the chain's key.
+- **Back-fill is automatic.** A release with new chain definitions back-fills at the next login
+  (version check), not only on `/ws rebuild`, so players see old chains without knowing the command.
+- **Back-filled entries carry no time.** Only the day of a turn-in is saved, so they're dated at the
+  end of that day, flagged `bf`, and shown without a time.
+- **No tabs yet.** With only the journal there is no tab bar; Footsteps (0.4) and Wrapped (0.5)
+  bring it.
+- **The default UI's look, verified first.** A first version drew its own leather and parchment
+  from color textures, to depend on no art file; next to Forever's spellbook it looked foreign. The
+  journal now uses the client's frame template, spellbook atlases, fonts and colors. The atlas
+  names and `SPELLBOOK_FONT_COLOR` were checked against build 70235's `UiTextureAtlasMember` and
+  `GlobalColor` tables (wago.tools), and the code checks each piece at runtime before using it,
+  falling back to the color drawing.
 
 ### Landscape (for positioning)
 

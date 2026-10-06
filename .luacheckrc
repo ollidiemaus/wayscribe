@@ -24,18 +24,21 @@ read_globals = {
     "date", "time", "tinsert", "issecretvalue", "geterrorhandler",
     -- Frames and UI
     "CreateFrame", "UIParent", "UISpecialFrames", "DEFAULT_CHAT_FRAME",
-    "CreateScrollBoxListLinearView", "ScrollUtil", "Settings", "AddonCompartmentFrame",
+    "CreateScrollBoxListLinearView", "CreateDataProvider", "ScrollUtil", "ScrollBoxConstants",
+    "Settings", "AddonCompartmentFrame",
     "CreateSettingsListSectionHeaderInitializer", "CreateSettingsButtonInitializer",
-    "StaticPopup_Show", "ReloadUI",
+    "StaticPopup_Show", "ReloadUI", "PlaySound", "SOUNDKIT", "GameTooltip",
+    "SPELLBOOK_FONT_COLOR", "PAGE_NUMBER_WITH_MAX",
     -- Client and player info
     "GetBuildInfo", "GetLocale", "GetRealmName", "WOW_PROJECT_ID",
     "UnitGUID", "UnitFullName", "UnitClass", "UnitLevel", "UnitPosition",
     "IsInRaid", "GetNumGroupMembers", "GetNumSubgroupMembers",
     "GetInstanceInfo", "GetProfessions", "GetProfessionInfo", "GetNumSkillLines", "GetSkillLineInfo",
-    "GetSpellInfo", "GetAddOnMetadata",
+    "GetSpellInfo", "GetAddOnMetadata", "GetCVar",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "GetLootSourceInfo",
     -- Namespaces
-    "C_AddOns", "C_EventUtils", "C_Item", "C_Map", "C_QuestLine", "C_Spell", "C_Timer", "C_TradeSkillUI",
+    "C_AddOns", "C_CVar", "C_EventUtils", "C_Item", "C_Map", "C_QuestLine", "C_QuestLog", "C_Spell", "C_Texture",
+    "C_Timer", "C_TradeSkillUI", "C_XMLUtil",
     -- Libraries (optional, see embeds.xml)
     "LibStub",
 }

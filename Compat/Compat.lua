@@ -62,13 +62,27 @@ function Compat.EventExists(event)
     return ok
 end
 
+-- Whether an XML template exists: true or false, or nil when the client can't tell.
+function Compat.HasTemplate(name)
+    local getInfo = C_XMLUtil and C_XMLUtil.GetTemplateInfo
+    if not getInfo then return nil end
+    return Compat.Call(getInfo, name) ~= nil
+end
+
+-- Whether a texture atlas exists (atlas names are checked against the client's own list).
+function Compat.HasAtlas(name)
+    local getInfo = C_Texture and C_Texture.GetAtlasInfo
+    return getInfo ~= nil and Compat.Call(getInfo, name) ~= nil
+end
+
 -- Resolved at PLAYER_LOGIN; the full list is printed by /ws probe.
 function Compat:Detect()
     local has = self.has
     has.secretValues = issecretvalue ~= nil
     has.encounterEvents = self.EventExists("ENCOUNTER_END")
     has.bossKillEvent = self.EventExists("BOSS_KILL")
-    has.questLines = C_QuestLine ~= nil and C_QuestLine.GetQuestLineInfo ~= nil
+    has.questLines = C_QuestLine ~= nil and C_QuestLine.GetQuestLineInfo ~= nil and C_QuestLine.GetQuestLineQuests ~= nil
+    has.questTitles = C_QuestLog ~= nil and C_QuestLog.GetTitleForQuestID ~= nil
     has.unitPosition = type(UnitPosition) == "function"
     has.mapPlayerPosition = C_Map ~= nil and C_Map.GetPlayerMapPosition ~= nil
     has.mapWorldPos = C_Map ~= nil and C_Map.GetWorldPosFromMapPos ~= nil and C_Map.GetMapPosFromWorldPos ~= nil
@@ -81,7 +95,14 @@ function Compat:Detect()
     end
     has.settingsAPI = Settings ~= nil and Settings.RegisterVerticalLayoutCategory ~= nil
     has.lootSourceInfo = type(GetLootSourceInfo) == "function"
-    has.scrollBox = type(CreateScrollBoxListLinearView) == "function" and ScrollUtil ~= nil
+    has.scrollBox = type(CreateScrollBoxListLinearView) == "function" and type(CreateDataProvider) == "function"
+        and ScrollUtil ~= nil and ScrollUtil.InitScrollBoxListWithScrollBar ~= nil
+        and self.HasTemplate("WowScrollBoxList") ~= false and self.HasTemplate("MinimalScrollBar") ~= false
+    -- The journal's native look (docs/ARCHITECTURE.md §7): the default UI's frame, scroll bar and
+    -- filter menu. Each is only used when this client can confirm it exists.
+    has.portraitFrame = self.HasTemplate("PortraitFrameTemplate") == true
+    has.scrollFrameBar = has.scrollBox and ScrollUtil.InitScrollFrameWithScrollBar ~= nil
+    has.filterDropdown = self.HasTemplate("WowStyle1FilterDropdownTemplate") == true
     has.addonCompartment = AddonCompartmentFrame ~= nil
     has.itemInfoInstant = C_Item ~= nil and C_Item.GetItemInfoInstant ~= nil
     has.spellNames = (C_Spell ~= nil and C_Spell.GetSpellName ~= nil) or type(GetSpellInfo) == "function"
@@ -175,6 +196,39 @@ function Compat.GetItemClass(itemID)
     if not (C_Item and C_Item.GetItemInfoInstant) then return nil end
     local _, _, _, _, _, classID, subclassID = Compat.Call(C_Item.GetItemInfoInstant, itemID)
     return classID, subclassID
+end
+
+-- The game's own clock setting (Game Menu > Options > 24-hour clock); nil when the client has none.
+function Compat.Uses24HourClock()
+    local getCVar = (C_CVar and C_CVar.GetCVar) or GetCVar
+    local value = Compat.Call(getCVar, "timeMgrUseMilitaryTime")
+    if value == "1" then return true end
+    if value == "0" then return false end
+    return nil
+end
+
+------------------------------------------------------------------------------------------------
+-- Quests
+
+-- A quest's title in the client's language; nil when the client hasn't loaded it.
+function Compat.GetQuestTitle(questID)
+    if not Compat.has.questTitles then return nil end
+    return text(Compat.Call(C_QuestLog.GetTitleForQuestID, questID))
+end
+
+-- If questID ends a quest line of at least two quests: its questLineID and name. On Vanilla content
+-- this may never match (docs/ARCHITECTURE.md §12 #4); the curated chains don't need it.
+function Compat.GetQuestLineEnd(questID)
+    if not Compat.has.questLines then return nil end
+    local info = Compat.Call(C_QuestLine.GetQuestLineInfo, questID, Compat.GetPlayerMapID())
+    if type(info) ~= "table" then return nil end
+    local lineID = Compat.Safe(info.questLineID, "number")
+    if not lineID then return nil end
+    local quests = Compat.Call(C_QuestLine.GetQuestLineQuests, lineID)
+    if type(quests) ~= "table" or #quests < 2 or Compat.Safe(quests[#quests], "number") ~= questID then
+        return nil
+    end
+    return lineID, text(Compat.Safe(info.questLineName, "string"))
 end
 
 ------------------------------------------------------------------------------------------------

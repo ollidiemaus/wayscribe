@@ -50,3 +50,40 @@ gather spell names and libraries are all present.
 ### Secret values
 
 - [ ] After a session with lots of combat, `/ws log` has no errors from trackers. (§12 #5)
+
+## 0.3 Chronicler (open)
+
+Unit tests cover the exit criterion (a curated chain added after the fact back-fills on the right
+day, once). These checks need the client.
+
+### Journal
+
+- [x] **It looks like the spellbook.** `/ws` next to the spellbook: the same frame (portrait with
+  the book icon, title "Wayscribe"), the same two-page parchment, headers in the spellbook's dark
+  brown with the ornament line, "Seite 3/12" with the spellbook's arrow buttons. Screenshot it. Do
+  the text margins fit the page art (nothing on the torn edge or the spine)? *Yes (2026-10-06,
+  after moving the text off the page art's top bar and darkening the secondary text). The filter
+  menu opens with the four categories; times and sessions show in 24-hour format.*
+- [ ] **Day list.** Month headings, "Heute"/"Gestern" on the right, the selected day has a soft
+  shadow. The thin scroll bar appears only with more days than fit.
+- [ ] **Turning pages.** The arrows move one day, are disabled at the ends and play the page sound.
+- [ ] **Filter menu.** *Filter* in the top bar opens checkboxes per category. Turn off *Sammeln*:
+  ore lines disappear, days with only ore leave the list. After `/reload` it's still off.
+- [ ] **Resize and move.** Drag the corner grip and the title bar; after `/reload` size and position
+  are kept. The parchment stretches with the window; long entries wrap at the new width.
+- [ ] **Live updates.** With the journal open on today, loot ore or level up: the page updates
+  without flicker.
+- [ ] **Times** show as `14:05` with the 24-hour clock on and `2:05 PM` with it off.
+- [ ] **Login recap** *Tagebuch öffnen* opens the journal at the recap's day.
+
+### Quest chains
+
+- [x] **`/ws probe` with a few quests in the log.** Paste the `questLine.*` and `questTitle.*` lines
+  into forever-probe.md. Answers §12 #4: does `C_QuestLine` know Vanilla quests? *No: nothing for
+  747 and 752 (2026-10-06), so only curated chains count.*
+- [ ] **Turn in any quest.** The day shows "Quests abgegeben: 1".
+- [ ] **Complete a curated chain**, the easiest being the druid bear form (Body and Heart) or the
+  Defias Brotherhood. Expect "Questreihe abgeschlossen: …" with the time.
+- [ ] **Back-fill on a real journal.** Developer mode, then
+  `/ws simulate QUEST_CHAIN_COMPLETED chain=DEFIAS quest=166` shows how a chain entry reads;
+  `/ws simulate clear` removes it.

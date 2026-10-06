@@ -50,6 +50,7 @@ ns.RecordTypes:Register("PROFESSION_RANK", {
 
 -- skillLine -> points gained that day: "Skill gains: Mining +23, Herbalism +5"
 ns.RecordTypes:RegisterCounter("skill", {
+    category = "progress",
     order = 30,
     render = function(bucket)
         local parts = {}

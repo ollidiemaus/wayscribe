@@ -16,6 +16,7 @@ end
 
 -- itemID -> count: "Gathered 23× Copper Ore, 4× Rough Stone and 2 more"
 ns.RecordTypes:RegisterCounter("gather", {
+    category = "gathering",
     order = 20,
     render = function(bucket)
         local items = {}
@@ -40,6 +41,7 @@ ns.RecordTypes:RegisterCounter("gather", {
 
 -- kind -> count: "Ore deposits mined: 12 · Herbs picked: 5"
 ns.RecordTypes:RegisterCounter("nodes", {
+    category = "gathering",
     order = 10,
     render = function(bucket)
         local parts = {}

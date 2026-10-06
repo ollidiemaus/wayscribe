@@ -5,8 +5,8 @@ local T = require("testlib")
 
 local SPECS = {
     "codec", "time", "compat", "recordtypes", "module", "store", "index", "schema",
-    "session", "level", "professions", "gathering", "bosses", "dungeons", "loginrecap", "settings",
-    "lifecycle",
+    "session", "level", "professions", "gathering", "bosses", "dungeons", "questchains", "journal",
+    "loginrecap", "settings", "lifecycle",
 }
 
 for _, name in ipairs(SPECS) do

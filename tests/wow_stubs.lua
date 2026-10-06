@@ -34,8 +34,11 @@ local function newFontString()
     return permissive(fontString)
 end
 
-local function newFrame(_, name)
-    local frame = { events = {}, scripts = {}, shown = true, width = 0, height = 0, regions = {}, name = name }
+local function newFrame(frameType, name, _, template)
+    local frame = {
+        events = {}, scripts = {}, shown = true, width = 0, height = 0, regions = {}, name = name,
+        frameType = frameType, template = template,
+    }
     function frame:RegisterEvent(event)
         if state.unknownEvents[event] then error("Attempt to register unknown event \"" .. event .. "\"") end
         self.events[event] = true
@@ -62,13 +65,25 @@ local function newFrame(_, name)
     function frame:GetName() return self.name end
     function frame:SetChecked(checked) self.checked = checked == true end
     function frame:GetChecked() return self.checked == true end
+    function frame:SetEnabled(enabled) self.disabled = not enabled end
+    function frame:IsEnabled() return not self.disabled end
+    function frame:SetTitle(text) self.title = text end
+    function frame:SetupMenu(generator) self.menuGenerator = generator end
+    function frame:GetFrameLevel() return 1 end
     function frame:SetText(text) self.text = text end
     function frame:CreateFontString()
         local fontString = newFontString()
         self.regions[#self.regions + 1] = fontString
         return fontString
     end
-    function frame:CreateTexture() return permissive({}) end
+    function frame:CreateTexture()
+        local texture = { shown = true }
+        function texture:Show() self.shown = true end
+        function texture:Hide() self.shown = false end
+        function texture:SetShown(shown) self.shown = shown == true end
+        function texture:IsShown() return self.shown end
+        return permissive(texture)
+    end
     function frame:Click(button)
         if self.scripts.OnClick then self.scripts.OnClick(self, button or "LeftButton") end
     end
@@ -168,6 +183,61 @@ local function installWorld()
     _G.GetLootSourceInfo = function()
         return state.loot and state.loot.source, 1
     end
+    _G.C_QuestLog = { GetTitleForQuestID = function(questID) return state.questTitles[questID] end }
+    _G.C_QuestLine = nil
+    _G.C_CVar = { GetCVar = function(name) return state.cvars[name] end }
+end
+
+-- The default UI's templates and atlases the journal asks for, as a client confirms them.
+-- Includes the ScrollBox double. Call before Stubs.Login().
+function Stubs.InstallNativeUI()
+    Stubs.InstallScrollBox()
+    local templates = {
+        PortraitFrameTemplate = true, WowStyle1FilterDropdownTemplate = true,
+        WowScrollBoxList = true, MinimalScrollBar = true,
+    }
+    _G.C_XMLUtil = { GetTemplateInfo = function(name) return templates[name] and { type = "Frame" } or nil end }
+    _G.C_Texture = { GetAtlasInfo = function(name) return name:find("^spellbook%-") and { width = 1 } or nil end }
+    _G.ScrollUtil.InitScrollFrameWithScrollBar = function(scrollFrame, scrollBar)
+        scrollFrame.scrollBar = scrollBar
+        scrollFrame:SetScript("OnScrollRangeChanged", function() end)
+    end
+    _G.ScrollUtil.AddManagedScrollBarVisibilityBehavior = function() end
+end
+
+-- ScrollBox, as far as the journal uses it. Every element gets its own row (no virtualization),
+-- created through the view's initializer like the client does. Call before Stubs.Login().
+function Stubs.InstallScrollBox()
+    _G.CreateScrollBoxListLinearView = function()
+        local view = {}
+        function view:SetElementExtent(extent) self.extent = extent end
+        function view:SetElementInitializer(frameType, initializer) self.frameType, self.initializer = frameType, initializer end
+        return view
+    end
+    _G.CreateDataProvider = function(list)
+        local provider = { items = {} }
+        for i, item in ipairs(list or {}) do provider.items[i] = item end
+        return provider
+    end
+    _G.ScrollBoxConstants = { RetainScrollPosition = 1, AlignNearest = 2 }
+    _G.ScrollUtil = {
+        InitScrollBoxListWithScrollBar = function(scrollBox, _, view)
+            scrollBox.rows = {}
+            function scrollBox:SetDataProvider(provider)
+                for _, row in ipairs(self.rows) do row:Hide() end
+                self.rows = {}
+                for _, element in ipairs(provider.items) do
+                    local row = CreateFrame(view.frameType, nil, self)
+                    self.rows[#self.rows + 1] = row
+                    view.initializer(row, element)
+                end
+            end
+            function scrollBox:ForEachFrame(fn)
+                for _, row in ipairs(self.rows) do fn(row) end
+            end
+            function scrollBox:ScrollToElementData(element) self.scrolledTo = element end
+        end,
+    }
 end
 
 -- opts: now, guid, name, realm, level, interface, accountDB, charDB, locale, unknownEvents
@@ -187,6 +257,8 @@ function Stubs.Install(opts)
         itemNames = {},
         itemClasses = {},
         requestedItems = {},
+        questTitles = {},
+        cvars = {},
     }
     Stubs.state = state
     for name in pairs(Stubs.namedFrames) do
@@ -195,7 +267,10 @@ function Stubs.Install(opts)
 
     _G.unpack = _G.unpack or table.unpack
     _G.tinsert = table.insert
-    _G.time = function() return state.now end
+    _G.time = function(t)
+        if t then return os.time(t) end
+        return state.now
+    end
     _G.date = os.date
     _G.issecretvalue = function(value) return value == Stubs.SECRET end
     _G.GetLocale = function() return opts.locale or "enUS" end
@@ -218,6 +293,8 @@ function Stubs.Install(opts)
     _G.UISpecialFrames = {}
     _G.Settings = nil
     _G.LibStub = nil
+    _G.CreateScrollBoxListLinearView, _G.CreateDataProvider, _G.ScrollUtil, _G.ScrollBoxConstants = nil, nil, nil, nil
+    _G.C_XMLUtil, _G.C_Texture = nil, nil
     _G.WayscribeDB = opts.accountDB
     _G.WayscribeCharDB = opts.charDB
 end
@@ -306,6 +383,7 @@ end
 
 -- Logout, then load a fresh copy of the addon with exactly what the client would have saved.
 -- The world (instance, group, professions) stays as it was, like on a real /reload.
+-- opts.setup(ns) runs after the files are loaded and before the login, e.g. to change StaticData.
 function Stubs.Relog(opts, reload)
     local serialize = require("serialize")
     Stubs.Fire("PLAYER_LOGOUT")
@@ -316,6 +394,7 @@ function Stubs.Relog(opts, reload)
     local world = {
         instance = state.instance, group = state.group, professions = state.professions,
         spellNames = state.spellNames, itemNames = state.itemNames, itemClasses = state.itemClasses,
+        questTitles = state.questTitles, cvars = state.cvars,
     }
     opts = opts or {}
     for key, value in pairs(saved) do
@@ -330,6 +409,7 @@ function Stubs.Relog(opts, reload)
         assert(loadfile(file))("Wayscribe", ns)
     end
     Stubs.ns = ns
+    if opts.setup then opts.setup(ns) end
     Stubs.Login(reload)
     return ns
 end

@@ -160,6 +160,42 @@ describe("reads", function()
     end)
 end)
 
+describe("sessions", function()
+    it("lists the sessions overlapping a range, the open one ending now", function()
+        local _, Store = fresh() -- the login opened a session at 12:00 on Oct 3
+        local first = Stubs.Now()
+        Stubs.Advance(3600)
+        Store:EndSession(Stubs.Now())
+        Stubs.Advance(30 * DAY) -- next month
+        Store:StartSession(Stubs.Now())
+        local second = Stubs.Now()
+        Stubs.Advance(600)
+
+        local all = Store:GetSessions(0, Stubs.Now())
+        T.same(all, { { s = first, e = first + 3600 }, { s = second, e = second + 600, open = true } })
+        T.same(Store:GetSessions(first + 3601, second - 1), {})
+        T.eq(#Store:GetSessions(first + 1800, first + 1800), 1, "a moment inside a session")
+    end)
+
+    it("leaves a session that never ended at its start", function()
+        local ns, Store = fresh()
+        local crashed = Stubs.Now()
+        Stubs.Advance(3600)
+        Store:StartSession(Stubs.Now()) -- the next login; the first one never got an end
+        T.same(Store:GetSessions(0, Stubs.Now())[1], { s = crashed, e = crashed })
+        T.eq(ns.charDB.months[202610].sessions[1].e, nil, "reading changes nothing")
+    end)
+end)
+
+describe("back-filled records", function()
+    it("are flagged, because only their day is known", function()
+        local _, Store = fresh()
+        local record = Store:Append("TEST_DUNGEON", { instanceID = 1 }, { ts = Stubs.Now() - DAY, backfill = true })
+        T.truthy(record.bf)
+        T.same(Store:GetDayKeys(), { 20261002 })
+    end)
+end)
+
 describe("simulated data", function()
     it("can be removed again, including what it changed in firsts and rollups", function()
         local ns, Store = fresh()

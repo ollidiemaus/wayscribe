@@ -132,3 +132,30 @@ Notes:
 - All four libraries loaded: LibStub 2, CallbackHandler-1.0 8, LibDataBroker-1.1 4, LibDBIcon-1.0 56.
 - `unitPosition` now prints in return order and equals `map.world`.
 - A full relog after this run added a second session to the journal, as expected.
+
+## Client 1.60.1, build 70235, Wayscribe 0.3 (2026-10-06)
+
+Same character (level 1 Tauren Druid in Mulgore), German client, two quests in the log. Every line
+the 0.2 probe printed came back the same (positions differ by a few yards), plus
+`has.questTitles = true`. The lines new in 0.3:
+
+```text
+has.questTitles = true
+cvar.timeMgrUseMilitaryTime = true
+questTitle.747 = Die Jagd beginnt
+questLine.747 = nil
+questTitle.752 = Eine bescheidene Bitte
+questLine.752 = nil
+questLog.asked = 2
+```
+
+Notes:
+- `C_QuestLine.GetQuestLineInfo` returns nothing for 747 (The Hunt Begins) and 752 (A Humble Task),
+  although both are the first quests of short Mulgore chains in Vanilla. Forever's client doesn't
+  seem to have quest line data for Vanilla quests, so the curated chains carry the feature. The quest
+  line provider stays: it costs nothing and would pick up lines if Blizzard adds them.
+- Quest titles resolve in the client's language through `C_QuestLog.GetTitleForQuestID`.
+- The game's 24-hour clock setting is readable (on, on this German client), so journal times
+  follow it.
+- The same session saved the journal window's size and position, and the back-fill check stored
+  `state.questChains = 1` at login without errors.

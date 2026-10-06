@@ -123,8 +123,9 @@ end
 ------------------------------------------------------------------------------------------------
 -- Counters (Store:Count) are summed per day. A registered counter path knows how to show its
 -- bucket as one summary line ("Gathered 23x Copper Ore, ..."):
---   order   position among a day's counter lines
---   render  function(bucket) -> text, or nil for nothing worth showing
+--   order     position among a day's counter lines
+--   category  journal filter group, like a record type's
+--   render    function(bucket) -> text, or nil for nothing worth showing
 
 function RecordTypes:RegisterCounter(path, def)
     assert(type(path) == "string" and path ~= "", "counter needs a path")
@@ -132,8 +133,34 @@ function RecordTypes:RegisterCounter(path, def)
     assert(type(def.render) == "function", path .. ": render is required")
     def.path = path
     def.order = def.order or 100
+    def.category = def.category or "misc"
     self.counters[path] = def
     return def
+end
+
+-- The journal filter of a record or counter path; "misc" when the type is unknown.
+function RecordTypes:CategoryOf(typeName)
+    local def = self.defs[typeName]
+    return def and def.category or "misc"
+end
+
+function RecordTypes:CounterCategory(path)
+    local def = self.counters[path]
+    return def and def.category or "misc"
+end
+
+-- Every category some record type or counter uses (unsorted).
+function RecordTypes:Categories()
+    local seen, list = {}, {}
+    local function add(category)
+        if not seen[category] then
+            seen[category] = true
+            list[#list + 1] = category
+        end
+    end
+    for _, def in pairs(self.defs) do add(def.category) end
+    for _, def in pairs(self.counters) do add(def.category) end
+    return list
 end
 
 local function byOrder(a, b)
@@ -141,13 +168,14 @@ local function byOrder(a, b)
     return a.path < b.path
 end
 
--- One line per registered counter with data, in order. Unknown paths are skipped and a broken
--- renderer only loses its own line.
-function RecordTypes:RenderCounters(counters)
+-- One { text, category } per registered counter with data, in order; isVisible(category) may
+-- leave some out. Unknown paths are skipped and a broken renderer only loses its own line.
+function RecordTypes:CounterLines(counters, isVisible)
     local defs = {}
     if type(counters) ~= "table" then return defs end
     for path, def in pairs(self.counters) do
-        if type(counters[path]) == "table" and next(counters[path]) ~= nil then
+        if type(counters[path]) == "table" and next(counters[path]) ~= nil
+            and (not isVisible or isVisible(def.category)) then
             defs[#defs + 1] = def
         end
     end
@@ -158,8 +186,17 @@ function RecordTypes:RenderCounters(counters)
         if not ok then
             ns.Log:Error("render:" .. def.path, text)
         elseif type(text) == "string" then
-            lines[#lines + 1] = text
+            lines[#lines + 1] = { text = text, category = def.category }
         end
     end
     return lines
+end
+
+-- Just the texts of CounterLines.
+function RecordTypes:RenderCounters(counters)
+    local texts = {}
+    for i, line in ipairs(self:CounterLines(counters)) do
+        texts[i] = line.text
+    end
+    return texts
 end

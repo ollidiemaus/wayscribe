@@ -54,6 +54,7 @@ local function addTrackerInputs(add)
             add("spell." .. kind .. "." .. spellID, Compat.GetSpellName(spellID))
         end
     end
+    add("cvar.timeMgrUseMilitaryTime", Compat.Uses24HourClock())
     -- Library minor versions, nil when missing (an unpackaged copy has no Libs folder).
     local libStub = LibStub
     for _, name in ipairs(LIBRARIES) do
@@ -65,6 +66,39 @@ local function addTrackerInputs(add)
         end
         add("lib." .. name, minor)
     end
+end
+
+-- 0.3: does C_QuestLine know Vanilla quests (docs/ARCHITECTURE.md §12 #4)? Asked for the quests in
+-- the player's log, since those are on the current map.
+local MAX_QUESTS = 5
+local function addQuestLines(add)
+    local log = C_QuestLog
+    if not (log and log.GetNumQuestLogEntries and log.GetInfo) then
+        add("questLog", "no C_QuestLog")
+        return
+    end
+    local mapID = Compat.GetPlayerMapID()
+    local asked = 0
+    for index = 1, Compat.Call(log.GetNumQuestLogEntries) or 0 do
+        local info = Compat.Call(log.GetInfo, index)
+        local isQuest = type(info) == "table" and Compat.Safe(info.isHeader) ~= true
+        local questID = isQuest and Compat.Safe(info.questID, "number")
+        if questID and asked < MAX_QUESTS then
+            asked = asked + 1
+            add("questTitle." .. questID, Compat.GetQuestTitle(questID))
+            local line = Compat.has.questLines and Compat.Call(C_QuestLine.GetQuestLineInfo, questID, mapID)
+            local lineID = type(line) == "table" and Compat.Safe(line.questLineID, "number")
+            if lineID then
+                local quests = Compat.Call(C_QuestLine.GetQuestLineQuests, lineID)
+                local count = type(quests) == "table" and #quests or 0
+                add("questLine." .. questID, lineID .. " " .. describe(Compat.Safe(line.questLineName)) .. " ("
+                    .. count .. " quests, last " .. describe(count > 0 and Compat.Safe(quests[count]) or nil) .. ")")
+            else
+                add("questLine." .. questID, nil)
+            end
+        end
+    end
+    add("questLog.asked", asked)
 end
 
 local function collect()
@@ -116,6 +150,7 @@ local function collect()
     add("level", Compat.GetPlayerLevel())
     add("secret.UnitLevel", Compat.IsSecret(UnitLevel and UnitLevel("player")))
     addTrackerInputs(add)
+    addQuestLines(add)
     return lines
 end
 
