@@ -123,7 +123,7 @@ describe("settings page", function()
         T.eq(flights.get(), true)
         flights.set(false)
         T.eq(ns.accountDB.settings.footstepsFlights, false)
-        T.truthy(api.settings.Wayscribe_Tracker_HeroPath, "Footsteps can be turned off like any tracker")
+        T.truthy(api.settings.Wayscribe_Tracker_Footsteps, "Footsteps can be turned off like any tracker")
 
         _G.StaticPopupDialogs = {}
         local shown

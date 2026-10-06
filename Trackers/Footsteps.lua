@@ -44,9 +44,9 @@ ns.RecordTypes:RegisterCounter("travel", {
     end,
 })
 
-local HeroPath = ns.Trackers:New("HeroPath", { label = L.TRACKER_FOOTSTEPS, tooltip = L.TRACKER_FOOTSTEPS_TIP })
+local Footsteps = ns.Trackers:New("Footsteps", { label = L.TRACKER_FOOTSTEPS, tooltip = L.TRACKER_FOOTSTEPS_TIP })
 
-function HeroPath:OnEnable()
+function Footsteps:OnEnable()
     self.live, self.anchor = nil, nil
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
     self:RegisterEvent("ZONE_CHANGED_NEW_AREA")
@@ -56,30 +56,30 @@ function HeroPath:OnEnable()
 end
 
 -- Turning Footsteps off keeps what was recorded so far.
-function HeroPath:OnDisable()
+function Footsteps:OnDisable()
     ns.Bus:Off("LOGOUT", self)
     self:StopTicker()
     self:Close()
 end
 
-function HeroPath:OnLogout()
+function Footsteps:OnLogout()
     if self.enabled then
         self:Close()
     end
 end
 
 -- A loading screen may have moved the player anywhere.
-function HeroPath:PLAYER_ENTERING_WORLD()
+function Footsteps:PLAYER_ENTERING_WORLD()
     self:Close()
     self:Update()
 end
 
-function HeroPath:ZONE_CHANGED_NEW_AREA()
+function Footsteps:ZONE_CHANGED_NEW_AREA()
     self:Update()
 end
 
 -- The ticker only runs outdoors (instances hide the position anyway) and while trails can be saved.
-function HeroPath:Update()
+function Footsteps:Update()
     local _, instanceType = Compat.GetInstance()
     if (instanceType == nil or instanceType == "none") and Paths:IsWritable() then
         self:StartTicker()
@@ -89,7 +89,7 @@ function HeroPath:Update()
     end
 end
 
-function HeroPath:StartTicker()
+function Footsteps:StartTicker()
     if self.ticker then return end
     self.ticker = C_Timer.NewTicker(SAMPLE_INTERVAL, function()
         if not self.enabled then return end
@@ -100,14 +100,14 @@ function HeroPath:StartTicker()
     end)
 end
 
-function HeroPath:StopTicker()
+function Footsteps:StopTicker()
     if self.ticker then
         self.ticker:Cancel()
         self.ticker = nil
     end
 end
 
-function HeroPath:Sample()
+function Footsteps:Sample()
     local now = Time.Now()
     local flying = Compat.IsOnTaxi()
     if Compat.IsDeadOrGhost() or (flying and not ns.Options:Get("footstepsFlights")) then
@@ -147,7 +147,7 @@ local function append(live, x, y)
     live.x, live.y = x, y
 end
 
-function HeroPath:Start(continent, x, y, flying, now)
+function Footsteps:Start(continent, x, y, flying, now)
     local day = Time.DayKey(now)
     local live = {
         c = continent, f = flying, t = now, moved = now, day = day, dayEnd = Time.DayEnd(day),
@@ -167,7 +167,7 @@ function HeroPath:Start(continent, x, y, flying, now)
     Paths:SetLive(live)
 end
 
-function HeroPath:AddPoint(live, x, y, step, now)
+function Footsteps:AddPoint(live, x, y, step, now)
     append(live, x, y)
     live.length = live.length + step
     live.moved = now
@@ -175,7 +175,7 @@ function HeroPath:AddPoint(live, x, y, step, now)
 end
 
 -- Stores the live trail, if it went anywhere, and remembers where it ended.
-function HeroPath:Close()
+function Footsteps:Close()
     local live = self.live
     if not live then return end
     self.live = nil

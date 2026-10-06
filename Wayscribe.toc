@@ -50,12 +50,12 @@ Trackers\Gathering.lua
 Trackers\Bosses.lua
 Trackers\Dungeons.lua
 Trackers\QuestChains.lua
-Trackers\HeroPath.lua
+Trackers\Footsteps.lua
 
 UI\Theme.lua
 UI\DayView.lua
 UI\Journal.lua
-UI\HeroPathMap.lua
+UI\FootstepsMap.lua
 UI\LoginRecap.lua
 UI\Settings.lua
 UI\Minimap.lua

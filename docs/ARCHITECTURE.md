@@ -1,7 +1,7 @@
 # Wayscribe — Architecture Plan
 
 An automatic, per-character journal for **WoW Forever**. It records what happens while you play,
-groups it by day, and powers a login recap, a **Footsteps** travel map (the Hero's Path idea) and a yearly "Wrapped".
+groups it by day, and powers a login recap, a **Footsteps** travel map and a yearly "Wrapped".
 
 > The name **Wayscribe** was decided on 2026-10-06, after checking that it's free on CurseForge, Wago,
 > WoWInterface and GitHub. It's baked into the SavedVariables names, the folder name and the slash
@@ -37,7 +37,7 @@ feature, not the rule.
 | Fact | Consequence for the design |
 |---|---|
 | SavedVariables (SV) are loaded once before `ADDON_LOADED` and written **only** on clean logout or `/reload`. There is no flush API. | Everything lives in memory during play. A client crash loses that session, and nothing can prevent it. Writes are cheap table inserts. |
-| SV files are Lua source parsed at login. Many small tables and unique constants are slow to load, and very large SV files have historically hit `constant table overflow`. | Bulk data (Hero's Path points) is **string-packed**. Records stay compact. Old data can move to a load-on-demand archive. |
+| SV files are Lua source parsed at login. Many small tables and unique constants are slow to load, and very large SV files have historically hit `constant table overflow`. | Bulk data (Footsteps trails) is **string-packed**. Records stay compact. Old data can move to a load-on-demand archive. |
 | `SavedVariablesPerCharacter` loads only the current character's file. | The journal is per-character by nature, so it gets automatic partitioning for free. |
 | Metatables, functions and userdata are not saved. | The SV tables hold plain data only. Behavior lives in modules that read and write those tables. |
 | **Confirmed:** registering `COMBAT_LOG_EVENT_UNFILTERED` on Forever triggers a protected-action popup (ForeverChronicle had to remove it). | **Never register CLEU.** Use high-level events such as `ENCOUNTER_END`, `BOSS_KILL`, `PLAYER_LEVEL_UP`, `QUEST_TURNED_IN` and `LOOT_*`. |
@@ -57,7 +57,7 @@ flowchart LR
     S --> DB[("SavedVariables<br/>WayscribeDB / WayscribeCharDB / WayscribePathDB")]
     S --> IX["Indexes + Rollups<br/>(rebuildable caches)"]
     S -->|"RECORD_ADDED"| BUS(("Internal bus"))
-    BUS --> UI["UI: Journal, Login recap,<br/>Hero's Path, Wrapped"]
+    BUS --> UI["UI: Journal, Login recap,<br/>Footsteps, Wrapped"]
     UI -->|"read API"| S
     RT["RecordTypes registry<br/>schema, render, rollup"] -.-> S
     RT -.-> UI
@@ -70,7 +70,7 @@ flowchart LR
 | **Data** | `Store`, `Paths` (Footsteps trails), `Schema` (migrations, safe mode), `RecordTypes`, `Index`, `Players` (interning), `Codec` | Core |
 | **StaticData** | Plain tables: dungeon → final encounter, quest chains, gather spell IDs | — |
 | **Trackers** | Translate game events into facts, holding only the minimal state they need | Core, Compat, Data (write API), StaticData |
-| **UI** | Journal window, login recap, settings, minimap, keybind, Hero's Path overlay, Wrapped | Core, Data (read API), RecordTypes |
+| **UI** | Journal window, login recap, settings, minimap, keybind, Footsteps map, Wrapped | Core, Data (read API), RecordTypes |
 
 Dependencies point one way only. UI never calls trackers, and trackers never call UI. They talk through
 the Store and the bus.
@@ -332,7 +332,7 @@ Estimates for an active player (about 2 h/day):
 | Data | Per day | Per year | Notes |
 |---|---|---|---|
 | Journal records + counters | ~2–4 KB | ~1 MB | 20–50 records/day, counters aggregated |
-| Hero's Path (packed, simplified) | ~3–6 KB | ~1–2 MB | See §6.8 |
+| Footsteps trails (packed, simplified) | ~3–6 KB | ~1–2 MB | See §6.8 |
 | Indexes / rollups | — | < 50 KB | Months × small tables |
 
 That's roughly 2–3 MB per character per year, which is comfortable for a few years. The growth plan is
@@ -340,7 +340,7 @@ designed now but built later:
 
 - **Phase A (v1):** everything lives in the main addon. Partition keys are already month-based.
 - **Phase B (when real data says so):** a load-on-demand companion, `Wayscribe_Archive`, with its own
-  per-character SV. Once a month, out of combat at login, closed **years** (and Hero's Path months older
+  per-character SV. Once a month, out of combat at login, closed **years** (and Footsteps months older
   than N) move from the hot DB into the archive. Browsing an archived year runs
   `C_AddOns.LoadAddOn("Wayscribe_Archive")` on demand. Because rollups stay in the hot DB, the yearly recap
   never needs the archive.
@@ -532,13 +532,13 @@ second entry, and it falls back to `UnitLevel` when the event argument is secret
   dated at the end of the day its final quest was turned in (or now, if that's today) and flagged
   `bf`: the journal shows no time of day for it. A quest that already completed a chain, through
   any provider, isn't credited again.
-### 6.8 Footsteps (Hero's Path)
+### 6.8 Footsteps
 
-The travel map, built in 0.4. "Footsteps" is the player-facing name; code and SV keep `HeroPath`
-(`Trackers/HeroPath.lua`, `UI/HeroPathMap.lua`, `WayscribePathDB`). Trails are the source of truth;
+The travel map, built in 0.4: `Trackers/Footsteps.lua` records, `UI/FootstepsMap.lua` draws, and the
+data layer stores *trails* (`Data/Paths.lua`, `WayscribePathDB`). Trails are the source of truth;
 everything else is derived from them or counted next to them.
 
-**Sampling** (`Trackers/HeroPath.lua`). A `C_Timer.NewTicker(1)` runs only while the feature is on,
+**Sampling** (`Trackers/Footsteps.lua`). A `C_Timer.NewTicker(1)` runs only while the feature is on,
 the player is outdoors (instance type `none`) and trails can be saved. It doesn't use `OnUpdate`.
 - `Compat.GetPlayerWorldPosition()` → `continentID, x, y` in world yards (`UnitPosition`, else the
   map position through `C_Map.GetWorldPosFromMapPos`). World coordinates are independent of any one
@@ -575,9 +575,9 @@ WayscribePathDB = {
   recap and Wrapped get distances without decoding a single trail.
 - **Measured:** two hours of simulated questing (rides, running around between fights, standing in
   town; about 80 minutes of movement) pack into **about 3.2 KB** in 10 trails. The 0.4 exit criterion
-  is 10 KB; the unit test `heropath > size budget` keeps it.
+  is 10 KB; the unit test `footsteps > size budget` keeps it.
 
-**Rendering** (`UI/HeroPathMap.lua`): a `MapCanvas` data provider on `WorldMapFrame`, the official
+**Rendering** (`UI/FootstepsMap.lua`): a `MapCanvas` data provider on `WorldMapFrame`, the official
 extension point that HandyNotes also uses.
 - The map's corners (0,0), (1,0) and (0,1) in the world (three `C_Map.GetWorldPosFromMapPos` calls,
   cached per map) give an affine **world → map transform** (`Core/Geometry.lua`), so drawing needs no
@@ -620,7 +620,7 @@ All UI listens to bus messages. None of it polls.
 
 ## 8. Yearly recap ("Wrapped")
 
-- Data comes from `Store:GetYearSummary(year)` (12 month rollups), plus `firsts` and Hero's Path coverage.
+- Data comes from `Store:GetYearSummary(year)` (12 month rollups), plus `firsts` and Footsteps coverage.
   It's cheap and needs no archive.
 - It's shown as a card slideshow (next and previous). Cards include:
   - Levels gained (from → to) and the day you hit max level
@@ -630,7 +630,7 @@ All UI listens to bus messages. None of it polls.
   - Ores, herbs and skins totals, plus the top item
   - Professions learned and maxed
   - Quest chains completed
-  - Distance traveled and % of Azeroth walked (Hero's Path)
+  - Distance traveled and % of Azeroth walked (Footsteps)
   - Most active month and day, and total play time
 - It becomes available from December 1st, with a one-time "Your 2026 is ready" prompt. It can also be
   opened any time from the tab for any past year.
@@ -651,9 +651,9 @@ Compat/    Compat.lua Probe.lua
 Data/      Codec.lua RecordTypes.lua Players.lua Index.lua Store.lua Paths.lua Schema.lua
 StaticData/ Dungeons.lua Gathering.lua QuestChains.lua
 Trackers/  Session.lua Level.lua Professions.lua Gathering.lua Bosses.lua Dungeons.lua
-           QuestChains.lua HeroPath.lua
+           QuestChains.lua Footsteps.lua
 UI/        Journal.lua LoginRecap.lua Settings.lua Minimap.lua
-           Theme.lua DayView.lua HeroPathMap.lua Wrapped.lua
+           Theme.lua DayView.lua FootstepsMap.lua Wrapped.lua
 tests/     run.lua testlib.lua wow_stubs.lua serialize.lua <area>_spec.lua …
 docs/      ARCHITECTURE.md forever-probe.md
 .pkgmeta  .luacheckrc  .github/workflows/{ci.yml,release.yml}
@@ -764,7 +764,7 @@ Other findings:
 - **Companion names:** stored and shown. There's no "hide names" toggle for now.
 
 - **Travel map name:** **Footsteps** (in-game label). "Hero's Path" is taken by another addon and
-  is Nintendo's term. Code and SV keep the internal name `HeroPath`.
+  is Nintendo's term. (The code first kept `HeroPath` as an internal name; 0.4 dropped it, see below.)
 
 ### Decided during 0.2
 
@@ -812,6 +812,9 @@ Other findings:
   the map shows one unbroken route.
 - **Geometry is Core.** Douglas-Peucker, the world-to-map transform and clipping are pure math used
   by the recorder, the map and the probe, like `Time`.
+- **One name: Footsteps.** Files, modules and the tracker id say Footsteps, like the game; the data
+  layer calls what it stores *trails* (`Paths`, `WayscribePathDB`). Renamed before release, so no
+  saved setting refers to the old `HeroPath` id.
 - **Coverage moves to 0.5.** "% of Azeroth walked" is a Wrapped card; it's built with Wrapped.
 
 ### Landscape (for positioning)
