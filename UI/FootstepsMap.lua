@@ -5,10 +5,10 @@ local L, Compat, Paths, Time, Geometry, Codec = ns.L, ns.Compat, ns.Paths, ns.Ti
 -- map's extension point for addons, draws the trails as lines on the map canvas:
 --   * three corners of the shown map give a world-to-map transform, so a trail needs no API call
 --     per point;
---   * lines are clipped to the map and simplified to its scale, newest trails first, up to
---     MAX_LINES;
+--   * lines are clipped to the map and simplified to the zoom, newest trails first, up to
+--     MAX_LINES; no line is shorter than MIN_LINE_PIXELS on screen;
 --   * drawing is spread over frames (BUDGET_MS each), so even "All" never stalls the map;
---   * the trail being recorded grows line by line while the map is open.
+--   * the trail being recorded grows while the map is open, with a tail line to the player.
 -- A button on the map picks which trails to show; the journal's day page can show one day.
 local FootstepsMap = {}
 ns.FootstepsMap = FootstepsMap
@@ -18,7 +18,13 @@ local VALID_MODE = { today = true, week = true, all = true, off = true }
 local MAX_LINES = 5000
 local BUDGET_MS = 4
 local STORED_TOLERANCE = 3 -- yards: the detail trails are stored with
-local LOD_PIXELS = 1       -- detail finer than this on the canvas isn't drawn
+-- Sizes on screen are in pixels of the map's scroll container: one is 1 / canvas scale canvas units.
+local LOD_PIXELS = 1       -- detail finer than this isn't drawn
+-- Lines shorter than about a pixel don't show reliably (build 70235: the trail being recorded,
+-- 8 yards a point, broke up on the small map), so shorter steps are merged until this long.
+local MIN_LINE_PIXELS = 3
+local REDRAW_ZOOM = 1.5    -- a zoom by this factor redraws with the detail of the new scale
+local ZOOM_SETTLE = 0.3    -- seconds after the last zoom step
 local STYLES = {
     ground = { width = 2.5, color = { 0.66, 0.12, 0.06 } },
     flight = { width = 1.5, color = { 0.16, 0.38, 0.78 } },
@@ -26,14 +32,15 @@ local STYLES = {
 local RECENT_ALPHA, OLDER_ALPHA = 0.9, 0.5
 local MAX_PARENTS = 10
 
--- settled: how many of the lines were drawn before the last settle (see below).
 local function newPool(sublevel)
-    return { lines = {}, used = 0, settled = 0, sublevel = sublevel }
+    return { lines = {}, used = 0, sublevel = sublevel }
 end
 
 -- day: a day picked in the journal, shown until the map closes; job: the drawing coroutine;
--- transform: world -> shown map, nil while nothing can be drawn.
-local view = { trails = newPool(1), liveTrail = newPool(2), transforms = {}, liveDrawn = 0 }
+-- transform: world -> shown map, nil while nothing can be drawn; drawnScale: the canvas scale the
+-- lines were drawn for; liveFrom: index of the live trail's last point a line ends at; tail: the
+-- line from there to the player.
+local view = { trails = newPool(1), liveTrail = newPool(2), transforms = {}, liveFrom = 1 }
 FootstepsMap.view = view
 
 ------------------------------------------------------------------------------------------------
@@ -91,33 +98,6 @@ local function transformFor(mapID)
 end
 
 ------------------------------------------------------------------------------------------------
--- Settling. In game (build 70235), lines drawn into a map that was already open stayed invisible
--- until the map was zoomed, while lines drawn as it opened showed. A zoom rescales the canvas and
--- (through OnCanvasScaleChanged) sets the lines' width again; so on the frame after drawing into
--- an open map, the same happens: the line layer's scale is nudged and the new lines' width set again.
-local SETTLE_SCALE = 0.9999
-
-local function settle()
-    view.settlePending = false
-    if not (view.frame and FootstepsMap:IsDrawing()) then return end
-    view.nudged = not view.nudged
-    view.frame:SetScale(view.nudged and SETTLE_SCALE or 1)
-    for _, pool in ipairs({ view.trails, view.liveTrail }) do
-        for i = pool.settled + 1, pool.used do
-            local line = pool.lines[i]
-            line:SetThickness(STYLES[line.style].width / view.scale)
-        end
-        pool.settled = pool.used
-    end
-end
-
-local function requestSettle()
-    if view.settlePending then return end
-    view.settlePending = true
-    C_Timer.After(0, settle)
-end
-
-------------------------------------------------------------------------------------------------
 -- Lines
 
 local function clearPool(pool)
@@ -125,7 +105,17 @@ local function clearPool(pool)
         pool.lines[i]:Hide()
     end
     pool.used = 0
-    pool.settled = 0
+end
+
+-- Map coordinates a..d (already clipped) as a line of `style`.
+local function placeLine(line, a, b, c, d, style, alpha)
+    local spec = STYLES[style]
+    line.style = style
+    line:SetStartPoint("TOPLEFT", view.frame, a * view.width, -b * view.height)
+    line:SetEndPoint("TOPLEFT", view.frame, c * view.width, -d * view.height)
+    line:SetThickness(spec.width / view.scale)
+    line:SetColorTexture(spec.color[1], spec.color[2], spec.color[3], alpha)
+    line:Show()
 end
 
 -- A line in map coordinates (0..1), clipped to the map. False once MAX_LINES are in use.
@@ -139,27 +129,45 @@ local function drawLine(pool, u1, v1, u2, v2, style, alpha)
         line = view.frame:CreateLine(nil, "ARTWORK", nil, pool.sublevel)
         pool.lines[pool.used] = line
     end
-    local spec = STYLES[style]
-    line.style = style
-    line:SetStartPoint("TOPLEFT", view.frame, a * view.width, -b * view.height)
-    line:SetEndPoint("TOPLEFT", view.frame, c * view.width, -d * view.height)
-    line:SetThickness(spec.width / view.scale)
-    line:SetColorTexture(spec.color[1], spec.color[2], spec.color[3], alpha)
-    line:Show()
-    requestSettle()
+    placeLine(line, a, b, c, d, style, alpha)
     return true
 end
 
--- World points from index `first` on, as connected lines. False once MAX_LINES are in use.
-local function drawTrail(pool, points, first, style, alpha)
+-- World points from index `first` on, as connected lines at least minLength long on the canvas:
+-- a shorter step is merged with the next. finish: also connect the last point, however close.
+-- Returns false once MAX_LINES are in use, else true and the index of the last point drawn to.
+local function drawTrail(pool, points, first, style, alpha, finish)
     local transform = view.transform
-    local lastU, lastV
-    for i = first, #points - 1, 2 do
+    local min2 = view.minLength * view.minLength
+    local fromU, fromV = Geometry.ToMap(transform, points[first], points[first + 1])
+    local anchor = first
+    for i = first + 2, #points - 1, 2 do
         local u, v = Geometry.ToMap(transform, points[i], points[i + 1])
-        if lastU and not drawLine(pool, lastU, lastV, u, v, style, alpha) then return false end
-        lastU, lastV = u, v
+        local du, dv = (u - fromU) * view.width, (v - fromV) * view.height
+        if du * du + dv * dv >= min2 or (finish and i >= #points - 1) then
+            if not drawLine(pool, fromU, fromV, u, v, style, alpha) then return false end
+            fromU, fromV, anchor = u, v, i
+        end
     end
-    return true
+    return true, anchor
+end
+
+-- The live trail ends in one line from its last drawn point to the player, moved on every step.
+local function drawTail(live)
+    local points, from = live.points, view.liveFrom
+    local last = #points - 1
+    local a, b, c, d
+    if last > from then
+        local u1, v1 = Geometry.ToMap(view.transform, points[from], points[from + 1])
+        local u2, v2 = Geometry.ToMap(view.transform, points[last], points[last + 1])
+        a, b, c, d = Geometry.ClipToUnit(u1, v1, u2, v2)
+    end
+    if not a then
+        if view.tail then view.tail:Hide() end
+        return
+    end
+    view.tail = view.tail or view.frame:CreateLine(nil, "ARTWORK", nil, view.liveTrail.sublevel)
+    placeLine(view.tail, a, b, c, d, live.f and "flight" or "ground", RECENT_ALPHA)
 end
 
 local function drawSegment(segment, recentFrom)
@@ -168,8 +176,9 @@ local function drawSegment(segment, recentFrom)
     if view.tolerance > STORED_TOLERANCE then
         points = Geometry.Simplify(points, view.tolerance)
     end
+    if #points < 4 then return true end
     local alpha = segment.t >= recentFrom and RECENT_ALPHA or OLDER_ALPHA
-    return drawTrail(view.trails, points, 1, segment.f and "flight" or "ground", alpha)
+    return (drawTrail(view.trails, points, 1, segment.f and "flight" or "ground", alpha, true))
 end
 
 -- Today's trails (or the picked day's) are drawn strongest.
@@ -232,7 +241,8 @@ function FootstepsMap:Clear()
     stopJob()
     clearPool(view.trails)
     clearPool(view.liveTrail)
-    view.liveRef, view.liveDrawn = nil, 0
+    if view.tail then view.tail:Hide() end
+    view.liveRef, view.liveFrom = nil, 1
 end
 
 function FootstepsMap:IsDrawing()
@@ -251,8 +261,12 @@ function FootstepsMap:Redraw()
     ensureFrame(map)
     view.transform = transform
     view.width, view.height = canvas:GetWidth(), canvas:GetHeight()
+    -- Detail for this zoom, in canvas units.
     view.scale = Compat.Call(map.GetCanvasScale, map) or 1
-    view.tolerance = transform.width / view.width * LOD_PIXELS
+    view.drawnScale = view.scale
+    local pixel = 1 / view.scale
+    view.tolerance = transform.width / view.width * pixel * LOD_PIXELS
+    view.minLength = pixel * MIN_LINE_PIXELS
     local segments = Paths:GetSegments(dayRange(mode))
     local since = recentFrom(mode)
     view.job = coroutine.create(function() drawStored(segments, since) end)
@@ -261,20 +275,21 @@ function FootstepsMap:Redraw()
     self:DrawLive()
 end
 
--- The trail being recorded, from where it was drawn last.
+-- The trail being recorded, from its last drawn point on, plus the tail to the player.
 function FootstepsMap:DrawLive()
     local live = Paths:GetLive()
     if live ~= view.liveRef then
         clearPool(view.liveTrail)
-        view.liveRef, view.liveDrawn = live, 0
+        view.liveRef, view.liveFrom = live, 1
     end
     if not (live and view.transform and live.c == view.transform.continent and covers(self:GetMode(), live.day)) then
+        if view.tail then view.tail:Hide() end
         return
     end
-    local points = live.points
-    if #points < 4 then return end
-    drawTrail(view.liveTrail, points, math.max(1, view.liveDrawn - 1), live.f and "flight" or "ground", RECENT_ALPHA)
-    view.liveDrawn = #points
+    if #live.points < 4 then return end
+    local ok, anchor = drawTrail(view.liveTrail, live.points, view.liveFrom, live.f and "flight" or "ground", RECENT_ALPHA)
+    if ok then view.liveFrom = anchor end
+    drawTail(live)
 end
 
 -- Lines keep their width on screen at every zoom.
@@ -287,6 +302,25 @@ function FootstepsMap:UpdateThickness()
             line:SetThickness(STYLES[line.style].width / view.scale)
         end
     end
+    if view.tail and view.tail.style then
+        view.tail:SetThickness(STYLES[view.tail.style].width / view.scale)
+    end
+end
+
+-- Detail follows the zoom: after zooming far enough in or out, the trails are drawn again once
+-- the zoom has settled, so zoomed-out lines stay long enough to show and zoomed-in ones get detail.
+function FootstepsMap:OnCanvasScaleChanged()
+    self:UpdateThickness()
+    if not (view.drawnScale and self:IsDrawing()) then return end
+    local ratio = view.scale / view.drawnScale
+    if ratio < REDRAW_ZOOM and ratio > 1 / REDRAW_ZOOM then return end
+    view.zoomGeneration = (view.zoomGeneration or 0) + 1
+    local generation = view.zoomGeneration
+    C_Timer.After(ZOOM_SETTLE, function()
+        if view.zoomGeneration == generation then
+            ns.SafeCall("footsteps:zoom", self.RedrawIfShown, self)
+        end
+    end)
 end
 
 ------------------------------------------------------------------------------------------------
@@ -395,7 +429,7 @@ local function createProvider()
         FootstepsMap:Redraw()
     end
     function provider:OnCanvasScaleChanged()
-        FootstepsMap:UpdateThickness()
+        FootstepsMap:OnCanvasScaleChanged()
     end
     -- A day picked in the journal is shown until the map closes.
     function provider:OnHide()

@@ -19,11 +19,12 @@ local function wait(seconds)
     for _ = 1, seconds do Stubs.Advance(1) end
 end
 
--- Walks in a straight line between two points of map `mapID` (u, v), 20 yards a second.
-local function walkOnMap(mapID, u1, v1, u2, v2, continent)
+-- Walks in a straight line between two points of map `mapID` (u, v), `pace` yards a second
+-- (default 20).
+local function walkOnMap(mapID, u1, v1, u2, v2, continent, pace)
     local x1, y1 = Stubs.MapToWorld(mapID, u1, v1)
     local x2, y2 = Stubs.MapToWorld(mapID, u2, v2)
-    local steps = math.max(1, math.floor(math.sqrt((x2 - x1) ^ 2 + (y2 - y1) ^ 2) / 20))
+    local steps = math.max(1, math.floor(math.sqrt((x2 - x1) ^ 2 + (y2 - y1) ^ 2) / (pace or 20)))
     for i = 0, steps do
         Stubs.SetPosition(continent or 1, x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps)
         Stubs.Advance(1)
@@ -50,6 +51,10 @@ end
 
 local function live(ns)
     return shown(ns.FootstepsMap.view.liveTrail)
+end
+
+local function length(line)
+    return math.sqrt((line.x2 - line.x1) ^ 2 + (line.y2 - line.y1) ^ 2)
 end
 
 local function near(actual, expected, what)
@@ -129,20 +134,49 @@ describe("world map", function()
         T.eq(#trails(ns), 1)
     end)
 
-    -- In game, lines drawn into an open map only showed after a zoom (build 70235).
-    it("settles lines drawn into an open map on the next frame, like a zoom does", function()
+    -- On the small map (canvas scale about 0.5), 8-yard steps are under a pixel: on build 70235
+    -- such lines broke up. They are merged into lines of at least 3 pixels (6 canvas units here).
+    it("never draws a line too short to show on screen, and keeps a tail to the player", function()
         local ns, map = start()
+        map.canvasScale = 0.5
         map:Show()
-        local frame = ns.FootstepsMap.view.frame
-        walkOnMap(1412, 0.2, 0.5, 0.21, 0.5)
-        Stubs.Advance(0)
-        T.truthy(frame.scale ~= nil, "the line layer was rescaled")
+        walkOnMap(1412, 0.2, 0.5, 0.25, 0.5, 1, 9)
+        -- One more step of 9 yards (under 2 canvas units): too short for a line, so the tail bridges it.
+        local position = Stubs.state.position
+        Stubs.SetPosition(1, position.x, position.y - 9)
+        Stubs.Advance(1)
         local lines = live(ns)
-        T.truthy(#lines >= 2)
+        T.truthy(#lines >= 3, "merged lines: " .. #lines)
         for _, line in ipairs(lines) do
-            T.truthy(line.thicknessSets >= 2, "the width is set again after drawing")
-            T.eq(line.thickness, 2.5)
+            T.truthy(length(line) >= 6 - 1e-6, "line of " .. length(line) .. " canvas units")
         end
+        local tail = ns.FootstepsMap.view.tail
+        T.truthy(tail and tail:IsShown(), "the tail is drawn")
+        position = Stubs.state.position
+        local u, v = Stubs.WorldToMap(1412, position.x, position.y)
+        near(tail.x2, u * WIDTH, "tail x")
+        near(tail.y2, -v * HEIGHT, "tail y")
+        T.eq(tail.thickness, 5, "2.5 pixels at half scale")
+    end)
+
+    it("draws again with the detail of the new zoom", function()
+        local ns, map = start()
+        local x, y = Stubs.MapToWorld(1412, 0.5, 0.5)
+        for i = 0, 60 do
+            local angle = i / 60 * math.pi
+            Stubs.SetPosition(1, x + 300 * math.cos(angle), y + 300 * math.sin(angle))
+            Stubs.Advance(1)
+        end
+        wait(61)
+        map.canvasScale = 0.5
+        map:Show()
+        local zoomedOut = #trails(ns)
+        map:Zoom(0.6)
+        Stubs.Advance(1)
+        T.eq(#trails(ns), zoomedOut, "a small zoom keeps the lines")
+        map:Zoom(4)
+        Stubs.Advance(1)
+        T.truthy(#trails(ns) > zoomedOut, "more detail zoomed in: " .. zoomedOut .. " -> " .. #trails(ns))
     end)
 
     it("keeps lines equally wide at every zoom", function()

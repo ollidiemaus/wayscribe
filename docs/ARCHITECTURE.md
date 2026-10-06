@@ -583,14 +583,15 @@ extension point that HandyNotes also uses.
   cached per map) give an affine **world → map transform** (`Core/Geometry.lua`), so drawing needs no
   API call per point. Maps without world coordinates (the whole world) draw nothing.
 - Lines (pooled `Line` regions on a frame over the canvas, above the explored-area art) are
-  **clipped** to the map (Liang-Barsky) and simplified to the map's scale (level of detail: about one
-  canvas pixel). Their width is divided by the canvas zoom, so they look the same at every zoom.
+  **clipped** to the map (Liang-Barsky) and simplified to the zoom (level of detail: about one screen
+  pixel). Their width is divided by the canvas zoom, so they look the same at every zoom.
+- **No line shorter than 3 pixels** (found in game): on the small map next to the quest log, the
+  trail being recorded (8 yards a point, under a pixel there) broke up, while fullscreen and zoomed
+  maps were fine. Shorter steps are merged until they are long enough, and one tail line runs from
+  the last drawn point to the player. After a zoom by 1.5× or more, the trails are drawn again for
+  the new scale once the zoom has settled.
 - Trails are drawn **newest first** up to 5000 lines, in a coroutine that works at most 4 ms per
   frame, so even "All" never stalls the map. The trail being recorded is drawn line by line.
-- **Settling** (found in game): lines drawn into a map that was already open stayed invisible
-  until a zoom, while lines drawn as it opened showed. On the frame after drawing into an open
-  map, the line layer's scale is nudged and the new lines' width set again, which is what a zoom
-  does.
 - Ground trails are dark red, flights thinner and blue; today's trails (or the picked day's) are
   strong, older ones lighter.
 - **Filters:** Today (default), Last 7 days, All, Off, set by a button in the map's upper right corner
@@ -746,7 +747,7 @@ release in [ingame-tests.md](ingame-tests.md).
 | 6 | Gather spell IDs, and does `GetLootSourceInfo` exist? | ✅ `GetLootSourceInfo` exists. ✅ All gather spell IDs exist and their names resolve in the client's language (0.2 probe, deDE: Bergbau / Kräuterkunde / Kürschnerei; 1235236 = Kräutersammeln). | Which spell ID a gather cast actually reports, and whether it's secret. | Name match is built in (§6.4); item subclass fallback for nodes. |
 | 7 | Does an LFG or dungeon-finder completion event exist? | `LFG_COMPLETION_REWARD` and `SCENARIO_COMPLETED` exist. | Whether they fire for Vanilla dungeons. | Final-boss data table (already the primary signal). |
 | 8 | Do SavedVariables survive a round trip on the current client build? | ✅ Account and character files written on `/reload` and logout, `.bak` holds the previous save, the session was resumed after the reload. ✅ A full relog added a second session (0.2). | Retest on every new client build. | Missing-DB guard (§4.6). |
-| 9 | Does `WorldMapFrame` take a MapCanvas data provider, and where do the lines land? | ✅ `has.worldMapCanvas`; the trail was drawn in the right place, above the explored-area art. `C_Map.GetMapPosFromWorldPos` answers with the continent (worked around). | Lines drawn into an open map needed a zoom to show (settling added, recheck). Below the pins? Does `OpenWorldMap(mapID)` exist? | No overlay; the journal hides its map link. |
+| 9 | Does `WorldMapFrame` take a MapCanvas data provider, and where do the lines land? | ✅ `has.worldMapCanvas`; the trail was drawn in the right place, above the explored-area art. `C_Map.GetMapPosFromWorldPos` answers with the continent (worked around). | Lines under a pixel long broke up on the small map (minimum line length added, recheck). Below the pins? Does `OpenWorldMap(mapID)` exist? | No overlay; the journal hides its map link. |
 
 Other findings:
 - wago.tools lists build 70235 as product `wow_cn_beta`, so its DB2 tables (`DungeonEncounter`, `Map`,

@@ -70,8 +70,6 @@ local function newFrame(frameType, name, _, template)
     function frame:SetTitle(text) self.title = text end
     function frame:SetupMenu(generator) self.menuGenerator = generator end
     function frame:GetFrameLevel() return 1 end
-    function frame:SetScale(scale) self.scale = scale end
-    function frame:GetScale() return self.scale or 1 end
     function frame:SetText(text) self.text = text end
     function frame:CreateFontString()
         local fontString = newFontString()
@@ -94,10 +92,7 @@ local function newFrame(frameType, name, _, template)
         function line:IsShown() return self.shown end
         function line:SetStartPoint(_, _, x, y) self.x1, self.y1 = x, y end
         function line:SetEndPoint(_, _, x, y) self.x2, self.y2 = x, y end
-        function line:SetThickness(thickness)
-            self.thickness = thickness
-            self.thicknessSets = (self.thicknessSets or 0) + 1
-        end
+        function line:SetThickness(thickness) self.thickness = thickness end
         function line:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
         self.lines = self.lines or {}
         self.lines[#self.lines + 1] = line
