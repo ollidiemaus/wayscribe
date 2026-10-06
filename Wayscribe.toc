@@ -7,11 +7,14 @@
 ## SavedVariables: WayscribeDB
 ## SavedVariablesPerCharacter: WayscribeCharDB
 ## IconTexture: Interface\Icons\INV_Misc_Book_09
+## AddonCompartmentFunc: Wayscribe_OnAddonCompartmentClick
 ## Category-enUS: Journal
 ## Category-deDE: Tagebuch
 
 # Load order follows the layers in docs/ARCHITECTURE.md:
-# Locales -> Core -> Compat -> Data -> Trackers -> UI.
+# Libraries -> Locales -> Core -> Compat -> Data -> StaticData -> Trackers -> UI.
+
+embeds.xml
 
 Locales\enUS.lua
 Locales\deDE.lua
@@ -20,6 +23,7 @@ Core\Init.lua
 Core\Log.lua
 Core\Time.lua
 Core\Bus.lua
+Core\Options.lua
 Core\Module.lua
 Core\Trackers.lua
 
@@ -33,10 +37,20 @@ Data\Index.lua
 Data\Store.lua
 Data\Schema.lua
 
+StaticData\Dungeons.lua
+StaticData\Gathering.lua
+
 Trackers\Session.lua
 Trackers\Level.lua
+Trackers\Professions.lua
+Trackers\Gathering.lua
+Trackers\Bosses.lua
+Trackers\Dungeons.lua
 
 UI\Journal.lua
+UI\LoginRecap.lua
+UI\Settings.lua
+UI\Minimap.lua
 
 Core\Slash.lua
 Core\Lifecycle.lua

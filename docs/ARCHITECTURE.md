@@ -153,15 +153,18 @@ WayscribeCharDB = {
         created = 1759400000,           -- first time the addon saw this character
         seq = 1234,                     -- last issued record id (monotonic)
         addonVersion = "0.2.0",         -- last version that wrote this DB
-        lastRecapDay = 20261003,        -- login popup bookkeeping
     },
 
     -- Resumable tracker state (survives /reload and relog)
     state = {
-        session     = { start = 1759490000, resumed = 0 },
-        professions = { [186] = 52, [182] = 31 },          -- skillLineID -> rank (snapshot)
-        activeRun   = { instanceID = 389, start = 1759490500,
-                        roster = { 3, 7 }, bosses = { 1, 2 } },
+        session      = { m = 202610, i = 1 },              -- the open session: month + index
+        level        = 12,
+        professions  = { [186] = { rank = 52, max = 75, name = "Mining" } },  -- snapshot (§6.3)
+        activeRun    = { instanceID = 389, name = "Ragefire Chasm", start = 1759490500,
+                         bosses = { 2732, 2733 }, killedAt = { [2732] = 1759490800, … },
+                         roster = { 3, 7 }, left = nil, completed = nil },     -- §6.6
+        lastCleared  = { instanceID = 389, ts = 1759493000 },
+        lastRecapDay = 20261003,                           -- login popup bookkeeping (§7)
     },
 
     -- Interned players (records hold small integers instead of names)
@@ -348,10 +351,14 @@ Compat.has = {
 }
 Compat.Safe(v [, expectedType])  -- -> v, or nil if issecretvalue(v) or the type is wrong. Every game value goes through this.
 Compat.Call(fn, ...)             -- pcall + Safe on each return value, for APIs that may error or return secrets
-Compat.GetPlayerWorldPosition()  -- -> continentID, x, y   (nil in instances)
+Compat.GetPlayerWorldPosition()  -- -> continentID, x, y   (nil in instances; 0.4)
 Compat.GetProfessionSnapshot()   -- -> { [skillLineID] = { rank, max, name } }
 Compat.GetInstance()             -- -> instanceID, type, difficultyID, name
 Compat.GetGroupMembers()         -- -> array of { guid, name, realm, class }
+Compat.GetLootSlots()            -- -> { [slot] = { itemID, quantity } }, sourceGUID
+Compat.GetItemName(itemID)       -- -> name, or nil and the item is requested (ITEM_NAMES_LOADED follows)
+Compat.GetItemClass(itemID)      -- -> classID, subclassID (locale-free)
+Compat.GetSpellName(spellID) / Compat.GetSkillLineName(skillLineID)
 ```
 
 **`/wayscribe probe`** prints a capability report (which APIs exist and what they return right now). We run
@@ -406,42 +413,82 @@ second entry, and it falls back to `UnitLevel` when the event argument is secret
 - **Snapshot-diff pattern.** On `SKILL_LINES_CHANGED`, `CHAT_MSG_SKILL` (used only as a trigger; the
   text is never parsed, so it works in every locale) and `TRADE_SKILL_LIST_UPDATE`, take a debounced
   snapshot with `Compat.GetProfessionSnapshot()`, diff it against `state.professions`, and save the new
-  snapshot.
+  snapshot. The first snapshot after login waits 3 s, because profession data may still be loading.
+- The very first snapshot of a character is a **silent baseline**: professions learned before
+  Wayscribe are not dated today.
 - New skill line → `PROFESSION_LEARNED {skillLine}` (milestone, `firstKey`).
-- Rank crossings 75/150/225/300 → `PROFESSION_RANK {skillLine, rank}` (milestone).
-- Every point gained → `Store:Count("skill", skillLine, delta)`. The day view shows
-  "Mining +23 (52 → 75)".
+- Skill crossing 75/150/225/300 → `PROFESSION_RANK {skillLine, rank}` (milestone). The month rollup
+  keeps the highest rank per profession for Wrapped.
+- Every point gained → `Store:Count("skill", skillLine, delta)`. The day view shows "Mining +23".
+- A profession missing from one snapshot stays in `state.professions`: its data may just not be loaded
+  yet, and dropping it would report it as newly learned later. A lower rank (unlearned and learned
+  again) records nothing.
 - Because the snapshot is persisted, changes made while the addon was disabled are reconciled at the
   next login without duplicates.
+- Forever's `SkillLine.db2` has child lines (2937–2948) under the classic professions, like Retail's
+  expansion tiers. Whatever `GetProfessionInfo` returns is used as the key. Names come from
+  `C_TradeSkillUI.GetTradeSkillDisplayName`, then the name cached in the snapshot.
 
 ### 6.4 Gathering (ores, herbs, skins)
-- `UNIT_SPELLCAST_SUCCEEDED` (registered for `"player"` only) with a gather spell from
-  `StaticData/Gathering.lua` opens a **gather window** of about 5 s, tagged as mining, herb or skinning.
+- `UNIT_SPELLCAST_SUCCEEDED` (registered for `"player"` only) with a gather spell opens a **gather
+  window** of 5 s, tagged as mining, herbalism or skinning. A spell matches by ID from
+  `StaticData/Gathering.lua`, or by **name**: the names of those IDs are looked up at enable time in
+  the client's language, so every rank and Forever's own versions count. On build 70235 the Vanilla
+  IDs are named Mining, Herbalism and Skinning, and Forever adds 1235230 (Mining) and 1235236 (Herb
+  Gathering).
 - `LOOT_READY` inside that window snapshots the loot slots (`GetLootSlotLink`, plus `GetLootSourceInfo`
-  to confirm the source is a node or a creature). `LOOT_SLOT_CLEARED` counts only what was actually
-  looted, so full bags don't inflate the numbers.
+  for the source GUID). `LOOT_SLOT_CLEARED` counts only what was actually looted, so full bags don't
+  inflate the numbers. `LOOT_CLOSED` ends the window.
+- A node counts once per source GUID, so a vein mined in several casts (or a doubled `LOOT_READY`) is
+  one node.
+- **Fallback** when the cast is hidden (secret spell ID): loot from a `GameObject` source containing
+  Metal & Stone (7/7) or Herb (7/9) items counts as mining or herbalism. Skinning needs the cast.
 - Output is counters only: `Store:Count("gather", itemID, qty)` and `Store:Count("nodes", kind, 1)`.
-  Item categories come from `C_Item.GetItemInfoInstant` class and subclass IDs (Metal & Stone, Herb,
-  Leather), which are locale-free.
+  Item class and subclass IDs from `C_Item.GetItemInfoInstant` are locale-free.
+- Item names load asynchronously. `Compat.GetItemName` requests a missing one and watches
+  `GET_ITEM_INFO_RECEIVED` / `ITEM_DATA_LOAD_RESULT` until it arrives, then fires `ITEM_NAMES_LOADED` so
+  the journal redraws.
 
 ### 6.5 Boss kills
-- `ENCOUNTER_END(encounterID, name, difficultyID, groupSize, success)` with `success == 1` →
-  `BOSS_KILLED {encounterID, instanceID, roster}` with `firstKey = "BOSS:"..encounterID`.
-- `dedupeKey = "boss:"..encounterID..":"..runStart` protects against double events and reloads.
+- `ENCOUNTER_END(encounterID, name, difficultyID, groupSize, success)` with `success == 1`, or
+  `BOSS_KILL(encounterID, name)` → `BOSS_KILLED {encounterID, name, instanceID, difficultyID, roster}`
+  with `firstKey = "BOSS:"..encounterID`.
+- Both events stay registered everywhere (they are rare), so world bosses count too. `instanceID` is
+  only stored inside an instance.
+- The localized boss name is **captured from the event**: no API maps an encounter ID back to a name.
+- The same encounter reported again within 120 s is the second event of one kill and is skipped.
+  Events aren't replayed after a `/reload`, so an in-memory window is enough. (The plan had
+  `dedupeKey = "boss:"..encounterID..":"..runStart`, but that would make Boss kills depend on the
+  Dungeons tracker being on.)
 
-### 6.6 Dungeon runs
+### 6.6 Dungeon and raid runs
 - A state machine driven by `PLAYER_ENTERING_WORLD` and `ZONE_CHANGED_NEW_AREA` plus
-  `Compat.GetInstance()`.
-  - **Enter a party instance:** start or resume `state.activeRun`. It resumes if the instanceID is the
-    same and less than 30 min has passed since we left, which covers reloads, disconnects and corpse
-    runs. Register `ENCOUNTER_END` and `GROUP_ROSTER_UPDATE`.
+  `Compat.GetInstance()`. Party and raid instances are tracked.
+  - **Enter an instance:** start or resume `state.activeRun`. It resumes if the instanceID is the
+    same and at most 30 min have passed since we left, which covers reloads, disconnects and corpse
+    runs. `PLAYER_LOGOUT` stamps the leave time, so a relog is judged the same way. While inside,
+    `ENCOUNTER_END`, `BOSS_KILL`, `LFG_COMPLETION_REWARD` and `SCENARIO_COMPLETED` are registered.
   - **Roster:** the union of group members present at any boss kill, interned through `Players`.
-  - **Completion:** the instance's final encounter from `StaticData/Dungeons.lua` was killed →
-    `DUNGEON_COMPLETED {instanceID, roster, dur, bosses}` with `firstKey`. Optional extra signals, used
-    only if Forever has them: `LFG_COMPLETION_REWARD` and `SCENARIO_COMPLETED`.
-  - **Leave without the final boss:** `DUNGEON_VISITED {instanceID, bosses killed}`. This also covers
-    dungeons we don't have data for yet: missing data degrades to "visited", it never causes an error.
-- The renderer turns these records into "First time Ragefire Chasm with Xy, Ab, Cd".
+    (No `GROUP_ROSTER_UPDATE`: someone who left before the first kill isn't a companion.)
+  - **Completion:** a final encounter from `StaticData/Dungeons.lua` was killed (or the optional
+    `LFG_COMPLETION_REWARD` / `SCENARIO_COMPLETED` fired). The run stays open while the player is
+    inside, so later kills still join it, and closes on leaving as
+    `DUNGEON_COMPLETED {instanceID, name, difficultyID, wing, roster, bosses, dur}` with
+    `firstKey = "DUNGEON:"..instanceID[..":"..wing]`. The record is dated at the final kill.
+  - **Leave without the final boss:** the run waits outside for 30 min (a timer, plus every zone
+    change), then closes as `DUNGEON_VISITED` dated at leaving. This also covers instances without
+    data: missing data degrades to "visited", it never causes an error.
+  - **Not worth an entry:** a visit without kills shorter than 60 s, and zoning back in without
+    kills within 30 min after a clear of the same instance.
+  - **Reset:** the same boss killed again more than 2 min later means a new lockout, so the old
+    run closes and a new one starts.
+- **Finals data** (`StaticData/Dungeons.lua`) comes from `DungeonEncounter.db2` of build 70235 via
+  wago.tools: all Vanilla dungeons and raids. Wings that share one instanceID (Scarlet Monastery,
+  Blackrock Spire, Dire Maul, Stratholme) map their final boss to a wing key. Some dungeons list one
+  encounter per difficulty variant (Blackfathom Deeps, Gnomeregan, Sunken Temple).
+- The localized instance name is captured from `GetInstanceInfo` at the start of the run.
+- The renderer turns these records into "First clear of Ragefire Chasm with Xy, Ab and Cd (42 min)".
+- Rollups: `dungeons[instanceID]` and `companions[playerID]` (both run types count toward companions).
 
 ### 6.7 Quest chains
 Pluggable **chain providers**, tried in order:
@@ -502,11 +549,11 @@ HandyNotes also uses.
 | Piece | Design |
 |---|---|
 | **Journal window** | Movable, resizable frame. Left: virtualized day list (`ScrollBox` + `DataProvider`), newest first. Right: the selected day's page, with milestones in time order, then counter summaries, then sessions. Category filter chips. Tabs: **Journal · Footsteps · Wrapped · Stats**. |
-| **Login recap** | On `isInitialLogin` and `meta.lastRecapDay ~= today`, show the last session: date, duration, rendered milestones and counter summary. Buttons: *Open journal*, *Close*, and a *Don't show again* checkbox wired to the setting. Setting `showLoginRecap` defaults to **on**. |
-| **Settings** | Blizzard `Settings` API, using `RegisterVerticalLayoutCategory` with `RegisterAddOnSetting` and `CreateCheckbox`. Sections: **General** (login recap, date format, minimap button), **Tracking** (one toggle per tracker, generated from the registry), **Hero's Path** (enable, record flights), **Data** (stats, rebuild indexes, debug log, reset with confirmation). |
-| **Minimap button** | LibDataBroker-1.1 + LibDBIcon-1.0 (drag, hide toggle, Addon Compartment entry). Placeholder icon: `Interface\Icons\INV_Misc_Book_09`. Left-click toggles the journal, right-click opens settings. |
+| **Login recap** | On `isInitialLogin` and `state.lastRecapDay ~= today`, 3 s after the loading screen, show the previous session: date, duration, rendered milestones and the counter totals of its day(s) (counters are per day, so they can include another session that day). Simulated entries are left out; an empty session shows nothing. Buttons: *Open journal*, *Close*, and a *Don't show at login* checkbox wired to the setting. Setting `showLoginRecap` defaults to **on**. `/ws recap` shows it any time. |
+| **Settings** | Blizzard `Settings` API: `RegisterVerticalLayoutCategory`, and `RegisterProxySetting` for every control, so the page reads and writes `ns.Options` / `ns.Trackers` and never owns data. Sections: **General** (login recap, minimap button, date format dropdown), **Tracking** (one toggle per tracker, generated from the registry), **Data** (stats, error log, rebuild indexes, reset with a confirmation popup and a reload). **Footsteps** (enable, record flights) joins in 0.4. Without the API the page is skipped and `/ws settings` says so. |
+| **Minimap button** | LibDataBroker-1.1 + LibDBIcon-1.0, position and hidden flag in `WayscribeDB.settings.minimap`. Placeholder icon: `Interface\Icons\INV_Misc_Book_09`. Left-click toggles the journal, right-click opens settings. Skipped when the libraries are missing. The Addon Compartment entry comes from the TOC (`AddonCompartmentFunc`), so it works without libraries. |
 | **Keybind** | `Bindings.xml`: `WAYSCRIBE_TOGGLE` under the AddOns category, unbound by default and configurable in the game's Keybindings menu. `BINDING_HEADER_WAYSCRIBE` and `BINDING_NAME_WAYSCRIBE_TOGGLE` are localized. |
-| **Slash** | `/wayscribe` or `/ws` (toggle), plus `probe`, `stats`, `log`, `rebuild`, `dev`, `simulate <TYPE> …`, `accept`. |
+| **Slash** | `/wayscribe` or `/ws` (toggle), plus `settings`, `recap`, `probe`, `stats`, `log`, `rebuild`, `dev`, `simulate <TYPE> …`, `accept`. |
 | **Wrapped** | See §8. |
 
 All UI listens to bus messages. None of it polls.
@@ -538,18 +585,18 @@ All UI listens to bus messages. None of it polls.
 
 ```text
 Wayscribe.toc
-Bindings.xml
-embeds.xml                 -- libs (fetched by the packager via .pkgmeta)
-Locales/   enUS.lua deDE.lua Locales.xml
-Core/      Init.lua Log.lua Time.lua Bus.lua Module.lua Trackers.lua
+Bindings.xml               -- key binding (loaded by the client, not listed in the TOC)
+embeds.xml                 -- libs in Libs/ (fetched by the packager via .pkgmeta, git-ignored)
+Locales/   enUS.lua deDE.lua
+Core/      Init.lua Log.lua Time.lua Bus.lua Options.lua Module.lua Trackers.lua Slash.lua Lifecycle.lua
 Compat/    Compat.lua Probe.lua
-Data/      Schema.lua Migrations.lua RecordTypes.lua Store.lua Index.lua Players.lua Codec.lua
-StaticData/ Dungeons.lua QuestChains.lua Gathering.lua
+Data/      Codec.lua RecordTypes.lua Players.lua Index.lua Store.lua Schema.lua
+StaticData/ Dungeons.lua Gathering.lua QuestChains.lua
 Trackers/  Session.lua Level.lua Professions.lua Gathering.lua Bosses.lua Dungeons.lua
            QuestChains.lua HeroPath.lua
-UI/        Theme.lua Journal.lua DayView.lua LoginRecap.lua Settings.lua Minimap.lua
-           HeroPathMap.lua Wrapped.lua
-tests/     run.lua wow_stubs.lua codec_spec.lua store_spec.lua schema_spec.lua index_spec.lua …
+UI/        Journal.lua LoginRecap.lua Settings.lua Minimap.lua
+           Theme.lua DayView.lua HeroPathMap.lua Wrapped.lua
+tests/     run.lua testlib.lua wow_stubs.lua serialize.lua <area>_spec.lua …
 docs/      ARCHITECTURE.md forever-probe.md
 .pkgmeta  .luacheckrc  .github/workflows/{ci.yml,release.yml}
 ```
@@ -576,9 +623,11 @@ dependency mechanism in WoW, so it must match the layer diagram.
 
 ## 10. Libraries and tooling
 
-- **Libraries (minimal):** 0.1 ships with **no external libraries**. Localization is a small in-house
-  table (`Locales/*.lua`). LibStub, CallbackHandler-1.0, LibDataBroker-1.1 and LibDBIcon-1.0 arrive
-  with the minimap button in 0.2.
+- **Libraries (minimal):** localization is a small in-house table (`Locales/*.lua`). Since 0.2,
+  LibStub, CallbackHandler-1.0, LibDataBroker-1.1 and LibDBIcon-1.0 power the minimap button. They are
+  `.pkgmeta` externals that the packager fetches into `Libs/` (git-ignored), and they are **optional at
+  runtime**: an unpackaged copy without `Libs/` loses only the minimap button. `/ws probe` lists the
+  loaded versions.
   - No AceDB: the Store has requirements AceDB doesn't cover (partitioning, migrations, safe mode).
   - No AceAddon: the Module base is about 60 lines.
   - No AceLocale: two locales don't need it. Revisit if CurseForge community translations are wanted.
@@ -586,7 +635,8 @@ dependency mechanism in WoW, so it must match the layer diagram.
   Keep UI builder functions small: Lua 5.1 allows at most 60 upvalues per function, and ForeverChronicle
   shipped a window that failed to load because of it.
 - **Unit tests:** a dependency-free runner (`lua tests/run.lua`) with `tests/wow_stubs.lua` (fake clock,
-  `CreateFrame` that can fire events, `C_Timer`, `issecretvalue`). It runs on Lua 5.1 in CI and on any
+  `CreateFrame` that can fire events and accepts any widget method so UI files load, `C_Timer`,
+  `issecretvalue`, plus instance, group, profession, loot, item and spell doubles). It runs on Lua 5.1 in CI and on any
   local Lua 5.1+. Codec, Store, Schema/migrations, Index rebuild, Players interning, trackers and
   renderers are all exercised, so this is where "very stable read/write" gets proven. A test-only
   serializer round-trips the DB the way the client writes SavedVariables, which proves it holds plain
@@ -625,15 +675,17 @@ actually *fires* for Vanilla content still needs the matching gameplay test.
 | # | Question | Probe (build 70235) | Still open | Fallback if "no" |
 |---|---|---|---|---|
 | 1 | Do `ENCOUNTER_END` / `BOSS_KILL` fire for Vanilla dungeon bosses? | Both events exist. ForeverChronicle uses both and merges duplicates. | Kill a dungeon boss (0.2). | NPC-ID detection via `UNIT_HEALTH` on the current target (CLEU is not an option, §1). |
-| 2 | Which profession API works? | ✅ `GetProfessions` / `GetProfessionInfo` (modern). | Values with a profession learned (the test character had none). | — |
+| 2 | Which profession API works? | ✅ `GetProfessions` / `GetProfessionInfo` (modern). | Values with a profession learned (the probe now prints them). Which skill line ID comes back (parent like 186 or child like 2946)? Does First Aid show up in `GetProfessions`? | — |
 | 3 | Does world position work outdoors? | ✅ `UnitPosition` works (instance 1 = Kalimdor). ✅ `C_Map.GetWorldPosFromMapPos` returns the same point. **UnitPosition's first return equals the world vector's `.x`.** | Behavior inside instances. | Zone-relative `uiMapID + x,y`. |
 | 4 | Does `C_QuestLine` return data for Vanilla quests? | `C_QuestLine.GetQuestLineInfo` exists. | Call it for a Vanilla chain quest (0.3). | Curated chains only. |
 | 5 | Which values are secret, and when? | `issecretvalue` exists. `UnitLevel` is not secret out of combat. ForeverChronicle saw secret aura data and spellcast arguments. | Values in combat and instances. | `Compat.Safe` everywhere. Capture IDs and resolve names later via `ns.Defer`. |
-| 6 | Gather spell IDs, and does `GetLootSourceInfo` exist? | ✅ `GetLootSourceInfo` exists. | Gather spell IDs (0.2). | Spell-name match plus item subclass classification. |
+| 6 | Gather spell IDs, and does `GetLootSourceInfo` exist? | ✅ `GetLootSourceInfo` exists. `SpellName.db2` (via wago.tools): Vanilla IDs named Mining / Herbalism / Skinning, plus Forever's 1235230 (Mining) and 1235236 (Herb Gathering). | Which spell ID a gather cast actually reports, and whether it's secret. The probe prints the names. | Name match is built in (§6.4); item subclass fallback for nodes. |
 | 7 | Does an LFG or dungeon-finder completion event exist? | `LFG_COMPLETION_REWARD` and `SCENARIO_COMPLETED` exist. | Whether they fire for Vanilla dungeons. | Final-boss data table (already the primary signal). |
 | 8 | Do SavedVariables survive a round trip on the current client build? | ✅ Account and character files written on `/reload` and logout, `.bak` holds the previous save, the session was resumed after the reload. | A full relog (should add a second session). Retest on every new client build. | Missing-DB guard (§4.6). |
 
 Other findings:
+- wago.tools lists build 70235 as product `wow_cn_beta`, so its DB2 tables (`DungeonEncounter`, `Map`,
+  `SpellName`, `SkillLine`, `ItemSubClass`) can be read for this exact client. `StaticData/` cites them.
 - `WOW_PROJECT_ID` is **18** on build 70235. Earlier beta builds reported 1 (Mainline), as recorded in
   AutoPotion. Code never branches on it.
 - ScrollBox, the Settings API and the Addon Compartment are all available, so 0.2 and 0.3 can use them.
@@ -654,6 +706,18 @@ Other findings:
 
 - **Travel map name:** **Footsteps** (in-game label). "Hero's Path" is taken by another addon and
   is Nintendo's term. Code and SV keep the internal name `HeroPath`.
+
+### Decided during 0.2
+
+- **Raids are runs too.** The Dungeons tracker follows party and raid instances. Raid finals (Ragnaros,
+  Onyxia, Nefarian, Hakkar, Ossirian, C'Thun, Kel'Thuzad) are in the data table, and a raid night
+  without its final boss is a "visited" entry with the bosses killed.
+- **A run is written when it ends**, not at the final kill: the entry then has every boss and
+  everyone who was there. It closes as soon as the player leaves after the final boss, so it still
+  appears right away.
+- **Captured names.** Boss and instance names are stored as captured from the client (localized),
+  like quest titles in §6.7, because no API resolves those IDs to names later.
+- **Libraries are packager externals**, not committed, and optional at runtime.
 
 ### Landscape (for positioning)
 

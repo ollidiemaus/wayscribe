@@ -10,7 +10,7 @@ local _, ns = ...
 --   merge     function(target, source), combines type-specific rollup fields (year summary)
 --   render    function(data, record) -> text [, icon], localized at display time
 --   upcast    { [fromVersion] = function(data) -> data in version fromVersion + 1 }
-local RecordTypes = { defs = {} }
+local RecordTypes = { defs = {}, counters = {} }
 ns.RecordTypes = RecordTypes
 
 local FIELD_TYPES = { number = true, string = true, boolean = true, table = true }
@@ -118,4 +118,48 @@ function RecordTypes:Render(record)
         return ns.L.ENTRY_UNREADABLE:format(tostring(record.type))
     end
     return text, icon
+end
+
+------------------------------------------------------------------------------------------------
+-- Counters (Store:Count) are summed per day. A registered counter path knows how to show its
+-- bucket as one summary line ("Gathered 23x Copper Ore, ..."):
+--   order   position among a day's counter lines
+--   render  function(bucket) -> text, or nil for nothing worth showing
+
+function RecordTypes:RegisterCounter(path, def)
+    assert(type(path) == "string" and path ~= "", "counter needs a path")
+    assert(not self.counters[path], "duplicate counter " .. path)
+    assert(type(def.render) == "function", path .. ": render is required")
+    def.path = path
+    def.order = def.order or 100
+    self.counters[path] = def
+    return def
+end
+
+local function byOrder(a, b)
+    if a.order ~= b.order then return a.order < b.order end
+    return a.path < b.path
+end
+
+-- One line per registered counter with data, in order. Unknown paths are skipped and a broken
+-- renderer only loses its own line.
+function RecordTypes:RenderCounters(counters)
+    local defs = {}
+    if type(counters) ~= "table" then return defs end
+    for path, def in pairs(self.counters) do
+        if type(counters[path]) == "table" and next(counters[path]) ~= nil then
+            defs[#defs + 1] = def
+        end
+    end
+    table.sort(defs, byOrder)
+    local lines = {}
+    for _, def in ipairs(defs) do
+        local ok, text = pcall(def.render, counters[def.path])
+        if not ok then
+            ns.Log:Error("render:" .. def.path, text)
+        elseif type(text) == "string" then
+            lines[#lines + 1] = text
+        end
+    end
+    return lines
 end

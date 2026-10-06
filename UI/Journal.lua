@@ -111,6 +111,10 @@ function Journal:Refresh()
             used = used + 1
             y = placeLine(used, y, entryText(record), "GameFontHighlight", ENTRY_INDENT)
         end
+        for _, text in ipairs(RecordTypes:RenderCounters((Store:GetDay(dayKey) or {}).counters)) do
+            used = used + 1
+            y = placeLine(used, y, text, "GameFontHighlightSmall", ENTRY_INDENT)
+        end
     end
     if #dayKeys > MAX_DAYS then
         used = used + 1
@@ -137,4 +141,7 @@ function Journal:Toggle()
 end
 
 ns.Bus:On("RECORD_ADDED", Journal, Journal.RequestRefresh)
+ns.Bus:On("COUNTER_CHANGED", Journal, Journal.RequestRefresh)
+ns.Bus:On("ITEM_NAMES_LOADED", Journal, Journal.RequestRefresh)
+ns.Bus:On("SETTINGS_CHANGED", Journal, Journal.RequestRefresh)
 ns.Bus:On("SAFE_MODE", Journal, Journal.RequestRefresh)

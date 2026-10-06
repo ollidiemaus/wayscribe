@@ -1,0 +1,5 @@
+<Bindings>
+    <Binding name="WAYSCRIBE_TOGGLE" header="WAYSCRIBE" category="ADDONS">
+        Wayscribe_ToggleJournal()
+    </Binding>
+</Bindings>

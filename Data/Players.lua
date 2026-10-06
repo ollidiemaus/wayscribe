@@ -41,3 +41,36 @@ end
 function Players:Get(id)
     return self.list and self.list[id]
 end
+
+-- Interns everyone from Compat.GetGroupMembers(); returns their ids, or nil when alone.
+function Players:InternAll(members)
+    local ids = {}
+    for _, member in ipairs(members) do
+        local id = self:Intern(member.guid, member.name, member.realm, member.class)
+        if id then
+            ids[#ids + 1] = id
+        end
+    end
+    return #ids > 0 and ids or nil
+end
+
+-- "Xy, Ab and Cd", or "Xy, Ab, Cd and 4 others" beyond `max` names.
+function Players:FormatNames(ids, max)
+    local L = ns.L
+    local names = {}
+    for _, id in ipairs(ids) do
+        local player = self:Get(id)
+        names[#names + 1] = player and player.name or "?"
+    end
+    max = max or 5
+    if #names > max then
+        local others = #names - (max - 1)
+        for i = #names, max, -1 do
+            names[i] = nil
+        end
+        names[#names + 1] = L.LIST_OTHERS:format(others)
+    end
+    if #names <= 1 then return names[1] or "" end
+    local last = table.remove(names)
+    return L.LIST_AND:format(table.concat(names, L.LIST_SEPARATOR), last)
+end
