@@ -54,7 +54,7 @@ flowchart LR
     C["Compat<br/>capabilities + API shims"] -.-> T
     SD["StaticData<br/>dungeons, chains, gather spells"] -.-> T
     T -->|"Store:Append / Store:Count<br/>Paths:AddSegment"| S["Store + Paths<br/>(single write paths)"]
-    S --> DB[("SavedVariables<br/>WayscribeDB / WayscribeCharDB / WayscribePathDB")]
+    S --> DB[("SavedVariables<br/>WayscribeDB / WayscribeCharDB / WayscribeFootstepsDB")]
     S --> IX["Indexes + Rollups<br/>(rebuildable caches)"]
     S -->|"RECORD_ADDED"| BUS(("Internal bus"))
     BUS --> UI["UI: Journal, Login recap,<br/>Footsteps, Wrapped"]
@@ -148,7 +148,7 @@ The data layer is the most important part of the addon and gets the most tests.
 |---|---|---|---|
 | `WayscribeDB` | Account | Settings, minimap position, error log, per-character canaries (§4.6) | Small. Shared across characters. A separate file, so it can vouch for the character files. |
 | `WayscribeCharDB` | Character | Journal records, counters, sessions, indexes, tracker state | The core data. |
-| `WayscribePathDB` | Character | Footsteps trails (string-packed), written only through `Paths` | The largest and fastest-growing data. Isolating it means it can be wiped, pruned or moved to load-on-demand without touching the journal. It has its own schema version and read-only guard (§4.6). It lives in the same file as the journal (one `Wayscribe.lua` per character), so a file that fails to load takes both. |
+| `WayscribeFootstepsDB` | Character | Footsteps trails (string-packed), written only through `Paths` | The largest and fastest-growing data. Isolating it means it can be wiped, pruned or moved to load-on-demand without touching the journal. It has its own schema version and read-only guard (§4.6). It lives in the same file as the journal (one `Wayscribe.lua` per character), so a file that fails to load takes both. |
 
 ### 4.2 `WayscribeCharDB` layout
 
@@ -315,7 +315,7 @@ ADDON_LOADED
     GUID and shows how to move the old file.
   - This doesn't help if *every* SV file fails to load (canary and journal look like a first
     install), so an export or backup option stays on the roadmap.
-  - **Trails** (`WayscribePathDB`, 0.4) get the same checks with their own outcome: a newer schema, a
+  - **Trails** (`WayscribeFootstepsDB`, 0.4) get the same checks with their own outcome: a newer schema, a
     failed migration, an unexpected shape, or trails missing while the canary counted some
     (`characters[guid].paths`, the trail `seq`) make **only the trails** read-only, with a chat
     warning. The journal keeps recording. `/ws accept` starts new trails. When the journal itself
@@ -535,7 +535,7 @@ second entry, and it falls back to `UnitLevel` when the event argument is secret
 ### 6.8 Footsteps
 
 The travel map, built in 0.4: `Trackers/Footsteps.lua` records, `UI/FootstepsMap.lua` draws, and the
-data layer stores *trails* (`Data/Paths.lua`, `WayscribePathDB`). Trails are the source of truth;
+data layer stores *trails* (`Data/Paths.lua`, `WayscribeFootstepsDB`). Trails are the source of truth;
 everything else is derived from them or counted next to them.
 
 **Sampling** (`Trackers/Footsteps.lua`). A `C_Timer.NewTicker(1)` runs only while the feature is on,
@@ -557,9 +557,9 @@ the player is outdoors (instance type `none`) and trails can be saved. It doesn'
   packed with the polyline codec.
 - Flights are recorded only with *Record flight paths* on (default on).
 
-**Storage** (`WayscribePathDB`, written only through `Data/Paths.lua`):
+**Storage** (`WayscribeFootstepsDB`, written only through `Data/Paths.lua`):
 ```lua
-WayscribePathDB = {
+WayscribeFootstepsDB = {
     schema = 1, seq = 42,                   -- seq: trails ever stored (the canary's count, §4.6)
     months = { [202610] = { days = { [20261003] = {
         { c = 1, t = 1759490000, d = 640, f = nil, p = "Bx3_a9…" },   -- continent, start, seconds moving, flight, points
@@ -668,7 +668,7 @@ TOC essentials:
 ## Author: ollidiemaus
 ## Version: @project-version@
 ## SavedVariables: WayscribeDB
-## SavedVariablesPerCharacter: WayscribeCharDB, WayscribePathDB
+## SavedVariablesPerCharacter: WayscribeCharDB, WayscribeFootstepsDB
 ## IconTexture: Interface\Icons\INV_Misc_Book_09
 ## AddonCompartmentFunc: Wayscribe_OnAddonCompartmentClick
 ```
@@ -759,7 +759,8 @@ Other findings:
   Compat layer still keeps other flavors cheap to add later.
 - **Day boundary:** calendar midnight in local time (§3.5). A session that runs past midnight
   continues on the next day's page.
-- **Name:** Wayscribe. SVs `WayscribeDB` / `WayscribeCharDB` / `WayscribePathDB`, slash
+- **Name:** Wayscribe. SVs `WayscribeDB` / `WayscribeCharDB` / `WayscribeFootstepsDB` (planned as
+  `WayscribePathDB`, renamed in 0.4 before release), slash
   `/wayscribe` (alias `/ws`). "Diary" was taken on CurseForge.
 - **Companion names:** stored and shown. There's no "hide names" toggle for now.
 
@@ -805,16 +806,17 @@ Other findings:
   month, so a day's trails are a table lookup and every trail belongs to exactly one journal day.
 - **Distance is a journal counter** (`travel`), written when a trail ends, so the journal, the login
   recap and Wrapped never decode trails.
-- **Trails have their own guard.** A problem with `WayscribePathDB` makes only the trails read-only;
+- **Trails have their own guard.** A problem with `WayscribeFootstepsDB` makes only the trails read-only;
   the journal keeps working (§4.6).
 - **Trails continue after a pause.** A trail ends after a minute without moving (and at midnight, on
   taxis, at death), but the next one starts at its last point when the player is still there, so
   the map shows one unbroken route.
 - **Geometry is Core.** Douglas-Peucker, the world-to-map transform and clipping are pure math used
   by the recorder, the map and the probe, like `Time`.
-- **One name: Footsteps.** Files, modules and the tracker id say Footsteps, like the game; the data
-  layer calls what it stores *trails* (`Paths`, `WayscribePathDB`). Renamed before release, so no
-  saved setting refers to the old `HeroPath` id.
+- **One name: Footsteps.** Files, modules, the tracker id and the saved variables
+  (`WayscribeFootstepsDB`) say Footsteps, like the game; the data layer calls what it stores *trails*
+  (`Paths`). Renamed before release, so no saved file refers to the old `HeroPath` id or
+  `WayscribePathDB`.
 - **Coverage moves to 0.5.** "% of Azeroth walked" is a Wrapped card; it's built with Wrapped.
 
 ### Landscape (for positioning)

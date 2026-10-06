@@ -5,7 +5,7 @@
 ## Author: ollidiemaus
 ## Version: @project-version@
 ## SavedVariables: WayscribeDB
-## SavedVariablesPerCharacter: WayscribeCharDB, WayscribePathDB
+## SavedVariablesPerCharacter: WayscribeCharDB, WayscribeFootstepsDB
 ## IconTexture: Interface\Icons\INV_Misc_Book_09
 ## AddonCompartmentFunc: Wayscribe_OnAddonCompartmentClick
 ## Category-enUS: Journal

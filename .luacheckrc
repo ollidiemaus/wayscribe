@@ -8,7 +8,7 @@ exclude_files = { ".git/", ".release/", "Libs/", ".lua/", ".luarocks/", ".instal
 globals = {
     "WayscribeDB",
     "WayscribeCharDB",
-    "WayscribePathDB",
+    "WayscribeFootstepsDB",
     "SLASH_WAYSCRIBE1",
     "SLASH_WAYSCRIBE2",
     "SlashCmdList",

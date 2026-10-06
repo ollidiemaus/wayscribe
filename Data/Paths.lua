@@ -1,7 +1,7 @@
 local _, ns = ...
 local Time = ns.Time
 
--- The single write path for Footsteps trails (docs/ARCHITECTURE.md §6.8). WayscribePathDB is kept
+-- The single write path for Footsteps trails (docs/ARCHITECTURE.md §6.8). WayscribeFootstepsDB is kept
 -- apart from the journal, so it can be wiped, pruned or archived on its own:
 --   months[YYYYMM].days[YYYYMMDD] = { { c = continent, t = start, d = seconds moving,
 --                                       f = true for a flight, p = packed points }, ... }

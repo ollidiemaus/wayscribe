@@ -313,7 +313,7 @@ function Stubs.InstallScrollBox()
     }
 end
 
--- opts: now, guid, name, realm, level, interface, accountDB, charDB, locale, unknownEvents
+-- opts: now, guid, name, realm, level, interface, accountDB, charDB, footstepsDB, locale, unknownEvents
 function Stubs.Install(opts)
     opts = opts or {}
     state = {
@@ -387,7 +387,7 @@ function Stubs.Install(opts)
     _G.MapCanvasDataProviderMixin, _G.CreateFromMixins, _G.OpenWorldMap, _G.MenuUtil = nil, nil, nil, nil
     _G.WayscribeDB = opts.accountDB
     _G.WayscribeCharDB = opts.charDB
-    _G.WayscribePathDB = opts.pathDB
+    _G.WayscribeFootstepsDB = opts.footstepsDB
 end
 
 -- The default world map as far as Footsteps uses it: a MapCanvas with data providers, showing
@@ -554,7 +554,7 @@ function Stubs.Relog(opts, reload)
     local saved = {
         accountDB = serialize.RoundTrip(_G.WayscribeDB),
         charDB = serialize.RoundTrip(_G.WayscribeCharDB),
-        pathDB = serialize.RoundTrip(_G.WayscribePathDB),
+        footstepsDB = serialize.RoundTrip(_G.WayscribeFootstepsDB),
     }
     local world = {
         instance = state.instance, group = state.group, professions = state.professions,

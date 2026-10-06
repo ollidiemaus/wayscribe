@@ -10,7 +10,7 @@ local L = ns.L
 --
 -- Rule: never destroy data we don't understand. Any problem puts the addon into safe mode and
 -- leaves the loaded tables exactly as they were, so logout writes back the same data. A problem
--- with the trails (WayscribePathDB) only makes the trails read-only; the journal keeps working.
+-- with the trails (WayscribeFootstepsDB) only makes the trails read-only; the journal keeps working.
 local Schema = {
     CHAR_CURRENT = 1,
     ACCOUNT_CURRENT = 1,
@@ -56,7 +56,7 @@ local function newCharDB(identity)
     }
 end
 
-local function newPathDB()
+local function newFootstepsDB()
     return { schema = Schema.PATH_CURRENT, seq = 0, months = {} }
 end
 
@@ -193,9 +193,9 @@ function Schema:LoadCharacter()
     ns.charDB = migrated
 end
 
--- WayscribePathDB is left exactly as loaded when it can't be used, like the journal.
+-- WayscribeFootstepsDB is left exactly as loaded when it can't be used, like the journal.
 function Schema:LoadPaths()
-    local raw = WayscribePathDB
+    local raw = WayscribeFootstepsDB
     if raw == nil then
         self.pathsMissing = true
         return
@@ -214,8 +214,8 @@ function Schema:LoadPaths()
     if type(migrated.seq) ~= "number" then
         return self:FailPaths("corrupt", "seq missing")
     end
-    WayscribePathDB = migrated
-    ns.pathDB = migrated
+    WayscribeFootstepsDB = migrated
+    ns.footstepsDB = migrated
 end
 
 function Schema:VerifyIdentity()
@@ -267,12 +267,12 @@ function Schema:VerifyPaths()
         if saved > 0 then
             return self:FailPaths("missing", nil, saved)
         end
-        WayscribePathDB = newPathDB()
-        ns.pathDB = WayscribePathDB
+        WayscribeFootstepsDB = newFootstepsDB()
+        ns.footstepsDB = WayscribeFootstepsDB
         self.pathsMissing = nil
     end
-    if ns.pathDB then
-        ns.Paths:Attach(ns.pathDB)
+    if ns.footstepsDB then
+        ns.Paths:Attach(ns.footstepsDB)
     end
 end
 
@@ -302,9 +302,9 @@ function Schema:ResetCharacter()
     WayscribeCharDB = newCharDB(self.identity or ns.Compat.GetPlayerIdentity())
     ns.charDB = WayscribeCharDB
     ns.Store:Attach(WayscribeCharDB)
-    WayscribePathDB = newPathDB()
-    ns.pathDB = WayscribePathDB
-    ns.Paths:Attach(WayscribePathDB)
+    WayscribeFootstepsDB = newFootstepsDB()
+    ns.footstepsDB = WayscribeFootstepsDB
+    ns.Paths:Attach(WayscribeFootstepsDB)
     self:TouchCanary()
     return true
 end
@@ -326,7 +326,7 @@ function Schema:Accept()
         accepted = true
     end
     if self.pathSafeKind == "missing" then
-        WayscribePathDB = newPathDB()
+        WayscribeFootstepsDB = newFootstepsDB()
         local canary = me.guid and ns.accountDB.characters[me.guid]
         if type(canary) == "table" then
             canary.paths = 0
