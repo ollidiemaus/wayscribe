@@ -278,11 +278,16 @@ function Compat.GetSkillLineName(skillLine)
     return text(Compat.Call(api, skillLine))
 end
 
+-- Trimmed: some names come with stray spaces (23491 " Extrem sicherer Transporter: Gadgetzan" on
+-- build 70235's German client).
 function Compat.GetSpellName(spellID)
+    local name
     if C_Spell and C_Spell.GetSpellName then
-        return text(Compat.Call(C_Spell.GetSpellName, spellID))
+        name = Compat.Call(C_Spell.GetSpellName, spellID)
+    else
+        name = Compat.Call(GetSpellInfo, spellID)
     end
-    return text(Compat.Call(GetSpellInfo, spellID))
+    return text(type(name) == "string" and name:match("^%s*(.-)%s*$") or nil)
 end
 
 -- A spell's icon (a file ID or path), or nil.

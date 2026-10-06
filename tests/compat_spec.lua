@@ -87,6 +87,15 @@ describe("capabilities", function()
         T.eq(ns.Compat.GetPlayerWorldPosition(), nil, "a hidden position is no position")
     end)
 
+    it("trims spell names, which can come with stray spaces", function()
+        local ns = Stubs.LoadAddon()
+        Stubs.state.spellNames[23491] = " Extrem sicherer Transporter: Gadgetzan"
+        Stubs.state.spellNames[1] = "  "
+        T.eq(ns.Compat.GetSpellName(23491), "Extrem sicherer Transporter: Gadgetzan")
+        T.eq(ns.Compat.GetSpellName(1), nil)
+        T.eq(ns.Compat.GetSpellName(2), nil)
+    end)
+
     it("probe asks the quest line API about the quests in the log", function()
         local ns = Stubs.LoadAddon()
         _G.C_QuestLog.GetNumQuestLogEntries = function() return 3 end

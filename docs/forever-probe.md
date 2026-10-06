@@ -242,3 +242,36 @@ Notes:
   Teleport: Moonglade 18960, Forever's Teleport: Dalaran 1297659, Dimensional Ripper - Everlook
   23486 (not 23442, which is its effect), Ultrasafe Transporter: Gadgetzan 23489/23491, and
   Forever's hearthstones and transporters. The next probe prints their names.
+
+## Client 1.60.1, build 70235, Wayscribe 0.4, extended travel spells (2026-10-06)
+
+Same character, in Bloodhoof, after the travel spell list grew:
+
+```text
+spell.travel.8690 = Ruhestein
+spell.travel.1235126 = Ruhestein der Argentumdämmerung
+spell.travel.1312670 = Bröckelnder Ruhestein
+spell.travel.556 = Astraler Rückruf
+spell.travel.18960 = Teleportieren: Moonglade
+spell.travel.3561 = Teleportieren: Stormwind
+spell.travel.3562 = Teleportieren: Ironforge
+spell.travel.3563 = Teleportieren: Undercity
+spell.travel.3565 = Teleportieren: Darnassus
+spell.travel.3566 = Teleportieren: Thunder Bluff
+spell.travel.3567 = Teleportieren: Orgrimmar
+spell.travel.1297659 = Teleportieren: Dalaran
+spell.travel.23486 = Dimensionszerfetzer-Everlook
+spell.travel.23489 = Extrem sicherer Transporter nach Gadgetzan
+spell.travel.23491 =  Extrem sicherer Transporter: Gadgetzan
+spell.travel.1226213 = Halbwegs sicherer Transporter: Neu-Avalon
+spell.travel.1266932 = EZ-Thro-Feldtransporter: Gadgetzan
+spell.travel.1266934 = EZ- und SAF-Feldtransporter: Hyjal
+spell.travel.1266936 = Dimensionstransporter: Hyjal
+subZone = Bloodhoof
+```
+
+Notes:
+- All 19 travel spells exist on the client and have German names, including Forever's own
+  (Hearthstone of the Dawn is "Ruhestein der Argentumdämmerung").
+- 23491's name starts with a space in the client's data. `Compat.GetSpellName` now trims names, so
+  the journal never shows it.
