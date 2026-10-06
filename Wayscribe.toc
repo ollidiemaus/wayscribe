@@ -42,6 +42,7 @@ Data\Schema.lua
 StaticData\Dungeons.lua
 StaticData\Gathering.lua
 StaticData\QuestChains.lua
+StaticData\Travel.lua
 
 Trackers\Session.lua
 Trackers\Level.lua

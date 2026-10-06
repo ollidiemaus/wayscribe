@@ -231,6 +231,108 @@ describe("recording", function()
     end)
 end)
 
+describe("journeys by spell", function()
+    -- Spell names are read when Footsteps starts, so they are set before the login.
+    local function startWithSpells(opts, names)
+        local ns = Stubs.LoadAddon(opts)
+        for spellID, name in pairs(names or { [8690] = "Hearthstone" }) do
+            Stubs.state.spellNames[spellID] = name
+        end
+        Stubs.Login()
+        return ns
+    end
+
+    local function cast(spellID)
+        Stubs.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-1-1-1-1", spellID)
+    end
+
+    local function journeys(ns)
+        return ns.Store:GetRecordsOfType("TELEPORT")
+    end
+
+    it("records a hearthstone: where from, where to, dated at the arrival", function()
+        local ns = startWithSpells()
+        walk(line(0, 0, 0, 100, 10))
+        wait(10)
+        cast(8690)
+        Stubs.SetBestMap(1412)
+        Stubs.SetSubZone("Bloodhoof")
+        walk({ { 690, 100 } })
+        local arrival = Stubs.Now()
+        T.eq(#journeys(ns), 0, "named once the subzone has caught up")
+        wait(2)
+        local list = journeys(ns)
+        T.eq(#list, 1)
+        T.same(list[1].data, { spell = 8690, map = 1412, sub = "Bloodhoof", c = 1, x = 690, y = 100, fc = 1, fx = 0, fy = 100 })
+        T.eq(list[1].ts, arrival)
+        T.eq(ns.RecordTypes:Render(list[1]), "Hearthstone to Bloodhoof")
+        T.eq(ns.RecordTypes:CategoryOf("TELEPORT"), "travel")
+        T.eq(#trails(ns), 1, "and the trail breaks there")
+        T.eq(#ns.Log:GetEntries(), 0)
+    end)
+
+    it("knows other versions by their name, and reads well in German", function()
+        local ns = startWithSpells({ locale = "deDE" }, { [8690] = "Ruhestein", [1239000] = "Ruhestein" })
+        walk(line(0, 0, 0, 100, 10))
+        cast(1239000)
+        Stubs.SetSubZone("Bloodhoof")
+        walk({ { 690, 100 } })
+        wait(2)
+        T.eq(ns.RecordTypes:Render(journeys(ns)[1]), "Ruhestein nach Bloodhoof")
+    end)
+
+    it("follows a hearthstone through a loading screen to another continent", function()
+        local ns = startWithSpells()
+        walk(line(0, 0, 0, 100, 10))
+        cast(8690)
+        Stubs.SetPosition(0, 5000, 5000)
+        Stubs.Fire("PLAYER_ENTERING_WORLD", false, false)
+        wait(3)
+        local data = journeys(ns)[1].data
+        T.same({ data.fc, data.fx, data.fy, data.c, data.x, data.y }, { 1, 0, 100, 0, 5000, 5000 })
+    end)
+
+    it("keeps only the arrival when cast inside an instance", function()
+        local ns = startWithSpells()
+        Stubs.SetInstance(389, "party", "Ragefire Chasm")
+        Stubs.Fire("PLAYER_ENTERING_WORLD", false, false)
+        Stubs.SetPosition()
+        cast(8690)
+        Stubs.SetInstance()
+        Stubs.SetPosition(1, 690, 100)
+        Stubs.Fire("PLAYER_ENTERING_WORLD", false, false)
+        wait(3)
+        local data = journeys(ns)[1].data
+        T.eq(data.fc, nil)
+        T.same({ data.c, data.x, data.y }, { 1, 690, 100 })
+    end)
+
+    it("records nothing for a cast that went nowhere, or a jump without a cast", function()
+        local ns = startWithSpells()
+        walk(line(0, 0, 0, 100, 10))
+        cast(8690) -- interrupted by nothing, but the player stays
+        wait(70)
+        walk(line(0, 100, 0, 200, 10))
+        walk({ { 900, 200 } }) -- a summon, long after the cast
+        wait(3)
+        T.eq(#journeys(ns), 0)
+        cast(2575) -- not a travel spell
+        walk({ { 1800, 200 } })
+        wait(3)
+        T.eq(#journeys(ns), 0)
+    end)
+
+    it("ignores a secret spell ID without errors", function()
+        local ns = startWithSpells()
+        walk(line(0, 0, 0, 100, 10))
+        cast(Stubs.SECRET)
+        walk({ { 690, 100 } })
+        wait(3)
+        T.eq(#journeys(ns), 0)
+        T.eq(#ns.Log:GetEntries(), 0)
+    end)
+end)
+
 describe("journal", function()
     it("shows the distance of the day", function()
         local ns = start()

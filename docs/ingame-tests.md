@@ -120,7 +120,7 @@ about 3.2 KB (budget 10 KB). These checks need the client.
 - [ ] **Hearthstone or a portal.** No line across the jump. *2026-10-06: a hearthstone within
   Mulgore (no loading screen) drew a straight 688-yard line. The jump was measured from the last
   kept point, and the 10 s cast standing still made it look like a walk. Jumps are now measured
-  from the previous second's sample. Check again.*
+  from the previous second's sample. Check again: no line, and see "Journeys" below.*
 - [x] **Die and run back as a ghost.** The ghost's way is not drawn. *Yes; after resurrecting, the
   trail goes on from the respawn spot (2026-10-06).*
 - [ ] **Fight a few mobs while moving.** The line has no gaps from combat. (Is the position
@@ -154,8 +154,22 @@ about 3.2 KB (budget 10 KB). These checks need the client.
 - [ ] **Settings:** the Fußspuren section (map dropdown, flights, *Alle Spuren löschen* with its
   confirmation). Try deleting only on a test character.
 
+### Journeys
+
+- [ ] **`/ws probe`:** the `spell.travel.*` lines name Ruhestein, Astraler Rückruf and the mage
+  teleports in German; `subZone` names where you stand.
+- [ ] **Hearthstone within a zone** (e.g. to Bloodhoof). The journal shows "Ruhestein nach
+  Bloodhoof" under *Reisen*, at the time you arrived. The map shows the hearthstone's icon where
+  you cast it and where you arrived; mouseover: "Ruhestein nach Bloodhoof" and "Mit Ruhestein
+  angekommen". No line between them.
+- [ ] **Hearthstone to another continent** (a loading screen): the entry appears; each continent's
+  map shows its end.
+- [ ] **A summon or a boat** (no travel spell): no entry, no icon, just a break in the trail.
+
 ### Deaths
 
+- [ ] **Die in a named spot** (e.g. Red Cloud Mesa): the entry reads "In Red Cloud Mesa, Mulgore
+  gestorben".
 - [x] **Die outdoors.** The journal shows "In Mulgore gestorben" (with the time), and the map shows a
   skull where you died. Mouseover: "Hier gestorben" and the time; the skull keeps its size when
   zooming. With the map open while dying, the skull appears at once. *Entry, skull and tooltip

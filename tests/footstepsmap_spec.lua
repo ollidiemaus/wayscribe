@@ -6,11 +6,13 @@ local DAY = 24 * 3600
 local WIDTH, HEIGHT = 1000, 668 -- the stub map's canvas
 
 -- opts.noMap: a client without the world map's data providers.
+-- opts.before(): runs just before the login (spell names, for example).
 local function start(opts)
     opts = opts or {}
     local ns = Stubs.LoadAddon(opts)
     local map = not opts.noMap and Stubs.InstallWorldMap() or nil
     Stubs.InstallScrollBox()
+    if opts.before then opts.before() end
     Stubs.Login()
     return ns, map
 end
@@ -217,10 +219,11 @@ describe("world map", function()
     end)
 end)
 
-local function skulls(ns)
-    local deaths, list = ns.FootstepsMap.view.deaths, {}
-    for i = 1, deaths.used do
-        if deaths.markers[i]:IsShown() then list[#list + 1] = deaths.markers[i] end
+-- The map's markers (skulls, spell icons) that are shown.
+local function markers(ns)
+    local pool, list = ns.FootstepsMap.view.markers, {}
+    for i = 1, pool.used do
+        if pool.frames[i]:IsShown() then list[#list + 1] = pool.frames[i] end
     end
     return list
 end
@@ -246,7 +249,7 @@ describe("deaths on the map", function()
         local ns, map = start()
         dieAt(1412, 0.3, 0.6)
         map:Show()
-        local list = skulls(ns)
+        local list = markers(ns)
         T.eq(#list, 1)
         local point = list[1].lastPoint
         T.eq(point[1], "CENTER")
@@ -265,25 +268,25 @@ describe("deaths on the map", function()
         dieAt(1412, 0.3, 0.6)
         Stubs.Advance(DAY)
         map:Show()
-        T.eq(#skulls(ns), 0, "today only")
+        T.eq(#markers(ns), 0, "today only")
         ns.FootstepsMap.button:Click()
-        T.eq(#skulls(ns), 1, "the last 7 days")
+        T.eq(#markers(ns), 1, "the last 7 days")
         local tooltip = installTooltip()
-        skulls(ns)[1].scripts.OnEnter(skulls(ns)[1])
+        markers(ns)[1].scripts.OnEnter(markers(ns)[1])
         T.same(tooltip.lines, { "Died here", "2026-10-03, 12:00 PM" })
         _G.GameTooltip = nil
         ns.FootstepsMap.button:Click()
         ns.FootstepsMap.button:Click()
-        T.eq(#skulls(ns), 0, "off")
+        T.eq(#markers(ns), 0, "off")
     end)
 
     it("adds a skull when you die with the map open, and keeps its size at every zoom", function()
         local ns, map = start()
         map:Show()
         dieAt(1412, 0.5, 0.5)
-        T.eq(#skulls(ns), 1)
+        T.eq(#markers(ns), 1)
         map:Zoom(2)
-        T.eq(skulls(ns)[1].width, 8)
+        T.eq(markers(ns)[1].width, 8)
     end)
 
     it("leaves out deaths elsewhere: off this map or without a position", function()
@@ -295,9 +298,38 @@ describe("deaths on the map", function()
         Stubs.Fire("PLAYER_DEAD")
         Stubs.SetInstance()
         map:Show()
-        T.eq(#skulls(ns), 0)
+        T.eq(#markers(ns), 0)
         map:SetMapID(1414)
-        T.eq(#skulls(ns), 1, "the continent shows the one outside the zone")
+        T.eq(#markers(ns), 1, "the continent shows the one outside the zone")
+    end)
+end)
+
+describe("journeys on the map", function()
+    it("marks a hearthstone with its icon where it left and where it arrived", function()
+        local ns, map = start({ before = function()
+            Stubs.state.spellNames[8690] = "Hearthstone"
+            Stubs.state.spellIcons[8690] = 134414
+        end })
+        walkOnMap(1412, 0.3, 0.6, 0.31, 0.6)
+        Stubs.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-1-1-1-1", 8690)
+        Stubs.SetSubZone("Bloodhoof")
+        Stubs.SetPosition(1, Stubs.MapToWorld(1412, 0.6, 0.3))
+        wait(3)
+        map:Show()
+        local list = markers(ns)
+        T.eq(#list, 2)
+        local departure, arrival = list[1], list[2]
+        T.eq(departure.icon.file, 134414)
+        near(departure.lastPoint[4], 0.31 * WIDTH, "departure x")
+        near(arrival.lastPoint[4], 0.6 * WIDTH, "arrival x")
+        near(arrival.lastPoint[5], -0.3 * HEIGHT, "arrival y")
+        local tooltip = installTooltip()
+        departure.scripts.OnEnter(departure)
+        T.eq(tooltip.lines[1], "Hearthstone to Bloodhoof")
+        arrival.scripts.OnEnter(arrival)
+        T.eq(tooltip.lines[1], "Arrived by Hearthstone")
+        _G.GameTooltip = nil
+        T.eq(#ns.Log:GetEntries(), 0)
     end)
 end)
 

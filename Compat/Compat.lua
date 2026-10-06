@@ -202,6 +202,12 @@ function Compat.GetMapAtWorldPos(continentID, x, y)
     return mapID
 end
 
+-- The subzone the player is in ("Red Cloud Mesa"), in the client's language, or nil. No API turns
+-- a subzone back into a name later, so callers keep the text (like boss names).
+function Compat.GetSubZoneName()
+    return text(Compat.Call(GetSubZoneText))
+end
+
 -- A map's name in the client's language (a zone, a dungeon), or nil.
 function Compat.GetMapName(mapID)
     local info = C_Map and C_Map.GetMapInfo and Compat.Call(C_Map.GetMapInfo, mapID)
@@ -277,6 +283,17 @@ function Compat.GetSpellName(spellID)
         return text(Compat.Call(C_Spell.GetSpellName, spellID))
     end
     return text(Compat.Call(GetSpellInfo, spellID))
+end
+
+-- A spell's icon (a file ID or path), or nil.
+function Compat.GetSpellIcon(spellID)
+    local icon
+    if C_Spell and C_Spell.GetSpellTexture then
+        icon = Compat.Call(C_Spell.GetSpellTexture, spellID)
+    else
+        icon = Compat.Call(GetSpellTexture, spellID)
+    end
+    return (type(icon) == "number" or type(icon) == "string") and icon or nil
 end
 
 -- Item class and subclass IDs are locale-free (7/7 = Metal & Stone, 7/9 = Herb, 7/6 = Leather).

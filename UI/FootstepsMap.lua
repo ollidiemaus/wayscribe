@@ -9,7 +9,8 @@ local L, Compat, Paths, Time, Geometry, Codec = ns.L, ns.Compat, ns.Paths, ns.Ti
 --     MAX_LINES; no line is shorter than MIN_LINE_PIXELS on screen;
 --   * drawing is spread over frames (BUDGET_MS each), so even "All" never stalls the map;
 --   * the trail being recorded grows while the map is open, with a tail line to the player;
---   * a skull marks each death (journal DEATH records with a position) on the days shown.
+--   * journal records with places draw markers on the days shown (RecordTypes' markers): a skull
+--     for a death, a spell's icon where a hearthstone journey left and arrived.
 -- A button on the map picks which trails to show; the journal's day page can show one day.
 local FootstepsMap = {}
 ns.FootstepsMap = FootstepsMap
@@ -31,8 +32,7 @@ local STYLES = {
     flight = { width = 1.5, color = { 0.16, 0.38, 0.78 } },
 }
 local RECENT_ALPHA, OLDER_ALPHA = 0.9, 0.5
-local DEATH_ICON = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull"
-local DEATH_SIZE = 16 -- pixels on screen
+local MARKER_SIZE = 16 -- pixels on screen
 local MAX_PARENTS = 10
 
 local function newPool(sublevel)
@@ -42,10 +42,10 @@ end
 -- day: a day picked in the journal, shown until the map closes; job: the drawing coroutine;
 -- transform: world -> shown map, nil while nothing can be drawn; drawnScale: the canvas scale the
 -- lines were drawn for; liveFrom: index of the live trail's last point a line ends at; tail: the
--- line from there to the player; deaths: the skull markers.
+-- line from there to the player; markers: icons of journal records (deaths, journeys).
 local view = {
     trails = newPool(1), liveTrail = newPool(2), transforms = {}, liveFrom = 1,
-    deaths = { markers = {}, used = 0 },
+    markers = { frames = {}, used = 0 },
 }
 FootstepsMap.view = view
 
@@ -243,19 +243,19 @@ local function ensureFrame(map)
     view.frame = frame
 end
 
-local function clearDeaths()
-    local deaths = view.deaths
-    for i = 1, deaths.used do
-        deaths.markers[i]:Hide()
+local function clearMarkers()
+    local markers = view.markers
+    for i = 1, markers.used do
+        markers.frames[i]:Hide()
     end
-    deaths.used = 0
+    markers.used = 0
 end
 
 function FootstepsMap:Clear()
     stopJob()
     clearPool(view.trails)
     clearPool(view.liveTrail)
-    clearDeaths()
+    clearMarkers()
     if view.tail then view.tail:Hide() end
     view.liveRef, view.liveFrom = nil, 1
 end
@@ -288,7 +288,7 @@ function FootstepsMap:Redraw()
     view.frame:SetScript("OnUpdate", resume)
     resume()
     self:DrawLive()
-    self:DrawDeaths()
+    self:DrawMarkers()
 end
 
 -- The trail being recorded, from its last drawn point on, plus the tail to the player.
@@ -321,8 +321,8 @@ function FootstepsMap:UpdateThickness()
     if view.tail and view.tail.style then
         view.tail:SetThickness(STYLES[view.tail.style].width / view.scale)
     end
-    for i = 1, view.deaths.used do
-        view.deaths.markers[i]:SetSize(DEATH_SIZE / view.scale, DEATH_SIZE / view.scale)
+    for i = 1, view.markers.used do
+        view.markers.frames[i]:SetSize(MARKER_SIZE / view.scale, MARKER_SIZE / view.scale)
     end
 end
 
@@ -433,62 +433,68 @@ function FootstepsMap:CreateButton(map)
 end
 
 ------------------------------------------------------------------------------------------------
--- Deaths: a skull where each one happened, with its time on mouseover.
+-- Markers: what journal records put on the map (a skull for a death, a spell's icon where a
+-- journey left and arrived), each with its title and time on mouseover.
 
-local function showDeathTooltip(marker)
+local function showMarkerTooltip(frame)
     if not GameTooltip then return end
-    local ts = marker.record.ts
+    local ts = frame.record.ts
     local when = Time.FormatClock(ts, Compat.Uses24HourClock())
     local dayKey = Time.DayKey(ts)
     if dayKey ~= Time.DayKey(Time.Now()) then
-        when = L.DEATH_WHEN:format(Time.FormatDay(dayKey), when)
+        when = L.MARKER_WHEN:format(Time.FormatDay(dayKey), when)
     end
-    GameTooltip:SetOwner(marker, "ANCHOR_RIGHT")
-    GameTooltip:SetText(L.DEATH_TOOLTIP)
+    GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
+    GameTooltip:SetText(frame.title)
     GameTooltip:AddLine(when, 1, 1, 1)
     GameTooltip:Show()
 end
 
-local function placeDeath(record)
-    local data = record.data
-    local u, v = Geometry.ToMap(view.transform, data.x, data.y)
-    if u < 0 or u > 1 or v < 0 or v > 1 then return end
-    local deaths = view.deaths
-    deaths.used = deaths.used + 1
-    local marker = deaths.markers[deaths.used]
-    if not marker then
-        marker = CreateFrame("Frame", nil, view.frame)
-        marker.icon = marker:CreateTexture(nil, "OVERLAY")
-        marker.icon:SetAllPoints()
-        marker.icon:SetTexture(DEATH_ICON)
-        marker:EnableMouse(true)
-        marker:SetScript("OnEnter", showDeathTooltip)
-        marker:SetScript("OnLeave", hideTooltip)
-        deaths.markers[deaths.used] = marker
+-- marker = { c, x, y, icon, title } from the record's type.
+local function placeMarker(record, marker)
+    if marker.c ~= view.transform.continent or type(marker.x) ~= "number" or type(marker.y) ~= "number" then
+        return
     end
-    marker.record = record
-    marker:ClearAllPoints()
-    marker:SetPoint("CENTER", view.frame, "TOPLEFT", u * view.width, -v * view.height)
-    marker:SetSize(DEATH_SIZE / view.scale, DEATH_SIZE / view.scale)
-    marker:Show()
+    local u, v = Geometry.ToMap(view.transform, marker.x, marker.y)
+    if u < 0 or u > 1 or v < 0 or v > 1 then return end
+    local markers = view.markers
+    markers.used = markers.used + 1
+    local frame = markers.frames[markers.used]
+    if not frame then
+        frame = CreateFrame("Frame", nil, view.frame)
+        frame.icon = frame:CreateTexture(nil, "OVERLAY")
+        frame.icon:SetAllPoints()
+        frame:EnableMouse(true)
+        frame:SetScript("OnEnter", showMarkerTooltip)
+        frame:SetScript("OnLeave", hideTooltip)
+        markers.frames[markers.used] = frame
+    end
+    frame.record, frame.title = record, marker.title
+    frame.icon:SetTexture(marker.icon)
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", view.frame, "TOPLEFT", u * view.width, -v * view.height)
+    frame:SetSize(MARKER_SIZE / view.scale, MARKER_SIZE / view.scale)
+    frame:Show()
 end
 
--- The deaths on the days shown, on the shown map's continent.
-function FootstepsMap:DrawDeaths()
-    clearDeaths()
+-- The markers of the days shown, on the shown map's continent.
+function FootstepsMap:DrawMarkers()
+    clearMarkers()
     if not view.transform then return end
-    for _, record in ipairs(ns.Store:GetRecordsOfType("DEATH", dayRange(self:GetMode()))) do
-        local data = record.data
-        if type(data) == "table" and data.c == view.transform.continent
-            and type(data.x) == "number" and type(data.y) == "number" then
-            placeDeath(record)
+    local fromDay, toDay = dayRange(self:GetMode())
+    for _, typeName in ipairs(ns.RecordTypes:MarkerTypes()) do
+        for _, record in ipairs(ns.Store:GetRecordsOfType(typeName, fromDay, toDay)) do
+            for _, marker in ipairs(ns.RecordTypes:Markers(record)) do
+                placeMarker(record, marker)
+            end
         end
     end
 end
 
 function FootstepsMap:OnRecordAdded(record)
-    if record.type == "DEATH" and self:IsDrawing() then
-        self:DrawDeaths()
+    local def = ns.RecordTypes:Get(record.type)
+    if def and def.markers and self:IsDrawing() then
+        self:DrawMarkers()
     end
 end
 

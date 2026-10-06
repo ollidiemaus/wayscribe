@@ -30,7 +30,8 @@ Everything stays in your SavedVariables. Nothing is sent anywhere.
 - gathering: ore, herbs and skins per day
 - boss kills, including world bosses
 - dungeon and raid runs with your group, duration and first clears
-- deaths: where and when, in the journal and as a skull on the map
+- deaths: where and when (subzone and zone), in the journal and as a skull on the map
+- hearthstone and teleport journeys: from where to where, with an icon at both ends of the map
 - quests turned in per day, and well-known quest chains (attunements, class quests, famous
   storylines). Chains added in a later version are filled in for the day you finished them.
 - **Footsteps**: where you walked, rode and flew, as trails on the world map (today, the last 7

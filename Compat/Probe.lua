@@ -55,6 +55,11 @@ local function addTrackerInputs(add)
             add("spell." .. kind .. "." .. spellID, Compat.GetSpellName(spellID))
         end
     end
+    -- 0.4: the travel spells Footsteps recognizes, and the subzone deaths and journeys name.
+    for _, spellID in ipairs(ns.StaticData.TravelSpells) do
+        add("spell.travel." .. spellID, Compat.GetSpellName(spellID))
+    end
+    add("subZone", Compat.GetSubZoneName())
     add("cvar.timeMgrUseMilitaryTime", Compat.Uses24HourClock())
     -- Library minor versions, nil when missing (an unpackaged copy has no Libs folder).
     local libStub = LibStub

@@ -83,6 +83,7 @@ local function newFrame(frameType, name, _, template)
         function texture:Hide() self.shown = false end
         function texture:SetShown(shown) self.shown = shown == true end
         function texture:IsShown() return self.shown end
+        function texture:SetTexture(file) self.file = file end
         return permissive(texture)
     end
     -- Lines remember where they were drawn (in the frame's coordinates) for map assertions.
@@ -244,7 +245,11 @@ local function installWorld()
         if p then return p.name, 0, p.rank, p.max, 0, 0, p.skillLine end
     end
     _G.C_TradeSkillUI = nil
-    _G.C_Spell = { GetSpellName = function(spellID) return state.spellNames[spellID] end }
+    _G.C_Spell = {
+        GetSpellName = function(spellID) return state.spellNames[spellID] end,
+        GetSpellTexture = function(spellID) return state.spellIcons[spellID] end,
+    }
+    _G.GetSubZoneText = function() return state.subZone or "" end
     _G.C_Item = {
         GetItemNameByID = function(itemID) return state.itemNames[itemID] end,
         GetItemInfoInstant = function(itemID)
@@ -336,6 +341,7 @@ function Stubs.Install(opts)
         group = {},
         professions = {},
         spellNames = {},
+        spellIcons = {},
         itemNames = {},
         itemClasses = {},
         requestedItems = {},
@@ -530,8 +536,9 @@ function Stubs.SetPosition(continent, x, y)
 end
 
 function Stubs.SetTaxi(onTaxi) state.onTaxi = onTaxi end
--- The map C_Map.GetBestMapForUnit reports (default 1411).
+-- The map C_Map.GetBestMapForUnit reports (default 1411), and GetSubZoneText (default "").
 function Stubs.SetBestMap(mapID) state.bestMap = mapID end
+function Stubs.SetSubZone(name) state.subZone = name end
 function Stubs.SetDead(dead) state.dead = dead end
 
 -- Group members other than the player: list of { guid, name, realm, class }.
@@ -571,7 +578,8 @@ function Stubs.Relog(opts, reload)
         instance = state.instance, group = state.group, professions = state.professions,
         spellNames = state.spellNames, itemNames = state.itemNames, itemClasses = state.itemClasses,
         questTitles = state.questTitles, cvars = state.cvars, position = state.position,
-        onTaxi = state.onTaxi, dead = state.dead,
+        onTaxi = state.onTaxi, dead = state.dead, subZone = state.subZone, bestMap = state.bestMap,
+        spellIcons = state.spellIcons,
     }
     opts = opts or {}
     for key, value in pairs(saved) do

@@ -37,7 +37,7 @@ read_globals = {
     "UnitGUID", "UnitFullName", "UnitClass", "UnitLevel", "UnitPosition", "UnitOnTaxi", "UnitIsDeadOrGhost",
     "IsInRaid", "GetNumGroupMembers", "GetNumSubgroupMembers",
     "GetInstanceInfo", "GetProfessions", "GetProfessionInfo", "GetNumSkillLines", "GetSkillLineInfo",
-    "GetSpellInfo", "GetAddOnMetadata", "GetCVar",
+    "GetSpellInfo", "GetSpellTexture", "GetSubZoneText", "GetAddOnMetadata", "GetCVar",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "GetLootSourceInfo",
     -- Namespaces
     "C_AddOns", "C_CVar", "C_EventUtils", "C_Item", "C_Map", "C_QuestLine", "C_QuestLog", "C_Spell", "C_Texture",

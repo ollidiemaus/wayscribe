@@ -235,6 +235,7 @@ ns.RecordTypes:Register("DUNGEON_COMPLETED", {
     rollup   = function(monthRollup, data, r) ... end, -- O(1) update of the month rollup
     merge    = function(yearRollup, monthRollup) ... end, -- combines type-specific rollup fields
     render   = function(data, r) ... end,  -- -> text, icon (localized, at display time)
+    markers  = function(data, r) ... end,  -- optional: { { c, x, y, icon, title }, ... } on the map (0.4)
     upcast   = { [1] = function(data) ... end },  -- optional: version 1 shape -> version 2
 })
 ```
@@ -559,6 +560,15 @@ the player is outdoors (instance type `none`) and trails can be saved. It doesn'
   packed with the polyline codec. A trail shorter than 8 yards (a pause right after a reload) isn't
   stored.
 - Flights are recorded only with *Record flight paths* on (default on).
+- **Journeys by spell.** A cast (`UNIT_SPELLCAST_SUCCEEDED`, player only) of a travel spell from
+  `StaticData/Travel.lua` (Hearthstone, Astral Recall, the mage teleports; matched by ID or by name
+  in the client's language) notes where it was cast. When a trail next starts more than 30 yards
+  away (or on another continent) within 60 s, the journey is recorded as
+  `TELEPORT {spell, map, sub, c, x, y, fc?, fx?, fy?}` (category *travel*), dated at the arrival:
+  "Hearthstone to Bloodhoof" / "Ruhestein nach Bloodhoof". The arrival's subzone is read 2 s later,
+  once the client has caught up. Cast inside an instance, only the arrival has a position. A jump
+  without a recognized cast (a summon, a boat's loading screen, a secret spell ID) only breaks
+  the trail.
 
 **Storage** (`WayscribeFootstepsDB`, written only through `Data/Paths.lua`):
 ```lua
@@ -600,6 +610,11 @@ extension point that HandyNotes also uses.
 - **Filters:** Today (default), Last 7 days, All, Off, set by a button in the map's upper right corner
   (Forever shows its own coordinates in the lower left)
   (a menu where the client has `MenuUtil`, else each click picks the next one) or in settings.
+- **Markers:** record types with a `markers` function (§4.3) put icons on the map for the days
+  shown, each with its title and time (and date, if not today) on mouseover, sized for the screen
+  at every zoom: a skull for a death (§6.9), the spell's icon where a journey by spell left and
+  where it arrived. The map reads them through `Store:GetRecordsOfType`; a new one while the map is
+  open shows at once.
 - **Day → path link:** a journal day with trails shows a *Show on the map* button. It opens the world
   map at the most detailed map that holds the whole day (the zone, else its parents) and shows that
   day until the map closes. `C_Map.GetMapPosFromWorldPos` answers with the continent, so
@@ -610,19 +625,19 @@ only consumer. It will be rasterized from the trails into chunked bitsets in a c
 in memory, persisted only if profiling says so.
 
 ### 6.9 Deaths
-- `PLAYER_DEAD` → `DEATH {map, c?, x?, y?}` in the journal (category *adventure*): the uiMapID
-  from `C_Map.GetBestMapForUnit` and, outdoors, the corpse's continent and position in whole world
-  yards, the same coordinates as Footsteps' trails. Inside instances there is no position, so only
-  the map is kept.
-- Rendered "Died in Mulgore" / "In Mulgore gestorben"; the map's name is looked up when shown
-  (`Compat.GetMapName`), so the record holds only the ID.
+- `PLAYER_DEAD` → `DEATH {map, sub?, c?, x?, y?}` in the journal (category *adventure*): the
+  uiMapID from `C_Map.GetBestMapForUnit`, the subzone's name from `GetSubZoneText` and, outdoors,
+  the corpse's continent and position in whole world yards, the same coordinates as Footsteps'
+  trails. Inside instances there is no position, so only the map is kept.
+- Rendered "Died in Red Cloud Mesa, Mulgore" / "In Red Cloud Mesa, Mulgore gestorben". The zone's
+  name is looked up when shown (`Compat.GetMapName`); the subzone is kept as text, because no API
+  names a subzone later (like boss names, §13).
 - **No killer.** Who dealt the killing blow is only in the combat log, which Forever doesn't allow
   addons (§1), so an entry says where and when, not who.
 - A second `PLAYER_DEAD` within 10 s is the same death.
 - **On the Footsteps map**, a skull marks each death with a position on the days shown (the same
-  Today / Last 7 days / All / picked day as the trails), sized for the screen at every zoom, with
-  the time (and the date, if not today) on mouseover. The map reads the records through
-  `Store:GetRecordsOfType`. A death while the map is open adds its skull at once.
+  Today / Last 7 days / All / picked day as the trails), through the record type's `markers`
+  (§6.8).
 - The month rollup's record count per type already counts deaths, for Wrapped.
 
 ---
@@ -675,7 +690,7 @@ Locales/   enUS.lua deDE.lua
 Core/      Init.lua Log.lua Time.lua Geometry.lua Bus.lua Options.lua Module.lua Trackers.lua Slash.lua Lifecycle.lua
 Compat/    Compat.lua Probe.lua
 Data/      Codec.lua RecordTypes.lua Players.lua Index.lua Store.lua Paths.lua Schema.lua
-StaticData/ Dungeons.lua Gathering.lua QuestChains.lua
+StaticData/ Dungeons.lua Gathering.lua QuestChains.lua Travel.lua
 Trackers/  Session.lua Level.lua Professions.lua Gathering.lua Bosses.lua Dungeons.lua
            QuestChains.lua Footsteps.lua Deaths.lua
 UI/        Journal.lua LoginRecap.lua Settings.lua Minimap.lua
@@ -846,6 +861,13 @@ Other findings:
 - **Deaths join 0.4.** A skull on the map where you died belongs to Footsteps, so the Deaths
   tracker (a future idea until then) came with it. Its records live in the journal, not with the
   trails: a death is a milestone, the map only reads it.
+- **Journeys by spell join 0.4.** In game, a hearthstone drew a straight line across Mulgore. Besides
+  breaking the trail there, a hearthstone or teleport now gets a journal entry ("Ruhestein nach
+  Bloodhoof") and its spell's icon at both ends on the map. Only a recognized cast counts: a jump
+  alone could be a summon or a boat.
+- **Markers come from record types.** Deaths and journeys declare where they go on the map
+  (`markers`, §4.3), so the map has no per-type code and a future tracker (a screenshot, a rare
+  kill) can add icons the same way.
 - **Coverage moves to 0.5.** "% of Azeroth walked" is a Wrapped card; it's built with Wrapped.
 
 ### Landscape (for positioning)

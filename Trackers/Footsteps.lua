@@ -1,5 +1,6 @@
 local _, ns = ...
 local L, Compat, Store, Paths, Time, Geometry, Codec = ns.L, ns.Compat, ns.Store, ns.Paths, ns.Time, ns.Geometry, ns.Codec
+local StaticData = ns.StaticData
 
 -- Footsteps (docs/ARCHITECTURE.md §6.8): where the character walked, rode and flew. A ticker samples
 -- the world position once a second while outdoors; a point is kept only after moving MIN_STEP, so
@@ -10,6 +11,10 @@ local L, Compat, Store, Paths, Time, Geometry, Codec = ns.L, ns.Compat, ns.Store
 -- A trail ends on a loading screen, a continent change, a teleport, taxi start or end, death, a
 -- minute without moving, midnight, MAX_POINTS, and logout. The next trail starts where the last
 -- one stopped if the player is still there, so pauses leave no gaps on the map.
+--
+-- Journeys by spell (a hearthstone, a mage's teleport) get a TELEPORT entry: the cast is noted,
+-- and when a trail next starts far from where it was cast, the entry records both places, which
+-- the map marks with the spell's icon.
 local SAMPLE_INTERVAL = 1
 local MIN_STEP = 8      -- yards between kept points
 local IDLE = 60         -- seconds without moving that end a trail
@@ -17,6 +22,9 @@ local TOLERANCE = 3     -- yards a stored trail may stray from the recorded one
 local MAX_SPEED = 100   -- yards per second; anything faster is a teleport, not a journey
 local MAX_POINTS = 1800 -- recorded points per trail (30 minutes at a gallop): bounds the work at the end
 local JOIN = 30         -- a new trail starting this close to where the last one ended continues it
+local TRAVEL_WINDOW = 60 -- seconds from a travel spell's cast to the arrival (loading screens included)
+local TRAVEL_SETTLE = 2  -- seconds after arriving, when the subzone's name has caught up
+local HEARTHSTONE_ICON = "Interface\\Icons\\INV_Misc_Rune_01"
 
 -- Short distances in the language's small unit, long ones in its large unit with one decimal.
 local function formatDistance(yards)
@@ -44,13 +52,69 @@ ns.RecordTypes:RegisterCounter("travel", {
     end,
 })
 
+local function round(value)
+    return math.floor(value + 0.5)
+end
+
+local function spellName(spellID)
+    return Compat.GetSpellName(spellID) or L.UNKNOWN_SPELL:format(spellID)
+end
+
+-- The arrival: the subzone ("Bloodhoof"), else the zone.
+local function destination(data)
+    return data.sub or (data.map and Compat.GetMapName(data.map))
+end
+
+ns.RecordTypes:Register("TELEPORT", {
+    version = 1,
+    category = "travel",
+    -- spell; arrival: map, sub (as the client named it), c, x, y; departure: fc, fx, fy
+    fields = {
+        spell = "number", map = "number?", sub = "string?", c = "number?", x = "number?", y = "number?",
+        fc = "number?", fx = "number?", fy = "number?",
+    },
+    render = function(data)
+        local place = destination(data)
+        local spell = spellName(data.spell)
+        return place and L.TELEPORT_TO:format(spell, place) or L.TELEPORT_USED:format(spell)
+    end,
+    -- The spell's icon where the journey left and where it arrived.
+    markers = function(data, record)
+        local icon = Compat.GetSpellIcon(data.spell) or HEARTHSTONE_ICON
+        local list = {}
+        if data.fc then
+            list[#list + 1] = { c = data.fc, x = data.fx, y = data.fy, icon = icon,
+                title = ns.RecordTypes:Render(record) }
+        end
+        if data.c then
+            list[#list + 1] = { c = data.c, x = data.x, y = data.y, icon = icon,
+                title = L.TELEPORT_ARRIVED:format(spellName(data.spell)) }
+        end
+        return list
+    end,
+})
+
 local Footsteps = ns.Trackers:New("Footsteps", { label = L.TRACKER_FOOTSTEPS, tooltip = L.TRACKER_FOOTSTEPS_TIP })
 
+-- Travel spells by ID and, for other ranks and versions, by name in the client's language.
+function Footsteps:BuildTravelSpells()
+    self.travelById, self.travelByName = {}, {}
+    for _, spellID in ipairs(StaticData.TravelSpells) do
+        self.travelById[spellID] = true
+        local name = Compat.GetSpellName(spellID)
+        if name then
+            self.travelByName[name] = true
+        end
+    end
+end
+
 function Footsteps:OnEnable()
-    -- seen: the last sampled position, kept point or not.
-    self.live, self.anchor, self.seen = nil, nil, {}
+    -- seen: the last sampled position, kept point or not; travel: a travel spell's cast on its way.
+    self.live, self.anchor, self.seen, self.travel = nil, nil, {}, nil
+    self:BuildTravelSpells()
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
     self:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+    self:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
     -- Lifecycle sends LOGOUT before it updates the canary, so the last trail is counted there.
     ns.Bus:On("LOGOUT", self, self.OnLogout)
     self:Update()
@@ -67,6 +131,20 @@ function Footsteps:OnLogout()
     if self.enabled then
         self:Close()
     end
+end
+
+-- A travel spell's cast notes where it started; a secret spell ID just isn't recognized.
+function Footsteps:UNIT_SPELLCAST_SUCCEEDED(_, _, spellID)
+    spellID = Compat.Safe(spellID, "number")
+    if not spellID then return end
+    local known = self.travelById[spellID]
+    if not known then
+        local name = Compat.GetSpellName(spellID)
+        known = name ~= nil and self.travelByName[name] == true
+    end
+    if not known then return end
+    local continent, x, y = Compat.GetPlayerWorldPosition()
+    self.travel = { spell = spellID, t = Time.Now(), c = continent, x = x, y = y }
 end
 
 -- A loading screen may have moved the player anywhere.
@@ -152,7 +230,29 @@ local function append(live, x, y)
     live.x, live.y = x, y
 end
 
+-- After a travel spell, a trail that starts far from where it was cast is the arrival.
+function Footsteps:CheckArrival(continent, x, y, now)
+    local travel = self.travel
+    if not travel then return end
+    if now - travel.t > TRAVEL_WINDOW then
+        self.travel = nil
+        return
+    end
+    if travel.c == continent and Geometry.Distance(travel.x, travel.y, x, y) <= JOIN then return end
+    self.travel = nil
+    local data = { spell = travel.spell, c = continent, x = round(x), y = round(y) }
+    if travel.c then
+        data.fc, data.fx, data.fy = travel.c, round(travel.x), round(travel.y)
+    end
+    -- The subzone's name changes a moment after arriving; the entry is dated at the arrival.
+    self:After(TRAVEL_SETTLE, function()
+        data.map, data.sub = Compat.GetPlayerMapID(), Compat.GetSubZoneName()
+        Store:Append("TELEPORT", data, { ts = now })
+    end)
+end
+
 function Footsteps:Start(continent, x, y, flying, now)
+    self:CheckArrival(continent, x, y, now)
     local day = Time.DayKey(now)
     local live = {
         c = continent, f = flying, t = now, moved = now, day = day, dayEnd = Time.DayEnd(day),
