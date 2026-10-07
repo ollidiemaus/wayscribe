@@ -33,13 +33,24 @@ function Log:Trim()
     end
 end
 
-function Log:Error(source, message)
+local function add(source, message)
     local text = toText(message)
     if #text > MAX_MESSAGE_LENGTH then
         text = text:sub(1, MAX_MESSAGE_LENGTH) .. "..."
     end
     entries[#entries + 1] = { ts = time(), source = toText(source), message = text }
-    self:Trim()
+    Log:Trim()
+    return text
+end
+
+-- Something the player meets, not a bug: a journal that didn't load, a backup from a newer
+-- version. It goes to /ws log only, in developer mode too.
+function Log:Warn(source, message)
+    add(source, message)
+end
+
+function Log:Error(source, message)
+    local text = add(source, message)
 
     -- In developer mode, also hand the error to the default handler so BugSack & co. see it.
     if ns.devMode and geterrorhandler then

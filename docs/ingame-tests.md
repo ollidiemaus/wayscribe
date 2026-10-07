@@ -297,15 +297,20 @@ Third build: the field holds 32 bytes, the paste is collected from `OnChar`.
 
 ### A journal that didn't load (release exit criterion)
 
-- [ ] Make a backup with footsteps and save it in a file. With the game closed, **move**
+- [x] Make a backup with footsteps and save it in a file. With the game closed, **move**
   `Wayscribe.lua` (and its `.bak`) out of the character's `SavedVariables` folder; keep them. Log
   in: the read-only warning now mentions `/ws restore`. Paste the backup into `/ws restore`, click
   *Wiederherstellen...*: the popup names the backup and says that the file which didn't load is
   overwritten. Confirm: the interface reloads, the journal is back (same days and entries, same
   Your Year cards), there is no read-only banner and no `/ws accept` was needed. `/ws log` shows
-  no `backup` errors.
-- [ ] After that reload: the world map shows the trails again (*Letzte 7 Tage* / *Alle*), and after
-  logging out a new `Wayscribe.lua` is in the folder.
+  no `backup` errors. *Worked: the warning at login, the popup, and after the reload everything
+  was back (2026-10-07). With `/ws dev` on, BugSack also showed "schema: missing" at login: the
+  guard's own log entry, forwarded like an error. Guard situations are now warnings, `/ws log`
+  only, and say what they found ("missing: the account file counted 42 entries").*
+- [x] After that reload: the world map shows the trails again (*Letzte 7 Tage* / *Alle*). *Yes.*
+- [ ] After logging out, a new `Wayscribe.lua` is in the character's folder.
+- [ ] With the next build and `/ws dev` on: the same login without a journal file shows the banner
+  and the `/ws log` line, and nothing in BugSack.
 
 ### Other characters
 

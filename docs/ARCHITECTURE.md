@@ -124,6 +124,11 @@ the Store and the bus.
 - A module that errors 10 times in one session is disabled for the rest of the session, with a single
   chat notice.
 - In dev mode (`/wayscribe dev`), errors are also forwarded to `geterrorhandler()` so BugSack sees them.
+  What the guards find in the saved data (a journal that didn't load, a rename, a newer version, an
+  unexpected shape, a pasted backup the addon can't take) is a **warning**: it goes to the log
+  only, since it is the player's situation, not a bug, and the banner already explains it. A
+  migration that throws is an error (0.6; the missing-journal test in game showed the guard's
+  entry in BugSack).
 
 ### 3.5 Time
 

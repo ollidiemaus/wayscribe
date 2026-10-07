@@ -663,7 +663,7 @@ end
 local function prepare(part, raw, prepareFn)
     local db, kind, detail = prepareFn(Schema, raw)
     if db then return db end
-    ns.Log:Error("backup", part .. " " .. kind .. (detail and (": " .. detail) or ""))
+    Schema.Report(kind, "backup's " .. part .. " " .. kind .. (detail and (": " .. detail) or ""))
     return nil, kind == "newer" and L.RESTORE_NEWER or L.RESTORE_UNREADABLE
 end
 

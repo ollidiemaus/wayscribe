@@ -112,8 +112,19 @@ local REASONS = {
     foreign = function(owner) return L.SAFE_MODE_FOREIGN:format(tostring(owner)) end,
 }
 
+-- A migration that throws is a bug; every other kind is the state of the saved data, which the
+-- player sees in the banner and /ws log, not in BugSack.
+local function report(kind, text)
+    if kind == "failed" then
+        ns.Log:Error("schema", text)
+    else
+        ns.Log:Warn("schema", text)
+    end
+end
+Schema.Report = report
+
 function Schema:Fail(kind, detail, ...)
-    ns.Log:Error("schema", kind .. (detail and (": " .. detail) or ""))
+    report(kind, kind .. (detail and (": " .. detail) or ""))
     self.safeKind = self.safeKind or kind
     ns.SetSafeMode(REASONS[kind](...))
 end
@@ -126,7 +137,7 @@ local PATH_REASONS = {
 }
 
 function Schema:FailPaths(kind, detail, ...)
-    ns.Log:Error("schema", "trails " .. kind .. (detail and (": " .. detail) or ""))
+    report(kind, "trails " .. kind .. (detail and (": " .. detail) or ""))
     self.pathSafeKind = self.pathSafeKind or kind
     local reason = PATH_REASONS[kind](...)
     ns.Paths:SetReadOnly(reason)
@@ -248,9 +259,10 @@ function Schema:VerifyIdentity()
     if self.charMissing then
         if type(canary) == "table" and type(canary.seq) == "number" and canary.seq > 0 then
             if canary.name ~= me.name or canary.realm ~= me.realm then
-                return self:Fail("renamed", nil, canary.name, canary.realm)
+                local where = tostring(canary.name) .. "-" .. tostring(canary.realm)
+                return self:Fail("renamed", "stored as " .. where, canary.name, canary.realm)
             end
-            return self:Fail("missing", nil, canary.seq)
+            return self:Fail("missing", "the account file counted " .. canary.seq .. " entries", canary.seq)
         end
         WayscribeCharDB = newCharDB(me)
         ns.charDB = WayscribeCharDB
@@ -288,7 +300,7 @@ function Schema:VerifyPaths()
         local canary = me.guid and ns.accountDB.characters[me.guid]
         local saved = type(canary) == "table" and type(canary.paths) == "number" and canary.paths or 0
         if saved > 0 then
-            return self:FailPaths("missing", nil, saved)
+            return self:FailPaths("missing", "the account file counted " .. saved .. " trails", saved)
         end
         WayscribeFootstepsDB = newFootstepsDB()
         ns.footstepsDB = WayscribeFootstepsDB
