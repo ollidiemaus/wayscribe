@@ -38,8 +38,7 @@ and [a journal file that didn't load](#backup).
   (*xx* min)".
 - [ ] **Full names.** After a dungeon run with a group, look at its entry. → Your companions are
   named with first name and surname ("with Xy Ashford and Ab Stonebrook"), also in an entry made
-  before this update. `/ws probe` shows `has.surnames = true`, and the `/ws export` header names you
-  with your surname and your realm.
+  before this update.
 - [ ] **Corpse run.** In a dungeon, die, release, run back within 30 minutes and finish. → Still one
   run entry.
 - [ ] **Leave early.** Leave a dungeon before the last boss and stay out for 30 minutes. → "Visited
@@ -149,7 +148,7 @@ The journal's second tab: a look back at the year, card by card.
 
 ## Already verified
 
-Done on build 70235 (2026-10-06 and 07); no need to repeat. Details are in
+Done on builds 70235 and 70245 (2026-10-06 and 07); no need to repeat. Details are in
 [ARCHITECTURE.md §12](ARCHITECTURE.md#12-verify-on-the-forever-beta-run-ws-probe) and
 [forever-probe.md](forever-probe.md).
 
@@ -158,6 +157,8 @@ Done on build 70235 (2026-10-06 and 07); no need to repeat. Details are in
   only the curated chains count. The world-to-map math matches the client exactly. Coverage finds
   50 zones, Forever's Zephras Isle included.
 - **Professions:** learning Skinning makes an entry.
+- **Names:** `/ws probe` shows `has.surnames = true`, and your character is saved with first name,
+  surname and realm.
 - **Journal:** looks like the spellbook (frame, parchment, headers, page buttons); the filter menu
   opens; times use the 24-hour clock.
 - **Icon:** the quill-on-a-map icon shows in the addon list, on the minimap button, in the Addon

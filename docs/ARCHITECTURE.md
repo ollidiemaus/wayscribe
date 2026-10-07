@@ -1063,7 +1063,8 @@ Other findings:
   realm ([AllTheThings #2630](https://github.com/ATTWoWAddon/AllTheThings/issues/2630)). Wayscribe up
   to 0.6 stored the surname as the realm and named companions by their first name only.
   `Compat.has.surnames` (a second value from `UnitName("player")`) now joins both into the name;
-  saved players are repaired at login.
+  saved players are repaired at login. ✅ Confirmed on build 70245: `has.surnames = true`, and the
+  probe character is saved as "Scoopz Scoopz" on "Classic Beta PvE" (before: "Scoopz" on "Scoopz").
 
 ---
 
