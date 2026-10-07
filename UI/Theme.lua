@@ -1,4 +1,4 @@
-local _, ns = ...
+local addonName, ns = ...
 local L, Compat = ns.L, ns.Compat
 
 -- The journal looks like the default UI's spellbook (docs/ARCHITECTURE.md §7): the client's own
@@ -7,6 +7,9 @@ local L, Compat = ns.L, ns.Compat
 -- still gets a readable book.
 local Theme = {}
 ns.Theme = Theme
+
+-- Wayscribe's icon (source: Media/Icon.svg); the TOC's IconTexture names the same file.
+Theme.ICON = "Interface\\AddOns\\" .. addonName .. "\\Media\\Icon"
 
 -- SPELLBOOK_FONT_COLOR on client 1.60.1.70235 (GlobalColor.db2), used when the global is missing.
 local SPELLBOOK_INK = { 0.18, 0.106, 0.059 }

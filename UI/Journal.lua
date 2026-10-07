@@ -413,7 +413,7 @@ local function createFrame()
     if Compat.has.portraitFrame then
         local frame = CreateFrame("Frame", "WayscribeJournalFrame", UIParent, "PortraitFrameTemplate")
         frame:SetTitle(L.JOURNAL_TITLE)
-        frame:SetPortraitToAsset("Interface\\Icons\\INV_Misc_Book_09")
+        frame:SetPortraitToAsset(Theme.ICON)
         return frame
     end
     local frame = CreateFrame("Frame", "WayscribeJournalFrame", UIParent, "BackdropTemplate")

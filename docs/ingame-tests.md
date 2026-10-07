@@ -113,6 +113,8 @@ Wayscribe draws where you walked as a dark red line on the world map.
   session. *Open journal* opens that day; *Don't show at login* works; `/ws recap` shows it again.
 - [ ] **Settings page.** → The toggles, the date format and the Data buttons work. *Reset journal*
   only on a test character.
+- [ ] **Icon.** → The quill-on-a-map icon shows in the addon list, on the minimap button, in the
+  Addon Compartment, as the journal's portrait and on the Your Year overview card.
 - [ ] **Minimap button.** → Left-click opens the journal, right-click the settings, dragging moves it,
   and the settings can hide it.
 - [ ] **Addon Compartment and key binding.** → The entry in the addons button at the minimap opens

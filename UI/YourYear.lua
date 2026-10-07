@@ -17,7 +17,6 @@ local ICON_SIZE = 56
 local LINE_GAP = 8
 local PROMPT_DELAY = 6 -- seconds after the loading screen: after the login recap (3 s)
 local PROMPT = "WAYSCRIBE_YOUR_YEAR"
-local OVERVIEW_ICON = "Interface\\Icons\\INV_Misc_Book_09"
 
 local ui = { rows = {}, lines = {} }
 YourYear.ui = ui
@@ -33,7 +32,7 @@ YearCards:Register({
         local entries = YearCards.Sum(summary.rollup.records)
         if entries == 0 and summary.playSeconds <= 0 then return nil end
         local card = {
-            title = L.CARD_OVERVIEW, icon = OVERVIEW_ICON,
+            title = L.CARD_OVERVIEW, icon = Theme.ICON,
             big = YearCards.Number(entries), caption = YearCards.Plural("CARD_OVERVIEW_ENTRIES", entries),
             lines = {},
         }

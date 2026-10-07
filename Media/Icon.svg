@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+<defs>
+  <radialGradient id="bg" cx="38%" cy="34%" r="80%">
+    <stop offset="0" stop-color="#4a82b4"/>
+    <stop offset="0.45" stop-color="#1f4468"/>
+    <stop offset="1" stop-color="#0a1626"/>
+  </radialGradient>
+  <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#f8ebc8"/>
+    <stop offset="0.55" stop-color="#e8d19e"/>
+    <stop offset="1" stop-color="#c7a165"/>
+  </linearGradient>
+  <radialGradient id="burn" cx="50%" cy="50%" r="62%">
+    <stop offset="0.62" stop-color="#6b3f15" stop-opacity="0"/>
+    <stop offset="1" stop-color="#6b3f15" stop-opacity="0.6"/>
+  </radialGradient>
+  <filter id="drop" x="-25%" y="-25%" width="150%" height="150%">
+    <feDropShadow dx="2" dy="6" stdDeviation="5" flood-color="#000" flood-opacity="0.6"/>
+  </filter>
+  <path id="sheet" d="M54 60 L66 57 L80 60 L96 56 L112 59 L128 55 L146 59 L162 56 L178 59 L194 57
+     L192 74 L195 94 L191 114 L194 134 L191 154 L195 174 L192 192 L194 208
+     L178 205 L162 209 L144 206 L126 210 L108 206 L90 209 L72 205 L56 208
+     L58 192 L54 172 L58 152 L54 132 L57 112 L53 92 L57 76 Z"/>
+  <linearGradient id="vaneG" x1="0" y1="-28" x2="0" y2="19" gradientUnits="userSpaceOnUse">
+  <stop offset="0" stop-color="#ffffff"/><stop offset="0.5" stop-color="#e9e6dd"/><stop offset="1" stop-color="#9aa3b4"/>
+</linearGradient>
+<linearGradient id="shaftG" x1="0" y1="-3" x2="0" y2="3" gradientUnits="userSpaceOnUse">
+  <stop offset="0" stop-color="#f4ead2"/><stop offset="1" stop-color="#b59d72"/>
+</linearGradient>
+
+</defs>
+<rect width="256" height="256" fill="url(#bg)"/>
+<g filter="url(#drop)">
+  <g transform="rotate(-8 124 134)">
+    <use href="#sheet" fill="url(#paper)"/>
+    <use href="#sheet" fill="url(#burn)"/>
+    <use href="#sheet" fill="none" stroke="#8a6232" stroke-width="1.5" stroke-opacity="0.7"/>
+    <!-- the trail, written up to the nib -->
+    <circle cx="78" cy="86" r="6" fill="none" stroke="#5a2414" stroke-width="3.5"/>
+    <path d="M84 87 C122 80 142 104 120 120 C100 134 66 138 72 158 C76 172 94 177 104 172"
+          fill="none" stroke="#5a2414" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="1 9"/>
+    <!-- compass mark -->
+    <g transform="translate(164 174)" fill="#5a2414">
+      <circle r="13" fill="none" stroke="#5a2414" stroke-width="1.6" stroke-opacity="0.8"/>
+      <path d="M0 -20 L3.5 -3.5 L20 0 L3.5 3.5 L0 20 L-3.5 3.5 L-20 0 L-3.5 -3.5 Z"/>
+      <path d="M0 -20 L3.5 -3.5 L0 0 Z M20 0 L3.5 3.5 L0 0 Z M0 20 L-3.5 3.5 L0 0 Z M-20 0 L-3.5 -3.5 L0 0 Z" fill="#c9a46a" fill-opacity="0.55"/>
+    </g>
+  </g>
+</g>
+<g filter="url(#drop)" transform="translate(109.5 174.4) rotate(-49.6)">
+  <g>
+  <path d="M0 0 L14 -3.2 L16 3.2 Z" fill="#2a1d14"/>
+  <path d="M2 0 L13 -1" stroke="#c9a86a" stroke-width="0.8"/>
+  <path d="M14 -3.4 L50 -2.6 L50 2.6 L16 3.4 Z" fill="url(#shaftG)"/>
+  <path d="M46 -1.5 C72 -15 104 -27 136 -28 C163 -28 179 -15 183 0 L172 -6 L178 2
+           C170 12 152 19 128 19 L121 14 L118 19 C96 18 72 11 46 1.5 Z"
+        fill="url(#vaneG)" stroke="#1b2230" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M60 -6 L86 -19 M76 -6 L104 -22 M94 -5 L124 -24 M114 -4 L146 -23 M134 -3 L162 -17 M152 -2 L174 -9
+           M62 5 L84 11 M80 5 L104 14 M100 4 L124 15 M138 3 L156 12 M156 2 L170 7"
+        stroke="#7d8aa0" stroke-width="1.2" stroke-opacity="0.55" stroke-linecap="round"/>
+  <path d="M44 0 L181 0" stroke="#f6f1e4" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M44 0.8 L181 0.8" stroke="#8e8572" stroke-width="0.9" stroke-opacity="0.6"/>
+</g>
+
+</g>
+<defs>
+  <filter id="grainF" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" seed="7"/>
+    <feColorMatrix type="matrix" values="0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 1.6 -0.55"/>
+  </filter>
+  <radialGradient id="vigG" cx="50%" cy="46%" r="72%">
+    <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+    <stop offset="1" stop-color="#000" stop-opacity="0.62"/>
+  </radialGradient>
+</defs>
+<rect width="256" height="256" filter="url(#grainF)" opacity="0.22" style="mix-blend-mode:overlay"/>
+<rect width="256" height="256" fill="url(#vigG)"/>
+<rect x="2" y="2" width="252" height="252" fill="none" stroke="#000" stroke-opacity="0.45" stroke-width="4"/>
+<path d="M4 252 V4 H252" fill="none" stroke="#fff" stroke-opacity="0.10" stroke-width="2"/>
+
+</svg>

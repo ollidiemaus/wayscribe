@@ -889,8 +889,9 @@ Without the API the page is skipped and `/ws settings` says so.
 ### 7.8 Minimap button, Addon Compartment, key binding, slash commands
 
 - **Minimap button:** LibDataBroker-1.1 + LibDBIcon-1.0, position and hidden flag in
-  `WayscribeDB.settings.minimap`. Icon: `Interface\Icons\INV_Misc_Book_09`. Left-click toggles the
-  journal, right-click opens settings. Skipped when the libraries are missing.
+  `WayscribeDB.settings.minimap`. Icon: `Media/Icon.tga` (source `Media/Icon.svg`), which is also
+  the TOC's `IconTexture`, the journal's portrait and the Your Year overview card. Left-click
+  toggles the journal, right-click opens settings. Skipped when the libraries are missing.
 - **Addon Compartment:** the entry comes from the TOC (`AddonCompartmentFunc`), so it works without
   libraries.
 - **Key binding:** `Bindings.xml`: `WAYSCRIBE_TOGGLE` under the AddOns category, unbound by default.
@@ -953,6 +954,7 @@ Trackers/  Session.lua Level.lua Professions.lua Gathering.lua Bosses.lua Dungeo
            QuestChains.lua Footsteps.lua Deaths.lua
 UI/        Theme.lua DayView.lua YourYear.lua Journal.lua Export.lua FootstepsMap.lua
            LoginRecap.lua Settings.lua Minimap.lua
+Media/     Icon.tga (128×128, 32-bit) Icon.svg (its source, not packaged)
 tests/     run.lua testlib.lua wow_stubs.lua serialize.lua <area>_spec.lua …
 docs/      ARCHITECTURE.md DEVELOPMENT.md ingame-tests.md forever-probe.md
 README.md  -- for players (also the CurseForge description)
