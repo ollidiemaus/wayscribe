@@ -113,6 +113,11 @@ function Compat:Detect()
     has.mapChildren = has.mapWorldPos and C_Map.GetMapChildrenInfo ~= nil
     has.panelTabs = self.HasTemplate("PanelTabButtonTemplate") == true and type(PanelTemplates_SetNumTabs) == "function"
         and type(PanelTemplates_SetTab) == "function"
+    -- Forever's characters have a first name and a surname, and the unit name functions return the
+    -- surname where other clients return the realm. UnitName never returns the player's own realm,
+    -- so a second value there is a surname.
+    local _, surname = self.Call(UnitName, "player")
+    has.surnames = type(surname) == "string" and surname ~= ""
 end
 
 -- The default world map with its data provider extension point (Footsteps, docs/ARCHITECTURE.md
@@ -128,10 +133,18 @@ local function text(value)
 end
 
 -- guid, name, realm (nil on the player's own realm) and class file of a unit; any may be nil.
+-- With surnames, UnitFullName's second value is the surname: the name is "First Surname", and the
+-- realm isn't known.
 local function unitInfo(unit)
-    local name, realm = Compat.Call(UnitFullName, unit)
+    local name, second = Compat.Call(UnitFullName, unit)
     local _, classFile = Compat.Call(UnitClass, unit)
-    return { guid = text(Compat.Call(UnitGUID, unit)), name = text(name), realm = text(realm), class = text(classFile) }
+    name, second = text(name), text(second)
+    local realm = second
+    if Compat.has.surnames then
+        realm = nil
+        if name and second then name = name .. " " .. second end
+    end
+    return { guid = text(Compat.Call(UnitGUID, unit)), name = name, realm = realm, class = text(classFile) }
 end
 
 function Compat.GetPlayerIdentity()

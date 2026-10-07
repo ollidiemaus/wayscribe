@@ -42,6 +42,17 @@ function Players:Get(id)
     return self.list and self.list[id]
 end
 
+-- Older versions stored a Forever player's surname as their realm (Compat.has.surnames): joins it
+-- back into the name. Players stored with surnames have no realm, so this changes each one once.
+function Players:JoinSurnames()
+    for _, player in pairs(self.list or {}) do
+        if type(player) == "table" and type(player.name) == "string" and type(player.realm) == "string" then
+            player.name = player.name .. " " .. player.realm
+            player.realm = nil
+        end
+    end
+end
+
 -- Interns everyone from Compat.GetGroupMembers(); returns their ids, or nil when alone.
 function Players:InternAll(members)
     local ids = {}

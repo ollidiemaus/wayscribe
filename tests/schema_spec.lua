@@ -148,6 +148,13 @@ describe("missing-journal guard", function()
         T.truthy(ns.safeMode:find("Oldname%-Forever"))
     end)
 
+    it("knows a Forever character whose canary holds the surname as the realm", function()
+        local ns = Stubs.LoadAddon({ surname = "Brightwood",
+            accountDB = account({ [GUID] = { name = "Tester", realm = "Brightwood", seq = 7 } }) })
+        Stubs.Login()
+        T.eq(ns.Schema.safeKind, "missing")
+    end)
+
     it("/ws accept starts a new journal and resets the canary", function()
         local ns = Stubs.LoadAddon({ accountDB = account({ [GUID] = { name = "Tester", realm = "Forever", seq = 42 } }) })
         Stubs.Login()
@@ -207,5 +214,44 @@ describe("foreign journal", function()
         ns = Stubs.Relog(nil, true)
         T.eq(ns.safeMode, nil)
         T.eq(WayscribeCharDB.meta.guid, GUID)
+    end)
+end)
+
+describe("Forever surnames", function()
+    local function legacyPlayers()
+        return {
+            { guid = "Player-1-000000B1", name = "Xy", realm = "Ashford", class = "PRIEST" },
+            { guid = "Player-1-000000B2", name = "Ab", class = "WARRIOR" },
+        }
+    end
+
+    it("joins surnames that older versions stored as realms", function()
+        local ns = Stubs.LoadAddon({ surname = "Brightwood", accountDB = account(),
+            charDB = journal({ players = legacyPlayers() }) })
+        Stubs.Login()
+        T.eq(ns.safeMode, nil)
+        T.same(WayscribeCharDB.players[1], { guid = "Player-1-000000B1", name = "Xy Ashford", class = "PRIEST" })
+        T.same(WayscribeCharDB.players[2], { guid = "Player-1-000000B2", name = "Ab", class = "WARRIOR" })
+        T.eq(WayscribeCharDB.meta.name, "Tester Brightwood")
+        T.eq(WayscribeCharDB.meta.realm, "Forever")
+        T.eq(WayscribeDB.characters[GUID].name, "Tester Brightwood")
+
+        Stubs.Relog({ surname = "Brightwood" }, true)
+        T.eq(WayscribeCharDB.players[1].name, "Xy Ashford", "joined once")
+    end)
+
+    it("leaves the players alone where the second value is the realm", function()
+        Stubs.LoadAddon({ accountDB = account(), charDB = journal({ players = legacyPlayers() }) })
+        Stubs.Login()
+        T.same(WayscribeCharDB.players, legacyPlayers())
+    end)
+
+    it("leaves a read-only journal untouched", function()
+        local saved = journal({ players = legacyPlayers() })
+        saved.meta.guid = "Player-1-0000BBBB"
+        local ns = Stubs.LoadAddon({ surname = "Brightwood", accountDB = account(), charDB = saved })
+        Stubs.Login()
+        T.eq(ns.Schema.safeKind, "foreign")
+        T.same(WayscribeCharDB.players, legacyPlayers())
     end)
 end)

@@ -182,9 +182,10 @@ WayscribeCharDB = {
         lastRecapDay = 20261003,                           -- login popup bookkeeping (§7)
     },
 
-    -- Interned players (records hold small integers instead of names)
+    -- Interned players (records hold small integers instead of names). Forever's names include the
+    -- surname ("Xy Ashford"); their realm isn't known, so it's left out.
     players = {
-        [3] = { guid = "Player-…", name = "Xy", realm = "…", class = "PRIEST" },
+        [3] = { guid = "Player-…", name = "Xy Ashford", class = "PRIEST" },
     },
 
     -- Partitioned journal: month -> day -> records + counters
@@ -503,6 +504,7 @@ Compat.has = {
     worldMapCanvas  = …,   -- the world map's data provider extension point
     mapChildren     = …,   -- C_Map.GetMapChildrenInfo: the zone maps coverage counts against
     panelTabs       = …,   -- PanelTabButtonTemplate + PanelTemplates_*: the journal's tabs
+    surnames        = …,   -- characters have a surname, returned where other clients return the realm
 }
 Compat.Safe(v [, expectedType])  -- -> v, or nil if issecretvalue(v) or the type is wrong. Every game value goes through this.
 Compat.Call(fn, ...)             -- pcall + Safe on each return value, for APIs that may error or return secrets
@@ -515,7 +517,7 @@ Compat.IsOnTaxi() / Compat.IsDeadOrGhost()
 Compat.HasWorldMapCanvas()       -- WorldMapFrame takes MapCanvas data providers
 Compat.GetProfessionSnapshot()   -- -> { [skillLineID] = { rank, max, name } }
 Compat.GetInstance()             -- -> instanceID, type, difficultyID, name
-Compat.GetGroupMembers()         -- -> array of { guid, name, realm, class }
+Compat.GetGroupMembers()         -- -> array of { guid, name, realm, class }; with surnames: "First Surname", no realm
 Compat.GetLootSlots()            -- -> { [slot] = { itemID, quantity } }, sourceGUID
 Compat.GetItemName(itemID)       -- -> name, or nil and the item is requested (ITEM_NAMES_LOADED follows)
 Compat.GetItemClass(itemID)      -- -> classID, subclassID (locale-free)
@@ -1056,6 +1058,13 @@ Other findings:
 - `WOW_PROJECT_ID` is **18** on build 70235. Earlier beta builds reported 1 (Mainline), as recorded in
   AutoPotion. Code never branches on it.
 - ScrollBox, the Settings API and the Addon Compartment are all available, and the UI uses them.
+- Forever's characters have a **first name and a surname**. `UnitName` and `UnitFullName` return the
+  surname as their second value, where other clients return the realm; `GetRealmName` still names the
+  realm ([AllTheThings #2630](https://github.com/ATTWoWAddon/AllTheThings/issues/2630)). Wayscribe up
+  to 0.6 stored the surname as the realm and named companions by their first name only.
+  `Compat.has.surnames` (a second value from `UnitName("player")`) now joins both into the name;
+  saved players are repaired at login. ✅ Confirmed on build 70245: `has.surnames = true`, and the
+  probe character is saved as "Scoopz Scoopz" on "Classic Beta PvE" (before: "Scoopz" on "Scoopz").
 
 ---
 

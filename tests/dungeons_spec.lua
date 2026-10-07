@@ -231,6 +231,21 @@ describe("instance data", function()
         T.truthy(ns.RecordTypes:Render(run):find("Raider1, Raider2, Raider3, Raider4 and 35 others", 1, true))
     end)
 
+    it("names Forever's players with their surnames", function()
+        local ns = Stubs.LoadAddon({ level = 15, surname = "Brightwood" })
+        Stubs.SetGroup({
+            { guid = "Player-1-000000B1", name = "Xy", surname = "Ashford", class = "PRIEST" },
+            { guid = "Player-1-000000B2", name = "Ab", surname = "Stonebrook", class = "WARRIOR" },
+        })
+        Stubs.Login()
+        enter(389)
+        kill(2735, "Bazzalan")
+        leave()
+        local run = ofType(ns, "DUNGEON_COMPLETED")[1]
+        T.truthy(ns.RecordTypes:Render(run):find("with Xy Ashford and Ab Stonebrook", 1, true))
+        T.eq(ns.Players:Get(1).realm, nil)
+    end)
+
     it("listens for boss kills only inside an instance", function()
         local ns = start()
         local dungeons = ns.Trackers:Get("Dungeons")

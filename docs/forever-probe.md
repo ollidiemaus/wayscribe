@@ -302,3 +302,19 @@ Notes:
   shows the default UI's tabs.
 - After a short session with the hearthstone: "Du bist 0,1 % von Azeroth abgelaufen", most walked
   zone Mulgore with 2.2%.
+
+## Client 1.60.1, build 70245, surnames (2026-10-07)
+
+Scoopz in Bloodhoof, Mulgore, with the surname fix (`/ws probe`; the line new with it):
+
+```text
+client = 1.60.1 (build 70245)
+has.surnames = true
+```
+
+Notes:
+- `UnitName("player")` returns the surname as its second value, as reported for other addons
+  (AllTheThings #2630). The journal and the account file now name the character "Scoopz Scoopz" on
+  realm "Classic Beta PvE" (from `GetRealmName`); before the fix they said "Scoopz" on realm
+  "Scoopz".
+- Every other probe line is the same as on build 70235.

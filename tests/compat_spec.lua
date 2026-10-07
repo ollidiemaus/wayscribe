@@ -34,6 +34,38 @@ describe("flavor", function()
     end)
 end)
 
+describe("names", function()
+    it("uses the name and realm where the second value is the realm", function()
+        local ns = Stubs.LoadAddon({ name = "Tester", realm = "Forever" })
+        Stubs.SetGroup({ { guid = "Player-1-000000B1", name = "Xy", realm = "Other", class = "PRIEST" } })
+        Stubs.Login()
+        T.falsy(ns.Compat.has.surnames)
+        local me = ns.Compat.GetPlayerIdentity()
+        T.eq(me.name, "Tester")
+        T.eq(me.realm, "Forever")
+        local member = ns.Compat.GetGroupMembers()[1]
+        T.eq(member.name, "Xy")
+        T.eq(member.realm, "Other")
+    end)
+
+    it("joins Forever's first name and surname, and takes the realm from GetRealmName", function()
+        local ns = Stubs.LoadAddon({ name = "Tester", surname = "Brightwood", realm = "Forever" })
+        Stubs.SetGroup({
+            { guid = "Player-1-000000B1", name = "Xy", surname = "Ashford", realm = "Other", class = "PRIEST" },
+            { guid = "Player-1-000000B2", name = "Ab", class = "WARRIOR" },
+        })
+        Stubs.Login()
+        T.truthy(ns.Compat.has.surnames)
+        local me = ns.Compat.GetPlayerIdentity()
+        T.eq(me.name, "Tester Brightwood")
+        T.eq(me.realm, "Forever")
+        local members = ns.Compat.GetGroupMembers()
+        T.eq(members[1].name, "Xy Ashford")
+        T.eq(members[1].realm, nil, "the surname is not a realm")
+        T.eq(members[2].name, "Ab", "a unit without a surname keeps its name")
+    end)
+end)
+
 describe("capabilities", function()
     it("checks events without breaking on unknown ones", function()
         local Compat = Stubs.LoadAddon({ unknownEvents = { LFG_COMPLETION_REWARD = true } }).Compat
