@@ -250,6 +250,14 @@ function Schema:LoadPaths()
     ns.footstepsDB = db
 end
 
+-- Whether a canary was written under this character's name and realm. Older versions stored a
+-- Forever character's surname as the realm (Players:JoinSurnames).
+local function sameName(canary, me)
+    if canary.name == me.name and canary.realm == me.realm then return true end
+    return ns.Compat.has.surnames == true and type(canary.name) == "string" and type(canary.realm) == "string"
+        and canary.name .. " " .. canary.realm == me.name
+end
+
 function Schema:VerifyIdentity()
     local me = ns.Compat.GetPlayerIdentity()
     self.identity = me
@@ -258,7 +266,7 @@ function Schema:VerifyIdentity()
     local canary = me.guid and ns.accountDB.characters[me.guid]
     if self.charMissing then
         if type(canary) == "table" and type(canary.seq) == "number" and canary.seq > 0 then
-            if canary.name ~= me.name or canary.realm ~= me.realm then
+            if not sameName(canary, me) then
                 local where = tostring(canary.name) .. "-" .. tostring(canary.realm)
                 return self:Fail("renamed", "stored as " .. where, canary.name, canary.realm)
             end
@@ -288,6 +296,9 @@ function Schema:VerifyIdentity()
     ns.Store:Attach(db)
     -- Rollups are caches: ones from an older version are rebuilt from the records (§4.5).
     ns.Index:Upgrade(db)
+    if ns.Compat.has.surnames and ns.Store:IsWritable() then
+        ns.Players:JoinSurnames()
+    end
     self:TouchCanary()
 end
 

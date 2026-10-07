@@ -149,16 +149,24 @@ local function unitMember(unit)
     return index and state.group[index]
 end
 
+-- Unit names: name and realm (UnitName leaves out the player's realm). With opts.surname the names
+-- are Forever's: name and surname, for every unit.
+local function unitNames(unit, playerRealm)
+    local member = unitMember(unit)
+    if not member then return nil end
+    if state.player.surname then return member.name, member.surname end
+    if unit == "player" and not playerRealm then return member.name end
+    return member.name, member.realm
+end
+
 local function installUnits(opts)
     state.player = {
         guid = opts.guid or "Player-1-0000AAAA", name = opts.name or "Tester", realm = opts.realm or "Forever", class = "MAGE",
+        surname = opts.surname,
     }
     _G.UnitGUID = unitGuid
-    _G.UnitFullName = function(unit)
-        local member = unitMember(unit)
-        if not member then return nil end
-        return member.name, member.realm
-    end
+    _G.UnitFullName = function(unit) return unitNames(unit, true) end
+    _G.UnitName = function(unit) return unitNames(unit, false) end
     _G.GetRealmName = function() return state.player.realm end
     _G.UnitClass = function(unit)
         local member = unitMember(unit)
@@ -354,7 +362,7 @@ function Stubs.InstallScrollBox()
     }
 end
 
--- opts: now, guid, name, realm, level, interface, accountDB, charDB, footstepsDB, locale, unknownEvents
+-- opts: now, guid, name, realm, surname, level, interface, accountDB, charDB, footstepsDB, locale, unknownEvents
 function Stubs.Install(opts)
     opts = opts or {}
     state = {

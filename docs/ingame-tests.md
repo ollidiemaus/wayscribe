@@ -36,6 +36,10 @@ and [a journal file that didn't load](#backup).
   dungeon) to the end and `/reload` once in the middle. → One "Defeated *boss* for the first time"
   per boss, and on leaving **one** entry "First clear of Ragefire Chasm with *your group*
   (*xx* min)".
+- [ ] **Full names.** After a dungeon run with a group, look at its entry. → Your companions are
+  named with first name and surname ("with Xy Ashford and Ab Stonebrook"), also in an entry made
+  before this update. `/ws probe` shows `has.surnames = true`, and the `/ws export` header names you
+  with your surname and your realm.
 - [ ] **Corpse run.** In a dungeon, die, release, run back within 30 minutes and finish. → Still one
   run entry.
 - [ ] **Leave early.** Leave a dungeon before the last boss and stay out for 30 minutes. → "Visited
