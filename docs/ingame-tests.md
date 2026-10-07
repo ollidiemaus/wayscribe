@@ -113,8 +113,6 @@ Wayscribe draws where you walked as a dark red line on the world map.
   session. *Open journal* opens that day; *Don't show at login* works; `/ws recap` shows it again.
 - [ ] **Settings page.** → The toggles, the date format and the Data buttons work. *Reset journal*
   only on a test character.
-- [ ] **Icon.** → The quill-on-a-map icon shows in the addon list, on the minimap button, in the
-  Addon Compartment, as the journal's portrait and on the Your Year overview card.
 - [ ] **Minimap button.** → Left-click opens the journal, right-click the settings, dragging moves it,
   and the settings can hide it.
 - [ ] **Addon Compartment and key binding.** → The entry in the addons button at the minimap opens
@@ -125,8 +123,6 @@ Wayscribe draws where you walked as a dark red line on the world map.
 
 The journal's second tab: a look back at the year, card by card.
 
-- [ ] **Before December.** With `/ws dev` **off**, open *Your Year*. → "Your year opens on Tuesday,
-  December 1, 2026. …"
 - [ ] **Live.** With `/ws dev` on and the tab open, level up or loot ore. → The cards update.
 - [ ] **The prompt** (optional; needs the computer's clock set to December 1). Log in and close the
   "Last session" window. → A "Your 2026 is ready!" popup and a chat line; *Show* opens the tab. The
@@ -160,6 +156,8 @@ Done on build 70235 (2026-10-06 and 07); no need to repeat. Details are in
 - **Professions:** learning Skinning makes an entry.
 - **Journal:** looks like the spellbook (frame, parchment, headers, page buttons); the filter menu
   opens; times use the 24-hour clock.
+- **Icon:** the quill-on-a-map icon shows in the addon list, on the minimap button, in the Addon
+  Compartment, as the journal's portrait on both tabs and on Your Year's first card.
 - **Footsteps:** the trail lies on the roads you took, on the full and the small map, and grows while
   the map is open. Standing still leaves no gap; a hearthstone draws no line; a ghost isn't followed;
   `/reload` keeps the trail (with a small gap). The map's icons sit above the lines, the map button
@@ -168,7 +166,8 @@ Done on build 70235 (2026-10-06 and 07); no need to repeat. Details are in
   death outdoors makes an entry and a skull with a tooltip.
 - **Your Year:** rollups are rebuilt silently after updating; `/ws stats` matches the saved file's
   size; the tabs look like the default UI's; all cards and icons show in the preview; the Footsteps
-  card measures the share of Azeroth. The text export copies correctly, umlauts included.
+  card measures the share of Azeroth. The text export copies correctly, umlauts included. With
+  `/ws dev` off, the tab says the year opens on December 1.
 - **Backup:** a very active year (2.47 million characters) pastes back in 2.8 s and is checked in
   1.2 s. A real backup matches `/ws stats`; the Settings buttons open it; it's refused for a journal
   with entries; Reset then restore brings everything back; a journal whose file was moved away is
