@@ -109,6 +109,8 @@ Wayscribe draws where you walked as a dark red line on the world map.
   entries wrap. After `/reload`, size and position are kept.
 - [ ] **Live.** With the journal open on today, loot ore or level up. → The page updates without
   flicker.
+- [ ] **Close in combat.** Open the journal and start a fight. → The X in the corner closes it, and
+  chat shows no "Interface action failed because of an AddOn".
 - [ ] **Item names.** → Gathered items show their names, not "item 2770" (they may fill in a moment
   later).
 - [ ] **Clock.** → Times read `14:05` with the game's 24-hour clock on, `2:05 PM` with it off.

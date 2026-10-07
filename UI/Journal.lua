@@ -408,13 +408,14 @@ local function createResizeGrip(frame)
     end)
 end
 
--- The default UI's portrait frame, or a plain dialog border on a client without it.
+-- The default UI's portrait frame, or a plain dialog border on a client without it. Returns the
+-- frame and its close button.
 local function createFrame()
     if Compat.has.portraitFrame then
         local frame = CreateFrame("Frame", "WayscribeJournalFrame", UIParent, "PortraitFrameTemplate")
         frame:SetTitle(L.JOURNAL_TITLE)
         frame:SetPortraitToAsset(Theme.ICON)
-        return frame
+        return frame, frame.CloseButton
     end
     local frame = CreateFrame("Frame", "WayscribeJournalFrame", UIParent, "BackdropTemplate")
     frame:SetBackdrop({
@@ -428,7 +429,7 @@ local function createFrame()
     title:SetText(L.JOURNAL_TITLE)
     local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", -4, -4)
-    return frame
+    return frame, close
 end
 
 local function setupWindow(frame)
@@ -563,7 +564,12 @@ end
 
 local function createWindow()
     Theme.Resolve()
-    local frame = createFrame()
+    local frame, close = createFrame()
+    -- The template's close button calls HideUIPanel, which refuses addon frames in combat; hiding
+    -- the frame directly works, like Escape does (UISpecialFrames).
+    if close then
+        close:SetScript("OnClick", function() frame:Hide() end)
+    end
     ui.frame = frame
     restoreGeometry(frame)
     setupWindow(frame)
