@@ -239,3 +239,53 @@ checks need the client.
   dates, times and German umlauts come through, entries line up under their times. *Dieser
   Monat* / *Dieses Jahr* / *Alles* switch the text. Escape closes it. *Looks good (2026-10-06).*
 - [ ] **Settings > Daten > Tagebuch exportieren** opens the same window.
+
+## 0.6 Backup (open)
+
+Unit tests cover the first half of the exit criterion: a simulated year of journal and trails
+survives backup, Reset and restore with the same facts, the same caches and the same Your Year
+cards. They also cover the rules: a journal with entries is refused, a missing, renamed or empty
+one is restored, another character's backup takes this character's identity, read-only trails are
+left alone, and a cut-off, changed or wrapped paste is caught or tolerated. These checks need the
+client.
+
+### The clipboard (first: it decides whether one string is enough)
+
+- [ ] **`/ws dev`, then `/ws backup sample`.** The "Tagebuch sichern" window says "Ein ausgedachtes
+  Jahr mit 365 Tagen, zum Testen" and "14.600 Einträge an 365 Tagen, 3.650 Spuren · 2425,0 KB".
+  Chat: "Sicherung in … s erstellt". Note how long it took until the text showed, and
+  whether the game stuttered while "Die Sicherung wird erstellt ..." was shown.
+- [ ] **Ctrl+C, `/ws restore`, Ctrl+V into the box.** Chat: "… Zeichen: Das Einfügen dauerte x s,
+  die Prüfung y s." The number of characters should be the whole backup (2,483,231): then
+  every pasted character came through `OnChar`. If it is about 4,000, Forever's client doesn't send
+  pastes through `OnChar`, and the restore box needs another way (report back). The status line
+  says "Sicherung von …: 14.600 Einträge an 365 Tagen, 3.650 Spuren. Sie ist ein Beispiel zum
+  Testen …". Note x and y here: is it "a few seconds"?
+- [ ] **The same text in a text editor**: one line of about 2.4 MB, only letters, digits, `-` and
+  `_` after `WSB1:`. Save it; pasting it back from the file works the same.
+
+### A real backup
+
+- [ ] **`/ws backup`** on the test character: "Mit Fußspuren" is ticked and the line beside it
+  matches `/ws stats` (entries, days, trails). Unticking it makes a smaller backup without trails.
+- [ ] **Settings > Daten**: *Tagebuch sichern* and *Sicherung wiederherstellen* open the same windows.
+- [ ] **Into the same character**: pasted into `/ws restore`, the status says "Dieses Tagebuch hat
+  schon Einträge …" and *Wiederherstellen...* stays disabled.
+
+### A journal that didn't load (release exit criterion)
+
+- [ ] Make a backup with footsteps and save it in a file. With the game closed, **move**
+  `Wayscribe.lua` (and its `.bak`) out of the character's `SavedVariables` folder; keep them. Log
+  in: the read-only warning now mentions `/ws restore`. Paste the backup into `/ws restore`, click
+  *Wiederherstellen...*: the popup names the backup and says that the file which didn't load is
+  overwritten. Confirm: the interface reloads, the journal is back (same days and entries, same
+  Your Year cards), there is no read-only banner and no `/ws accept` was needed. `/ws log` shows
+  no `backup` errors.
+- [ ] After that reload: the world map shows the trails again (*Letzte 7 Tage* / *Alle*), and after
+  logging out a new `Wayscribe.lua` is in the folder.
+
+### Other characters
+
+- [ ] Optional, on a new character: restore the test character's backup. The popup says it belongs
+  to another character; after the reload the journal is this character's (its name in the export
+  header).

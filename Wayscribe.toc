@@ -40,6 +40,7 @@ Data\Paths.lua
 Data\Coverage.lua
 Data\YearCards.lua
 Data\Schema.lua
+Data\Backup.lua
 
 StaticData\Dungeons.lua
 StaticData\Gathering.lua

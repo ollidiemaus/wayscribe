@@ -67,10 +67,10 @@ flowchart LR
 |---|---|---|
 | **Core** | Namespace, lifecycle, module base, event frames, internal bus, error boundary, logging, time/day keys, geometry (pure math on trails) | — |
 | **Compat** | Capability detection (`Compat.has.*`), thin API shims (position, professions, instance info), `/wayscribe probe` | Core |
-| **Data** | `Store`, `Paths` (Footsteps trails), `Schema` (migrations, safe mode), `RecordTypes`, `Index`, `Players` (interning), `Codec`, `Coverage` (share of Azeroth walked), `YearCards` (Your Year's card registry) | Core, Compat |
+| **Data** | `Store`, `Paths` (Footsteps trails), `Schema` (migrations, safe mode), `RecordTypes`, `Index`, `Players` (interning), `Codec`, `Coverage` (share of Azeroth walked), `YearCards` (Your Year's card registry), `Backup` (the restorable backup string) | Core, Compat |
 | **StaticData** | Plain tables: dungeon → final encounter, quest chains, gather spell IDs | — |
 | **Trackers** | Translate game events into facts, holding only the minimal state they need | Core, Compat, Data (write API), StaticData |
-| **UI** | Journal window with Your Year, login recap, settings, minimap, keybind, Footsteps map, export | Core, Data (read API), RecordTypes |
+| **UI** | Journal window with Your Year, login recap, settings, minimap, keybind, Footsteps map, export, backup and restore | Core, Data (read API), RecordTypes |
 
 Dependencies point one way only. UI never calls trackers, and trackers never call UI. They talk through
 the Store and the bus.
@@ -331,8 +331,8 @@ ADDON_LOADED
     GUID and shows how to move the old file.
   - This doesn't help if *every* SV file fails to load (canary and journal look like a first
     install), or when the files are gone (a new computer, a deleted WTF folder). The backup
-    planned for 0.6 (§4.8) covers that: a string the player keeps outside the game and pastes back.
-    It also gives the missing-journal warning a second way out besides copying files.
+    (0.6, §4.8) covers that: a string the player keeps outside the game and pastes back. It also
+    gives the missing-journal warning a second way out besides copying files (`/ws restore`).
   - **Trails** (`WayscribeFootstepsDB`, 0.4) get the same checks with their own outcome: a newer schema, a
     failed migration, an unexpected shape, or trails missing while the canary counted some
     (`characters[guid].paths`, the trail `seq`) make **only the trails** read-only, with a chat
@@ -367,70 +367,116 @@ designed now but built later:
   saved file (`Codec.SavedSize` writes them the way build 70235 does: `["key"] = value,` per line,
   no indentation; it came within one byte of a real 3.4 KB file).
 
-### 4.8 Backup and restore (planned for 0.6)
+### 4.8 Backup and restore (0.6)
 
 The text export (0.5, §7) is a copy to read: rendered pages can't be turned back into facts. The
 backup is the restorable counterpart: the character's **facts** as one string, copied out through
-the clipboard like the export, and pasted back to restore them.
+the clipboard like the export, and pasted back to restore them. Built in 0.6 as planned; what the
+plan left open (size, the paste, the rules at the edges) is settled below.
 
 **What goes in.** Only what can't be recomputed (principle 1):
-- the journal: `meta` (guid, name, realm, class, created, seq), `players`, every month's days
-  (records and counters) and sessions, and `state` (tracker snapshots and bookkeeping);
+- the journal: every field of `WayscribeCharDB` but `firsts`, and of `meta` but `rollup`; every
+  month's days (records and counters) and sessions, `players` and `state` (tracker snapshots and
+  bookkeeping). Fields a later version adds go in too, since the walk is generic;
 - the trails, optional (they are the bulk): every day's segments as stored, their packed `p`
-  strings unchanged.
+  strings unchanged, and the trail `seq`.
 
 Rollups, `firsts` and the day index are caches, so they stay out and are rebuilt on restore
 (`Index:Rebuild`, §4.5). Account settings stay out: they aren't the character's story.
 
-**Format.** `WSB1:` (magic and format version), a header, then the payload:
-- Header: addon version, the journal's and trails' schema versions, the character's guid, name and
-  realm, `seq`, the trail count, the payload's length and a checksum (Adler-32, computed with
-  arithmetic only, like the codec), so a truncated or garbled paste is caught before anything is
-  touched. A half-copied string is the most likely failure.
-- Payload: a compact serializer for plain data. A type tag per value, integers as the codec's
-  zigzag varints, and strings in a string table, since record types and field names repeat
-  thousands of times. Everything is written in the codec's 64-character alphabet, so the string
-  holds nothing an edit box, chat or a text editor treats specially: no `|` (the client's escape
-  character), no quotes, no line breaks. Pure Lua, no WoW API, tested by round trips in plain Lua
-  like the codec.
-- No compression at first. Trails are already packed and the journal's facts shrink a lot with the
-  string table. Measure first (§4.7: about 1 MB of journal and 1–2 MB of trails per active year in
-  the saved file); LibDeflate as an optional packager external is the candidate if pasting turns out
-  too slow.
+**A snapshot.** The backup is the journal as it was when it started, however many frames it takes:
+`meta`, `state` and `players` are copied first, and a record with a higher id than that `seq`
+(added today since, or back-filled into an older day) is left out, so ids, `seq` and the tracker
+state always agree. Past days don't change, so nothing else needs copying. The session being
+played ends with the backup, in the backup only: restored elsewhere, it must not run on until the
+restore.
 
-**Making one.** `/ws backup` and Settings > Data > Backup open the export dialog with the backup
-string selected (with or without footsteps). It's built in a coroutine with a frame budget, so a
-long journal never stalls a frame. It works on a read-only journal too: a journal in safe mode is
-exactly the one worth saving.
+**Format.** `WSB1:` (magic and format version), a header, then the payload, both values of one
+small serializer (`Data/Backup.lua`):
+- A tag character per value: `N` integer (the codec's zigzag varint), `D` other number (the text
+  of `%.17g`, exact), `T`/`F`, `M` table (array count and values, then pair count and pairs),
+  `S` string (defined here and numbered), `R` string by its number, `L` long string (over 40
+  characters, not numbered: a trail's points are only used once). A string's data is its length
+  and its characters when they are all in the alphabet, else its bytes in base64.
+- Everything is in the codec's 64-character alphabet, so the string holds nothing an edit box,
+  chat or a text editor treats specially: no `|` (the client's escape character), no quotes, no
+  line breaks. Whitespace an editor adds (wrapped lines) is ignored when reading.
+- Header: addon version, the time it was made, the journal's and trails' schema versions, guid,
+  name, realm and class, `seq`, the number of entries, days and trails, and the payload's length
+  and Adler-32 (arithmetic only, like the codec). A short paste is caught by the length ("17,000
+  of 2,500,000 characters arrived"), a changed one by the checksum, before anything is decoded.
+- Pure Lua, no WoW API, round-tripped in plain Lua 5.1 and 5.5 by the tests: every byte value,
+  floats, huge and negative numbers, sparse arrays, odd keys. What a saved file can't hold
+  (functions, NaN, a table holding itself) is refused.
+
+**Measured** (a very active simulated year: 40 entries and 10 trails every day, 14,600 entries and
+3,650 trails; plain Lua 5.1 on a desktop):
+
+| | Saved file | Backup |
+|---|---|---|
+| Journal | 3.0 MB | 1.06 MB |
+| Trails | 1.5 MB (1.3 MB packed points) | 1.44 MB |
+
+Making it took 0.37 s, reading and checking it 0.26 s (Adler-32: 0.08 s), rebuilding the caches
+0.01 s. In game both run in a coroutine at 10 ms per frame. So one string, no compression: the
+journal shrinks to a third through the string table, and the trails are already packed. Splitting
+by year or LibDeflate wait for the in-game paste of a long backup (`/ws backup sample`, below).
+
+**Making one.** `/ws backup` and Settings > Data > Back up journal open a window like the export's
+with the string selected for Ctrl+C, "With footsteps" (on by default; off, or disabled when the
+trails can't be read) and what it holds ("14,600 entries on 365 days, 3,650 trails · 2,503.4 KB").
+It works on a read-only journal too (a foreign one, or one whose account file is newer): a journal
+in safe mode is exactly the one worth saving. A journal that didn't load at all can't be backed
+up; the message points at the file instead.
 
 **Restoring** never destroys data (principle 3):
-- `/ws restore` and Settings > Data > Restore open a dialog with an empty box to paste into.
-- The string is decoded completely and checked first: the magic, the checksum, the header. A schema
-  newer than this addon's is refused (update the addon); an older one runs the same migrations as a
-  loaded file (§4.6), build-then-swap. Records of unknown types are kept, as everywhere.
-- It only goes into a journal with **no entries** (a new character, a fresh install) or one in the
-  *missing* safe-mode state (the canary says data existed, §4.6). A journal with entries is refused
-  with a message; Settings > Data > Reset empties it first, a deliberate step with its own
-  confirmation. Merging two journals (ids, firsts, overlapping days) isn't worth its risk.
-- A backup of another character (a different guid) asks for confirmation and then takes the current
-  character's identity, like `/ws accept` for a foreign journal. That also covers renames, and
-  transfers that may change the guid.
-- Trails in the backup go into empty or missing trails only, with the same rules, on their own.
-- Then the restored tables are swapped in, the caches rebuilt, the canary stamped, and the UI
-  reloaded (like Reset): the trackers start on the restored state, and the client writes the
-  restored files to disk right away.
+- `/ws restore` and Settings > Data > Restore backup open a window with an empty box to paste into.
+- **The paste.** A multi-line box with megabytes of text would stall the client, so the box keeps
+  only 4,000 bytes and the characters are collected from `OnChar`, which fires for each pasted
+  character, and handed over on the next frame (the way WeakAuras imports long strings). Typed
+  text is read from the box.
+- The string is decoded completely and checked first: the magic, the header, the length, the
+  checksum, then the journal and the trails go through the same migrations and shape checks as a
+  loaded file (`Schema:PrepareCharacter` / `PreparePaths`, §4.6), build-then-swap. A newer format
+  or schema is refused (update the addon). Records of unknown types are kept, as everywhere. The
+  window then says what it found and what a restore would do; nothing has changed yet.
+- **The journal** goes only into one with **no entries** (`seq` 0: a new character, a fresh
+  install, after Reset) or one the missing-journal guard stopped (*missing* or *renamed*, §4.6).
+  Counters, sessions and trails recorded so far next to a journal without entries are replaced,
+  and the confirmation says how many days and trails that is. A journal with entries is refused;
+  Settings > Data > Reset empties it first, a deliberate step with its own confirmation. A journal
+  read-only for another reason (newer, failed, corrupt, foreign) is refused: a restore would write
+  over data Wayscribe can't read. Merging two journals (ids, firsts, overlapping days) isn't worth
+  its risk.
+- **The trails** go into missing or empty trails, or along with a journal that had no entries. Next
+  to a journal with entries, empty or missing trails can be restored on their own (after *Delete
+  all trails*, say). Read-only trails (newer, failed, corrupt) are left alone.
+- A backup of another character (a different guid) says so in the confirmation and takes the
+  current character's identity, like `/ws accept` for a foreign journal. That also covers renames,
+  and transfers that may change the guid.
+- The confirmation names the backup ("Restore the backup of Scoopz-Forever from Tuesday, October
+  6, 2026: 1,234 entries on 56 days, 78 trails?"), what it replaces, and in the missing state that
+  the file which didn't load is overwritten (copy it first if it may still hold the journal).
+- Then: the game session goes on in the restored journal (from the current session's start, or
+  now), the caches are rebuilt (a failure here still changes nothing), the trackers are stopped so
+  they close what they have open into the tables going away, the tables are swapped in
+  (`Schema:SwapIn`), the canary stamped, and the UI reloaded like Reset: the trackers start on the
+  restored state, and the client writes the restored files to disk right away. No `/ws accept`.
 
-**Where.** `Data/Backup.lua` (format, serializer, checks, the swap through `Schema`), the dialogs in
-`UI/Export.lua` next to the text export, `/ws backup` and `/ws restore`.
+**Testing it in game.** `/ws backup sample [days]` (developer mode) shows the backup of a made-up
+year (365 days by default) built in memory, never stored. Pasted into `/ws restore`, it is checked
+like any backup, then refused ("a sample for testing"). Developer mode prints how long the backup,
+the paste and the check took.
+
+**Where.** `Data/Backup.lua` (format, serializer, jobs, checks, plan and restore), the swap and the
+shared checks in `Data/Schema.lua`, the windows in `UI/Export.lua` next to the text export,
+`/ws backup` and `/ws restore`.
 
 **Exit criterion.** A simulated year of journal and trails survives backup, wipe and restore
-exactly: the same facts, and caches rebuilt equal to the originals. In game, a journal in the
-missing state can be restored without `/ws accept`, and the backup of a long journal pastes back in
-a few seconds.
-
-**Open until it's measured:** whether one string stays practical for a long journal or needs to be
-split by year (months are independent partitions, so a year is a natural part), and whether it
-needs compression.
+exactly: the same facts, and caches rebuilt equal to the originals (unit test `backup > restoring >
+a simulated year …`, which also compares Your Year's cards). In game, a journal in the missing
+state can be restored without `/ws accept`, and the backup of a long journal pastes back in a few
+seconds (docs/ingame-tests.md).
 
 ---
 
@@ -755,11 +801,12 @@ card (§8), its only consumer.
 | **World map** | Footsteps trails and death skulls on `WorldMapFrame` through a MapCanvas data provider, plus a "Footsteps: Today" button that picks the filter (§6.8, §6.9). Without the data provider API, nothing is added and the journal hides its map link. |
 | **Your Year** | The journal's second tab (`UI/YourYear.lua`, §8). Left page: "Your Year" above the years with entries, newest first ("Your 2026"); the shown year lists its cards. Right page: the card's title, "Your 2026", its icon with a big number (`Game40Font` where the client has it) and a caption, then a few lines. A year that hasn't opened yet shows when it opens. |
 | **Export** | `UI/Export.lua`: a dialog with the journal as plain text in a read-only, multi-line edit box, selected and focused, so Ctrl+C copies it (addons can't write files). This month / This year / Everything (default). Every day reads like its page (long date, played time, entries with times in one column, counter lines, sessions), oldest first, with every category whatever the journal's filter. A reading copy: it can't be imported. Works on a read-only journal too. `/ws export [month\|year\|all]` and a button under Settings > Data. |
+| **Backup and restore** | `UI/Export.lua`, the same window (0.6, §4.8). *Back up journal*: the backup string selected for Ctrl+C, a "With footsteps" checkbox and what the backup holds, made in the background ("Preparing the backup..."). *Restore backup*: an empty box to paste into (it keeps 4,000 bytes; the paste is collected from `OnChar`), a status line that says what was found and what a restore would do, *Restore...* and a confirmation popup, then a reload. `/ws backup`, `/ws restore` and two buttons under Settings > Data. |
 | **Login recap** | On `isInitialLogin` and `state.lastRecapDay ~= today`, 3 s after the loading screen, show the previous session: date, duration, rendered milestones and the counter totals of its day(s) (counters are per day, so they can include another session that day). Simulated entries are left out; an empty session shows nothing. Buttons: *Open journal* (at that day), *Close*, and a *Don't show at login* checkbox wired to the setting. Setting `showLoginRecap` defaults to **on**. `/ws recap` shows it any time. |
-| **Settings** | Blizzard `Settings` API: `RegisterVerticalLayoutCategory`, and `RegisterProxySetting` for every control, so the page reads and writes `ns.Options` / `ns.Trackers` and never owns data. Sections: **General** (login recap, minimap button, date format dropdown), **Tracking** (one toggle per tracker, generated from the registry; Footsteps is one of them), **Footsteps** (what the world map shows, record flight paths, delete all trails with a confirmation popup), **Data** (stats, error log, rebuild indexes, export, reset with a confirmation popup and a reload; reset deletes the trails too). Without the API the page is skipped and `/ws settings` says so. |
+| **Settings** | Blizzard `Settings` API: `RegisterVerticalLayoutCategory`, and `RegisterProxySetting` for every control, so the page reads and writes `ns.Options` / `ns.Trackers` and never owns data. Sections: **General** (login recap, minimap button, date format dropdown), **Tracking** (one toggle per tracker, generated from the registry; Footsteps is one of them), **Footsteps** (what the world map shows, record flight paths, delete all trails with a confirmation popup), **Data** (stats, error log, rebuild indexes, export, back up, restore, reset with a confirmation popup and a reload; reset deletes the trails too). Without the API the page is skipped and `/ws settings` says so. |
 | **Minimap button** | LibDataBroker-1.1 + LibDBIcon-1.0, position and hidden flag in `WayscribeDB.settings.minimap`. Placeholder icon: `Interface\Icons\INV_Misc_Book_09`. Left-click toggles the journal, right-click opens settings. Skipped when the libraries are missing. The Addon Compartment entry comes from the TOC (`AddonCompartmentFunc`), so it works without libraries. |
 | **Keybind** | `Bindings.xml`: `WAYSCRIBE_TOGGLE` under the AddOns category, unbound by default and configurable in the game's Keybindings menu. `BINDING_HEADER_WAYSCRIBE` and `BINDING_NAME_WAYSCRIBE_TOGGLE` are localized. |
-| **Slash** | `/wayscribe` or `/ws` (toggle), plus `year [YYYY]`, `export [month\|year\|all]`, `settings`, `recap`, `probe`, `stats`, `log`, `rebuild`, `dev`, `simulate <TYPE> …`, `accept`. |
+| **Slash** | `/wayscribe` or `/ws` (toggle), plus `year [YYYY]`, `export [month\|year\|all]`, `backup`, `restore`, `settings`, `recap`, `probe`, `stats`, `log`, `rebuild`, `dev`, `simulate <TYPE> …`, `accept`. |
 
 All UI listens to bus messages. None of it polls.
 
@@ -811,6 +858,7 @@ Locales/   enUS.lua deDE.lua
 Core/      Init.lua Log.lua Time.lua Geometry.lua Bus.lua Options.lua Module.lua Trackers.lua Slash.lua Lifecycle.lua
 Compat/    Compat.lua Probe.lua
 Data/      Codec.lua RecordTypes.lua Players.lua Index.lua Store.lua Paths.lua Coverage.lua YearCards.lua Schema.lua
+           Backup.lua
 StaticData/ Dungeons.lua Gathering.lua QuestChains.lua Travel.lua
 Trackers/  Session.lua Level.lua Professions.lua Gathering.lua Bosses.lua Dungeons.lua
            QuestChains.lua Footsteps.lua Deaths.lua
@@ -866,7 +914,8 @@ dependency mechanism in WoW, so it must match the layer diagram.
 - **In-game dev tools:** `/ws simulate LEVEL_UP level=12` (developer mode only) injects records through the real write path,
   flagged as test data and removable with `/ws simulate clear`,
   `/wayscribe stats`, `/wayscribe log`, `/wayscribe probe`, and `/wayscribe rebuild`. Developer mode
-  also previews the current year in Your Year before December.
+  also previews the current year in Your Year before December, and `/ws backup sample [days]` makes
+  the backup of a made-up year to time the clipboard with (§4.8).
 
 ---
 
@@ -1019,6 +1068,31 @@ Other findings:
   (it's a backup); month and year are there if a long journal makes the edit box slow.
 - **No archive (Phase B) yet.** It waits for real numbers: `/ws stats` now reports the saved file's
   size, measured the way the client writes it. The first beta day (15 sessions) saved 3.4 KB.
+
+### Decided during 0.6
+
+- **One string, no compression.** A very active simulated year backs up to 2.5 MB with its
+  footsteps (1.06 MB without), made in 0.37 s and checked in 0.26 s in plain Lua (§4.8). Whether a
+  long backup needs splitting by year or LibDeflate is left to the in-game paste of
+  `/ws backup sample`.
+- **A backup is a snapshot of its first frame.** It is built over many frames, so `meta`, `state`
+  and `players` are copied first and newer records are left out: ids, `seq` and the trackers'
+  state always agree in a backup.
+- **"No entries" means no records** (`seq` 0). Counters, sessions and trails recorded next to such a
+  journal (the minutes after a fresh install, or a character that only ever had Footsteps on) are
+  replaced, and the confirmation says how many days and trails that is. A journal with entries
+  still needs Reset first.
+- **Trails go with the journal**, or on their own into missing or empty ones. The plan restored
+  trails only into empty or missing trails; then a player who walked a few steps after a fresh
+  install would have had to Reset before getting the trails back.
+- **Read-only journals refuse a restore** unless the missing-journal guard made them read-only
+  (missing, renamed). Newer, failed and corrupt data is what principle 3 protects; a foreign
+  journal has entries.
+- **The paste is collected from `OnChar`.** The box keeps 4,000 bytes; a box holding megabytes would
+  stall the client. Whether Forever's client sends every pasted character through `OnChar` is the
+  first in-game check (docs/ingame-tests.md); typed text is read from the box either way.
+- **Samples can't be restored.** `/ws backup sample` exists to time the clipboard; restoring a
+  made-up year into a real character is refused.
 
 ### Landscape (for positioning)
 

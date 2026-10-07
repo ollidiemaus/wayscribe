@@ -51,6 +51,24 @@ commands.export = function(rest)
     ns.Export:Open(rest:lower())
 end
 
+-- /ws backup: the character's journal and footsteps as one string to keep outside the game.
+-- /ws backup sample [days] (developer mode): a made-up year, to time the clipboard with.
+commands.backup = function(rest)
+    local word, days = rest:lower():match("^(%a*)%s*(%d*)$")
+    if word ~= "sample" then
+        ns.Export:OpenBackup()
+    elseif not ns.devMode then
+        ns.Print(L.SIM_NEEDS_DEV)
+    else
+        ns.Export:OpenSample(math.max(1, math.min(3650, tonumber(days) or 365)))
+    end
+end
+
+-- /ws restore: paste a backup back into an empty journal or one that didn't load.
+commands.restore = function()
+    ns.Export:OpenRestore()
+end
+
 commands.log = function()
     local entries = ns.Log:GetEntries()
     if #entries == 0 then

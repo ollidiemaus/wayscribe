@@ -131,6 +131,17 @@ function Paths:HasDay(dayKey)
     return self.live ~= nil and self.live.day == dayKey
 end
 
+-- How many trails are stored, without measuring them (a restore asks whether there are any).
+function Paths:GetCount()
+    local count = 0
+    for _, month in pairs(self.db and self.db.months or EMPTY) do
+        for _, day in pairs(daysOf(month)) do
+            if type(day) == "table" then count = count + #day end
+        end
+    end
+    return count
+end
+
 -- Trails, days with trails, the size of the packed points and about how much the saved file
 -- holds for them (what /ws stats reports).
 function Paths:GetStats()

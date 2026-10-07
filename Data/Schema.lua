@@ -169,6 +169,27 @@ function Schema:LoadAccount()
     ns.Log:Attach(account.log)
 end
 
+-- What a journal goes through before it is used, whether it comes from the saved file or from a
+-- backup (Data/Backup.lua): migrations (build-then-swap), then the shape. Returns the table to use,
+-- or nil plus a problem kind and detail.
+function Schema:PrepareCharacter(raw)
+    if type(raw) ~= "table" then
+        return nil, "corrupt", "journal root is a " .. type(raw)
+    end
+    local migrated, kind, detail = migrate(raw, self.CHAR_CURRENT, self.charMigrations)
+    if not migrated then
+        return nil, kind, detail
+    end
+    local ok, field = checkAndFill(migrated, CHAR_TABLES)
+    if not ok then
+        return nil, "corrupt", field
+    end
+    if type(migrated.meta.seq) ~= "number" then
+        return nil, "corrupt", "meta.seq missing"
+    end
+    return migrated
+end
+
 function Schema:LoadCharacter()
     local raw = WayscribeCharDB
     if raw == nil then
@@ -176,22 +197,31 @@ function Schema:LoadCharacter()
         self.charMissing = true
         return
     end
-    if type(raw) ~= "table" then
-        return self:Fail("corrupt", "journal root is a " .. type(raw))
-    end
-    local migrated, kind, detail = migrate(raw, self.CHAR_CURRENT, self.charMigrations)
-    if not migrated then
+    local db, kind, detail = self:PrepareCharacter(raw)
+    if not db then
         return self:Fail(kind, detail)
     end
-    local ok, field = checkAndFill(migrated, CHAR_TABLES)
+    WayscribeCharDB = db
+    ns.charDB = db
+end
+
+-- The same for the trails.
+function Schema:PreparePaths(raw)
+    if type(raw) ~= "table" then
+        return nil, "corrupt", "trails root is a " .. type(raw)
+    end
+    local migrated, kind, detail = migrate(raw, self.PATH_CURRENT, self.pathMigrations)
+    if not migrated then
+        return nil, kind, detail
+    end
+    local ok, field = checkAndFill(migrated, PATH_TABLES)
     if not ok then
-        return self:Fail("corrupt", field)
+        return nil, "corrupt", field
     end
-    if type(migrated.meta.seq) ~= "number" then
-        return self:Fail("corrupt", "meta.seq missing")
+    if type(migrated.seq) ~= "number" then
+        return nil, "corrupt", "seq missing"
     end
-    WayscribeCharDB = migrated
-    ns.charDB = migrated
+    return migrated
 end
 
 -- WayscribeFootstepsDB is left exactly as loaded when it can't be used, like the journal.
@@ -201,22 +231,12 @@ function Schema:LoadPaths()
         self.pathsMissing = true
         return
     end
-    if type(raw) ~= "table" then
-        return self:FailPaths("corrupt", "trails root is a " .. type(raw))
-    end
-    local migrated, kind, detail = migrate(raw, self.PATH_CURRENT, self.pathMigrations)
-    if not migrated then
+    local db, kind, detail = self:PreparePaths(raw)
+    if not db then
         return self:FailPaths(kind, detail)
     end
-    local ok, field = checkAndFill(migrated, PATH_TABLES)
-    if not ok then
-        return self:FailPaths("corrupt", field)
-    end
-    if type(migrated.seq) ~= "number" then
-        return self:FailPaths("corrupt", "seq missing")
-    end
-    WayscribeFootstepsDB = migrated
-    ns.footstepsDB = migrated
+    WayscribeFootstepsDB = db
+    ns.footstepsDB = db
 end
 
 function Schema:VerifyIdentity()
@@ -310,6 +330,35 @@ function Schema:ResetCharacter()
     ns.Paths:Attach(WayscribeFootstepsDB)
     self:TouchCanary()
     return true
+end
+
+-- A restored backup (Data/Backup.lua) replaces the journal, the trails or both (nil keeps one).
+-- Backup has checked that it may; the caller reloads the UI right after, so every tracker starts
+-- on the restored state and the client writes the restored files at once.
+function Schema:SwapIn(journal, trails)
+    if journal then
+        WayscribeCharDB = journal
+        ns.charDB = journal
+        ns.Store:Attach(journal)
+    end
+    if trails then
+        WayscribeFootstepsDB = trails
+        ns.footstepsDB = trails
+        ns.Paths:Attach(trails)
+    end
+    -- The canary vouches for what was restored, even while the journal is still read-only.
+    local me = self.identity or ns.Compat.GetPlayerIdentity()
+    if not me.guid then return end
+    local canary = ns.accountDB.characters[me.guid]
+    if type(canary) ~= "table" then
+        canary = {}
+        ns.accountDB.characters[me.guid] = canary
+    end
+    canary.name = me.name
+    canary.realm = me.realm
+    if journal then canary.seq = journal.meta.seq end
+    if trails then canary.paths = trails.seq end
+    canary.savedAt = time()
 end
 
 -- /ws accept: the player resolves a guard situation. Takes effect after /reload.
