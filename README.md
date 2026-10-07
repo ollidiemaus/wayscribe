@@ -1,10 +1,14 @@
 # Wayscribe
 
-An automatic journal for your **WoW Forever** character. Wayscribe records what happens while you play,
-groups it by day, shows your last session when you log in, draws where you went on the world map
-(**Footsteps**), and looks back on each year, card by card (**Your Year**).
+**An automatic journal for your WoW Forever character.**
 
-```
+Wayscribe writes down your adventures while you play. There's nothing to type and nothing to set
+up: level ups, dungeon runs with your group, first boss kills, professions, gathering, quest chains,
+deaths and hearthstone journeys are collected day by day, in a book that looks right at home next to
+your spellbook. Your routes show up as footsteps on the world map, and at the end of the year,
+**Your Year** looks back on all of it, card by card.
+
+```text
 Saturday, October 3, 2026
 Today · played 2 h 10 min
 
@@ -19,84 +23,125 @@ Today · played 2 h 10 min
           Traveled 4.1 miles · Flight paths: 2.3 miles
 ```
 
-Everything stays in your SavedVariables. Nothing is sent anywhere.
+## Features
 
-## Status
+### A journal that writes itself
 
-**0.6 Backup** (in progress). It tracks:
+- One page per day: what happened, when, and how long you played.
+- The day list on the left, grouped by month; the selected day on the right. Turn the pages like a
+  book.
+- Firsts are marked: your first kill of a boss, your first clear of a dungeon.
+- Filters for Progress, Adventure, Quests, Gathering and Travel.
+- Full dates in English or German, times in your game's 12- or 24-hour clock.
 
-- level ups
-- professions: learned, skill points per day, ranks 75/150/225/300
-- gathering: ore, herbs and skins per day
-- boss kills, including world bosses
-- dungeon and raid runs with your group, duration and first clears
-- deaths: where and when (subzone and zone), in the journal and as a skull on the map
-- hearthstone and teleport journeys: from where to where, with an icon at both ends of the map
-- quests turned in per day, and well-known quest chains (attunements, class quests, famous
-  storylines). Chains added in a later version are filled in for the day you finished them.
-- **Footsteps**: where you walked, rode and flew, as trails on the world map (today, the last 7
-  days or everything), and the distance per day. Each journal day with trails opens the map at that
-  day's route. Two hours of play take about 3 KB.
+### What it records
 
-The journal is a book: a day list grouped by month on the left, the selected day on the right,
-filters per category, full dates in English or German. Its second tab is **Your Year**: a card for
-each part of your year (levels, dungeons, bosses, companions, deaths, gathering, professions,
-quests, footsteps with the share of Azeroth you walked, time played), turned like pages. A year
-opens on December 1, with a one-time "Your 2026 is ready" at login; past years open any time.
-The whole journal can be exported as text to read outside the game, and **backed up**: one string with
-the journal and its footsteps, kept in a file and pasted back with `/ws restore` (on a new computer,
-or when the saved file was lost). There's also a login recap, a settings page
-(Options > AddOns > Wayscribe), a minimap button, an Addon Compartment entry and a key binding
-(Key Bindings > AddOns, unbound by default).
-See the roadmap in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#11-roadmap).
+- **Levels:** every level you reach.
+- **Dungeons and raids:** each run with your group, how long it took, and your first clears. A run
+  you leave early becomes a visit with the bosses you defeated. A `/reload`, a disconnect or a corpse
+  run doesn't split it.
+- **Bosses:** every boss you defeat, in dungeons, raids and the open world.
+- **Professions:** the professions you learn, skill points per day, and the ranks 75, 150, 225 and
+  300.
+- **Gathering:** ore, herbs and skins per day. Only what actually ends up in your bags counts.
+- **Quests:** quests turned in per day, and well-known quest chains: attunements, dungeon keys, class
+  quests and storylines like The Defias Brotherhood or the redemption of Tirion Fordring. Chains
+  added in a later version are filled in for the day you finished them.
+- **Deaths:** where and when.
+- **Journeys:** hearthstone, Astral Recall, mage teleports and transporters, from where to where.
+- **Distance:** how far you walked, rode and flew each day.
+
+Every tracker can be turned off in the settings.
+
+### Footsteps: your routes on the world map
+
+- Where you walked and rode appears as a dark red trail on the zone and continent maps; flights
+  are thinner blue lines. Older days are drawn lighter.
+- A button in the top right corner of the map picks what it shows: today, the last 7 days, all of
+  it, or nothing.
+- A skull marks where you died, and a spell icon where a hearthstone or teleport took off and
+  where it landed. Hover over them for the time.
+- Each journal day with trails has a *Show on the map* button that opens the map at that day's
+  route.
+- Light on your game: recording checks your position once a second, only outdoors, and two hours
+  of play take about 3 KB.
+
+### Your Year
+
+The journal's second tab looks back on your year with a card for each part of it: the year at a
+glance, levels, dungeons and raids, bosses, your most frequent companions, deaths and the most
+dangerous place, gathering, professions, quests and quest chains, footsteps (with how much of
+Azeroth you walked), and time played.
+
+A year opens on December 1, with a "Your 2026 is ready!" message at your first login. Past years
+open any time.
+
+### Login recap
+
+At your first login of the day, a small window shows what happened in your last session. You can
+turn it off right there, and `/ws recap` brings it back.
+
+### Export and backup
+
+- **Export** the journal as text to read outside the game: this month, this year or everything.
+- **Back up** a character's journal and footsteps as one text to save in a file. `/ws restore`
+  puts it back, on a new computer or when the saved file was lost. A backup only goes into an empty
+  journal or one that didn't load; it never overwrites entries you have.
+
+## Getting started
+
+Install it, log in and play. Wayscribe records from the moment it's installed. To open the journal:
+
+- type `/ws` (or `/wayscribe`),
+- click the minimap button (right-click opens the settings),
+- use the Addon Compartment (the addons button at the minimap), or
+- set a key under Options > Keybindings > AddOns > Wayscribe (unbound by default).
+
+The settings are under Options > AddOns > Wayscribe, or `/ws settings`.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `/ws` or `/wayscribe` | Open or close the journal |
-| `/ws settings` | Open the settings page |
+| `/ws` | Open or close the journal |
+| `/ws settings` | Open the settings |
 | `/ws year` | Open Your Year (`/ws year 2026` for a given year) |
-| `/ws export` | The journal as text to copy (`month`, `year` or `all`, the default) |
-| `/ws backup` | A backup of this character's journal and footsteps, as a string to copy and keep |
-| `/ws restore` | Paste a backup back into a journal with no entries, or one that didn't load |
 | `/ws recap` | Show the last session again |
-| `/ws probe` | Show which game APIs this client offers (also saved to `WayscribeDB.probe`) |
-| `/ws stats` | Entries, days, months and sessions in this character's journal, the size of its footsteps, and how big both are in the saved file |
-| `/ws log` | The last recorded errors |
-| `/ws rebuild` | Recompute firsts and monthly summaries from the journal entries, and fill in quest chains finished before they were known |
-| `/ws dev` | Toggle developer mode (errors also go to BugSack; enables `simulate` and `backup sample`; previews this year's Your Year before December) |
-| `/ws simulate LEVEL_UP level=12` | Add a test entry through the real write path; `/ws simulate clear` removes them |
-| `/ws accept` | Resolve a read-only situation (journal of another character, or a journal or footsteps that didn't load) |
+| `/ws export` | The journal as text to copy (`month`, `year` or `all`, the default) |
+| `/ws backup` | A backup of this character's journal and footsteps, to copy and keep |
+| `/ws restore` | Paste a backup back into an empty journal, or one that didn't load |
+| `/ws stats` | How much is in this character's journal, and how big its saved file is |
+| `/ws log` | The last errors, if there were any |
+| `/ws rebuild` | Recompute firsts and summaries from the journal, and add quest chains finished earlier |
+| `/ws accept` | Answer a read-only warning: take over a journal copied from another character, or start fresh |
+| `/ws help` | List the commands |
 
-## Development
+## Your data
 
-Tests and lint need only Lua 5.1 (what WoW runs); newer Lua works for the tests too.
+- **It stays on your computer.** Everything is in your SavedVariables. Nothing is sent anywhere,
+  and other players can't see it.
+- **One journal per character.** Each character has its own file.
+- **Small.** Wayscribe saves short facts, not finished sentences, and packs the trails. Even a year
+  of daily play stays a few megabytes.
+- **Safe.** If a saved file doesn't load, or was written by a newer version, Wayscribe switches to
+  read-only instead of starting over, and tells you what happened and what to do. Nothing is
+  overwritten until you decide.
+- **Make a backup now and then** (`/ws backup`). It's one text you can keep anywhere, and it brings
+  back the journal and the footsteps if the game's files are ever lost.
 
-```bash
-lua tests/run.lua
-```
+## Good to know
 
-```bash
-luacheck .
-```
+- Wayscribe is made for **WoW Forever**. Other versions of the game aren't supported.
+- It speaks **English and German**.
+- Deaths say where and when, but not who: on Forever, addons can't read the combat log.
+- What happened before you installed Wayscribe isn't in the journal. A quest chain counts when you
+  turn in its last quest with Wayscribe installed.
 
-CI runs both on Lua 5.1.5. Homebrew no longer has Lua 5.1, so to get the same locally, build it
-with [hererocks](https://github.com/luarocks/hererocks) into a folder outside the repository:
+## Feedback
 
-```bash
-pip3 install hererocks
-hererocks ~/.lua51 -l 5.1 -r latest
-~/.lua51/bin/luarocks install luacheck
-```
+Found a bug or have an idea? Open an issue on
+[GitHub](https://github.com/ollidiemaus/wayscribe/issues), and include what `/ws log` says if
+there was an error.
 
-Then run `~/.lua51/bin/lua tests/run.lua` and `~/.lua51/bin/luacheck .`, or
-`source ~/.lua51/bin/activate` to put them first on the PATH of that shell.
-
-To try it in game, link the repository into the Forever client's AddOns folder as `Wayscribe`.
-The minimap button needs the libraries in `Libs/`, which the packager fetches (see `.pkgmeta`). For a
-local copy, put LibStub, CallbackHandler-1.0, LibDataBroker-1.1 and LibDBIcon-1.0 there yourself.
-Without them, everything except the minimap button works.
-The architecture, design decisions and the list of APIs still to verify on the Forever client
-are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The checks that need the real client are in
-[docs/ingame-tests.md](docs/ingame-tests.md).
+Want to look under the hood? The developer notes are in
+[docs/DEVELOPMENT.md](https://github.com/ollidiemaus/wayscribe/blob/main/docs/DEVELOPMENT.md).
