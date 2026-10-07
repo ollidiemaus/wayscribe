@@ -5,7 +5,7 @@ local L, Store, Time, DayView, YearCards = ns.L, ns.Store, ns.Time, ns.DayView, 
 -- §4.8, §7). Three windows share one look:
 --   * the export: the journal as plain text, a copy to read, selected for Ctrl+C,
 --   * the backup: the character's facts as one string, selected for Ctrl+C,
---   * the restore: an empty field to paste a backup into, checked before anything changes.
+--   * the restore: a field to paste a backup into, checked before anything changes.
 -- A backup is one long token, so it sits in a one-line field: in game, a multi-line box drew
 -- nothing of a 2.4 MB backup until it was clicked.
 local Export = {}
@@ -381,9 +381,34 @@ local function setVerdict(found, verdict, color)
     restore.verdictColor = color
 end
 
--- The field is looked at once a frame. A paste lands in it in one piece between two frames; it is
--- read once and the field emptied, so no script runs per character. (Collecting the paste from
--- OnChar, one call per character, took 28 s for a 2.4 MB backup in game.)
+-- A paste reaches the field one character at a time, and for each one the client works through
+-- everything the field already holds: about 2.6 ns per character held, in game. A field without a
+-- limit took 55.6 s for a 200 KB paste (the time grows with the square), one holding 4,000 bytes
+-- 28.3 s for 2.4 MB. So the field keeps only its first few bytes, and the paste is collected
+-- from OnChar, which still sees every character, in chunks rather than one huge table. It is
+-- read on the next frame; typed text, from the field.
+local PASTE_KEPT = 32
+local CHUNK_CHARS = 4096
+local parts, partCount, chunks = {}, 0, {}
+
+local function onChar(_, char)
+    partCount = partCount + 1
+    parts[partCount] = char
+    if partCount == CHUNK_CHARS then
+        chunks[#chunks + 1] = table.concat(parts, "", 1, partCount)
+        partCount = 0
+    end
+end
+
+local function takePaste()
+    if partCount > 0 then
+        chunks[#chunks + 1] = table.concat(parts, "", 1, partCount)
+    end
+    local text = table.concat(chunks)
+    partCount, chunks = 0, {}
+    return text
+end
+
 local function letters(field)
     if field.GetNumLetters then return field:GetNumLetters() or 0 end
     return #(field:GetText() or "")
@@ -391,11 +416,12 @@ end
 
 local function watchField()
     local field = restore.field
-    if letters(field) > 0 then
-        local text = field:GetText() or ""
-        local pasted = since(restore.lastFrame)
+    if partCount > 0 or #chunks > 0 or letters(field) > 0 then
+        local pasted = takePaste()
+        local shown = field:GetText() or ""
+        local seconds = since(restore.lastFrame)
         field:SetText("")
-        Export:CheckRestore(text, pasted)
+        Export:CheckRestore(#pasted >= #shown and pasted or shown, seconds)
     end
     restore.lastFrame = clock()
 end
@@ -404,6 +430,8 @@ local function createRestore()
     local window = createWindow("WayscribeRestoreFrame", L.RESTORE_TITLE, L.RESTORE_HINT, RESTORE_HEIGHT)
     local frame = window.frame
     window.field = createField(frame)
+    window.field:SetMaxBytes(PASTE_KEPT)
+    window.field:SetScript("OnChar", onChar)
     window.status = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     window.status:SetPoint("TOPLEFT", PADDING, FIELD_TOP - 42)
     window.status:SetPoint("TOPRIGHT", -PADDING, FIELD_TOP - 42)
@@ -426,6 +454,7 @@ end
 function Export:OpenRestore()
     restore = restore or createRestore()
     restore.found, restore.token = nil, nil
+    takePaste()
     restore.field:SetText("")
     setVerdict(nil, L.RESTORE_WAITING, GOLD)
     restore.button:SetEnabled(false)

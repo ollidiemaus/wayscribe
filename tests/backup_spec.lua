@@ -523,7 +523,8 @@ describe("checking a pasted backup", function()
 end)
 
 describe("restore window", function()
-    -- The client puts a paste into the field at once; the window reads it on the next frame.
+    -- Like the client: the field keeps its first 31 bytes, OnChar sees every character, and the
+    -- window reads the paste on the next frame.
     local function paste(text)
         local field
         for _, frame in ipairs(Stubs.state.frames) do
@@ -531,7 +532,9 @@ describe("restore window", function()
                 field = frame
             end
         end
-        field:SetText(text)
+        field:SetText(text:sub(1, 31))
+        local onChar = field:GetScript("OnChar")
+        for i = 1, #text do onChar(field, text:sub(i, i)) end
         _G.WayscribeRestoreFrame:GetScript("OnUpdate")()
         return field
     end
@@ -573,6 +576,21 @@ describe("restore window", function()
         T.falsy(_G.WayscribeRestoreFrame:IsShown())
         T.eq(ns.charDB.meta.seq, 345)
         _G.StaticPopupDialogs, _G.StaticPopup_Show, _G.ReloadUI = nil, nil, nil
+    end)
+
+    it("reads text typed or set without OnChar from the field", function()
+        local ns = playYear()
+        local text = makeBackup(ns)
+        ns.Export:OpenRestore()
+        local field
+        for _, frame in ipairs(Stubs.state.frames) do
+            if frame.frameType == "EditBox" and frame.parent and frame.parent.parent == _G.WayscribeRestoreFrame then
+                field = frame
+            end
+        end
+        field:SetText(text)
+        _G.WayscribeRestoreFrame:GetScript("OnUpdate")()
+        T.truthy(ns.Export:GetRestoreStatus():find("^Backup of Tester%-Forever"))
     end)
 
     it("says in red what's wrong, and offers nothing to confirm", function()

@@ -264,17 +264,25 @@ First build (2026-10-07): a multi-line box for the backup, the paste collected f
   must not go into a real journal), but the reason was easy to miss. Now: a one-line field
   without a limit, read once per paste, and the reason in red.*
 
-Second build: one-line fields, no script per pasted character.
+Second build: one-line fields, the restore field without a limit and no script per character.
+
+- [x] **The paste, step by step.** *7 days: 49,899 characters, 3.3 s; 30 days: 205,724 characters,
+  55.6 s (2026-10-07). 4.1 times the characters took 16.8 times as long: the square. The client
+  inserts a paste character by character and works through everything the field holds each time,
+  about 2.6 ns per character held. The 365-day step would have taken about two hours and was
+  rightly skipped.*
+
+Third build: the field holds 32 bytes, the paste is collected from `OnChar`.
 
 - [ ] **`/ws backup sample`**: the field shows the beginning of the backup (`WSB1:…`) right away,
   selected. Chat: "Sicherung in x s erstellt und in y s angezeigt (… KB)". Note x and y.
-- [ ] **The paste, step by step** (stop if a step freezes the game for long). Each time: make the
-  sample, Ctrl+C, `/ws restore`, click into the field, Ctrl+V, and note the chat line "… Zeichen:
-  Das Einfügen dauerte x s, die Prüfung y s":
-  - `/ws backup sample 7`: 50,052 characters (give or take a few for the name).
-  - `/ws backup sample 30`: about 206,400. If x is much more than 4 times the 7-day x, the client
-    inserts a paste character by character after all: stop here and report.
-  - `/ws backup sample`: about 2,483,000. Is x + y "a few seconds"?
+- [ ] **The paste, step by step** (stop if a step takes much longer than expected). Each time: make
+  the sample, Ctrl+C, `/ws restore`, click into the field, Ctrl+V, and note the chat line "…
+  Zeichen: Das Einfügen dauerte x s, die Prüfung y s":
+  - `/ws backup sample 7`: about 50,000 characters, expected well under a second.
+  - `/ws backup sample 30`: about 206,000, expected under a second, about 4 times the 7-day x.
+  - `/ws backup sample`: about 2,480,000, expected about 2.5 s for the paste and 1-2 s for the
+    check.
   Each time the field empties after the paste, the status names the backup ("Sicherung von …:
   14.600 Einträge an 365 Tagen, 3.650 Spuren.") and below it, in red, why it can't be restored
   ("Sie ist ein Beispiel zum Testen …").
