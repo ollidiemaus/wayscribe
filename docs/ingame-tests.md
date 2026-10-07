@@ -106,8 +106,6 @@ Wayscribe draws where you walked as a dark red line on the world map.
   entries wrap. After `/reload`, size and position are kept.
 - [ ] **Live.** With the journal open on today, loot ore or level up. → The page updates without
   flicker.
-- [ ] **Close in combat.** Open the journal and start a fight. → The X in the corner closes it, and
-  chat shows no "Interface action failed because of an AddOn".
 - [ ] **Item names.** → Gathered items show their names, not "item 2770" (they may fill in a moment
   later).
 - [ ] **Clock.** → Times read `14:05` with the game's 24-hour clock on, `2:05 PM` with it off.
@@ -159,7 +157,7 @@ Done on builds 70235 and 70245 (2026-10-06 and 07); no need to repeat. Details a
 - **Names:** `/ws probe` shows `has.surnames = true`, and your character is saved with first name,
   surname and realm.
 - **Journal:** looks like the spellbook (frame, parchment, headers, page buttons); the filter menu
-  opens; times use the 24-hour clock.
+  opens; times use the 24-hour clock. The X closes it in combat too.
 - **Icon:** the quill-on-a-map icon shows in the addon list, on the minimap button, in the Addon
   Compartment, as the journal's portrait on both tabs and on Your Year's first card.
 - **Footsteps:** the trail lies on the roads you took, on the full and the small map, and grows while
