@@ -35,6 +35,12 @@ local function newFontString()
     return permissive(fontString)
 end
 
+-- The default UI's close button calls HideUIPanel, which does nothing for an addon in combat.
+local function closeParent(button)
+    if state.combat then return end
+    button.parent:Hide()
+end
+
 local function newFrame(frameType, name, parent, template)
     local frame = {
         events = {}, scripts = {}, shown = true, width = 0, height = 0, regions = {}, name = name,
@@ -115,6 +121,11 @@ local function newFrame(frameType, name, parent, template)
         _G[name] = frame
         Stubs.namedFrames[name] = true
     end
+    if template == "UIPanelCloseButton" or template == "UIPanelCloseButtonDefaultAnchors" then
+        frame.scripts.OnClick = closeParent
+    elseif template == "PortraitFrameTemplate" then
+        frame.CloseButton = newFrame("Button", nil, frame, "UIPanelCloseButtonDefaultAnchors")
+    end
     return permissive(frame)
 end
 
@@ -180,6 +191,7 @@ local function installUnits(opts)
     end
     _G.UnitOnTaxi = function() return state.onTaxi == true end
     _G.UnitIsDeadOrGhost = function() return state.dead == true end
+    _G.InCombatLockdown = function() return state.combat == true end
     _G.IsInRaid = function() return #state.group > 4 end
     _G.GetNumGroupMembers = function() return #state.group > 0 and #state.group + 1 or 0 end
     _G.GetNumSubgroupMembers = function() return #state.group end
@@ -576,6 +588,7 @@ function Stubs.SetTaxi(onTaxi) state.onTaxi = onTaxi end
 function Stubs.SetBestMap(mapID) state.bestMap = mapID end
 function Stubs.SetSubZone(name) state.subZone = name end
 function Stubs.SetDead(dead) state.dead = dead end
+function Stubs.SetCombat(inCombat) state.combat = inCombat end
 
 -- Group members other than the player: list of { guid, name, realm, class }.
 function Stubs.SetGroup(members) state.group = members end

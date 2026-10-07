@@ -82,9 +82,6 @@ Wayscribe draws where you walked as a dark red line on the world map.
   With several days of trails, set the map button to *All* and open a continent map. → No stutter.
 - [ ] **Map levels.** → The trail shows on the zone and the continent map. The world map (all of
   Azeroth) shows none, and no error.
-- [ ] **From the journal.** On a day with trails, click *Show on the map*. → The map opens in front of
-  the journal, at that day's zone, showing only that day. After closing the map, the button says
-  *Today* again.
 - [ ] **Footsteps settings.** The map dropdown and the flights checkbox work. *Delete all trails*
   asks first (try it only on a test character).
 
@@ -160,13 +157,14 @@ Done on builds 70235 and 70245 (2026-10-06 and 07); no need to repeat. Details a
 - **Names:** `/ws probe` shows `has.surnames = true`, and your character is saved with first name,
   surname and realm.
 - **Journal:** looks like the spellbook (frame, parchment, headers, page buttons); the filter menu
-  opens; times use the 24-hour clock.
+  opens; times use the 24-hour clock. The X closes it in combat too.
 - **Icon:** the quill-on-a-map icon shows in the addon list, on the minimap button, in the Addon
   Compartment, as the journal's portrait on both tabs and on Your Year's first card.
 - **Footsteps:** the trail lies on the roads you took, on the full and the small map, and grows while
   the map is open. Standing still leaves no gap; a hearthstone draws no line; a ghost isn't followed;
   `/reload` keeps the trail (with a small gap). The map's icons sit above the lines, the map button
-  sits top right, and *Show on the map* opens the right zone.
+  sits top right, and *Show on the map* opens the map in front of the journal at the day's zone,
+  showing only that day; after closing the map, the button says *Today* again.
 - **Journeys and deaths:** a hearthstone within a zone makes an entry and an icon at both ends. A
   death outdoors makes an entry and a skull with a tooltip.
 - **Your Year:** rollups are rebuilt silently after updating; `/ws stats` matches the saved file's

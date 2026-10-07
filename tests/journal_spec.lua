@@ -330,6 +330,32 @@ describe("window", function()
         T.eq(_G.WayscribeJournalFrame:GetHeight(), 500)
     end)
 
+    it("closes with its close button, also in combat", function()
+        local ns = Stubs.LoadAddon()
+        Stubs.InstallNativeUI()
+        Stubs.Login()
+        ns.Journal:Toggle()
+        local frame = _G.WayscribeJournalFrame
+        T.eq(frame.template, "PortraitFrameTemplate")
+        Stubs.SetCombat(true)
+        frame.CloseButton:Click()
+        T.falsy(frame:IsShown(), "not through HideUIPanel, which refuses addon frames in combat")
+    end)
+
+    it("closes with the plain border's close button in combat", function()
+        local ns = twoDays()
+        ns.Journal:Toggle()
+        local frame = _G.WayscribeJournalFrame
+        T.eq(frame.template, "BackdropTemplate")
+        local close
+        for _, child in ipairs(Stubs.state.frames) do
+            if child.parent == frame and child.template == "UIPanelCloseButton" then close = child end
+        end
+        Stubs.SetCombat(true)
+        close:Click()
+        T.falsy(frame:IsShown())
+    end)
+
     it("opens at the login recap's day", function()
         local ns = twoDays()
         ns.LoginRecap:Show({ day = 20261003, lines = { "x" } })
