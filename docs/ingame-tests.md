@@ -1,319 +1,173 @@
 # In-game tests
 
-These checks need the real Forever client; the unit tests can't answer them. Each item says what it
-proves, and where the answer goes. Tick items off here when they're done.
+Wayscribe is an addon that keeps an automatic journal of your character: it records what happens
+while you play (levels, dungeons, bosses, professions, quests, deaths, where you walked) and shows it
+day by day. The [README](../README.md) has the full tour.
 
-Setup: copy the addon with its `Libs/` folder into `Interface/AddOns/Wayscribe` (see README). Turn on
-`/ws dev` so errors also reach BugSack, and check `/ws log` after each session.
+The unit tests cover the logic. The checks below need the real Forever client: does the game fire
+the events, does it look right, is it fast enough.
 
-## 0.2 Adventurer (open)
+## Setup
 
-Probe results from 2026-10-06 are already in [forever-probe.md](forever-probe.md): APIs, events,
-gather spell names and libraries are all present.
+1. Put the Wayscribe folder you were given (with its `Libs/` folder) into
+   `_classic_beta_/Interface/AddOns/`.
+2. In game, type `/ws dev` once. Errors then also show up in BugSack (if you have it), and a few test
+   commands unlock. It stays on until you type it again.
+3. After each session, `/ws log` should say "No errors recorded." If not, note what it shows.
 
-### Dungeons and bosses (release exit criterion)
+**Where things are**
+- `/ws` opens the journal: the day list on the left, the selected day on the right, the tabs
+  *Journal* and *Your Year* below.
+- The world map has a *Footsteps: Today* button in its top right corner.
+- Settings: Options > AddOns > Wayscribe.
+- `/etrace` is the game's own event trace, for the "does this event fire?" checks.
 
-- [ ] **Full Ragefire Chasm run with a `/reload` in the middle.** Expect one "… zum ersten Mal
-  besiegt" entry per boss and, on leaving, "… zum ersten Mal abgeschlossen mit …
-  (xx Min.)" as **one** entry. Answers §12 #1: do `ENCOUNTER_END` / `BOSS_KILL` fire for Vanilla
-  bosses?
-- [ ] **Corpse run.** Die, release, run back in within 30 min, finish: still one run.
-- [ ] **Leave before the final boss.** After 30 min outside, a "… besucht und N Bosse besiegt" entry
-  appears, dated when you left.
-- [ ] **Dungeon finder**, if Forever has one: do `LFG_COMPLETION_REWARD` or `SCENARIO_COMPLETED` fire
-  at the end? (§12 #7; `/etrace` shows events.)
+**Reporting.** Tick the box and add a short note in *italics* under the test, with the date. Say what
+you saw only if it differs from the expectation; for looks, a screenshot helps. Quoted texts are the
+English client's; a German client shows the German ones.
 
-### Professions and gathering
+**Start here** if time is short: the [dungeon run with a reload](#dungeons-and-bosses), a
+[flight](#footsteps-on-the-world-map), [`/ws stats` after two hours](#footsteps-on-the-world-map)
+and [a journal file that didn't load](#backup).
 
-- [x] **Learn a gathering profession.** Expect "Bergbau erlernt" (or similar). *Skinning learned
-  2026-10-06: `PROFESSION_LEARNED {skillLine = 393}` with the first-time mark.*
-- [x] **`/ws probe` with professions learned.** Paste into forever-probe.md. Answers §12 #2: is the
-  skill line ID the parent (186) or a child (2946), and does First Aid show up? *The parent: 393
-  Kürschnerei 3/75. First Aid is still open (not learned yet).*
-- [ ] **Skill up and reach 75.** Expect "Fertigkeitspunkte: Bergbau +N" in the day and "Bergbau auf
-  75 gebracht".
-- [ ] **Mine a vein that takes several hits, pick a herb, skin a mob.** Expect one node each and the
-  looted items under "Gesammelt: …". Leave one item in the loot window with full bags: it must not
-  count.
-- [ ] **Which spell ID does a gather cast report, and is it secret?** Watch
-  `UNIT_SPELLCAST_SUCCEEDED` in `/etrace` while mining. (§12 #6)
+## Dungeons and bosses
 
-### UI
+- [ ] **A full dungeon run with a `/reload` halfway** (most important). Run Ragefire Chasm (or any
+  dungeon) to the end and `/reload` once in the middle. → One "Defeated *boss* for the first time"
+  per boss, and on leaving **one** entry "First clear of Ragefire Chasm with *your group*
+  (*xx* min)".
+- [ ] **Corpse run.** In a dungeon, die, release, run back within 30 minutes and finish. → Still one
+  run entry.
+- [ ] **Leave early.** Leave a dungeon before the last boss and stay out for 30 minutes. → "Visited
+  *dungeon* and defeated *N* bosses", dated when you left.
+- [ ] **Die in a dungeon.** → "Died in *dungeon*". No skull on the map (there's no position inside).
+- [ ] **Position inside.** In a dungeon, run `/ws probe`. → Note what the `unitPosition` line says
+  (probably nil).
+- [ ] **Dungeon finder**, if Forever has one. With `/etrace` open, finish a finder dungeon. → Note
+  whether `LFG_COMPLETION_REWARD` or `SCENARIO_COMPLETED` fires at the end.
 
-- [ ] **Login recap.** At the first login of the next day, the "Letzte Sitzung" popup lists the last
-  session. *Tagebuch öffnen* and the *nicht mehr zeigen* checkbox work; `/ws recap` shows it again.
-- [ ] **Settings page** (Options > AddOns > Wayscribe): toggles, date format dropdown, the data
-  buttons. Try *Tagebuch zurücksetzen* only on a test character.
-- [ ] **Minimap button**: left-click opens the journal, right-click the settings, drag moves it,
-  hiding it in settings works.
-- [ ] **Addon Compartment** entry and the **key binding** (Key Bindings > AddOns > Wayscribe).
-- [ ] **Journal** shows the day's counter lines, and item names fill in once loaded.
+## Professions and gathering
 
-### Secret values
+- [ ] **Skill up to 75.** → The day shows "Skill gains: Mining +*N*", and an entry "Mining reached
+  75".
+- [ ] **Gather.** Mine a vein that takes several hits, pick a herb, skin a creature. → "Ore deposits
+  mined: 1", "Herbs picked: 1", "Creatures skinned: 1", and the items under "Gathered …".
+- [ ] **Full bags.** Leave an item in the loot window because your bags are full. → It isn't counted.
+- [ ] **Gather spell.** With `/etrace` open, mine a vein. → Note the spell ID that
+  `UNIT_SPELLCAST_SUCCEEDED` shows, and whether it's readable or hidden (secret).
+- [ ] **First Aid.** Learn First Aid, then `/ws probe`. → Is there a `profession.…` line for it?
 
-- [ ] After a session with lots of combat, `/ws log` has no errors from trackers. (§12 #5)
+## Quests
 
-## 0.3 Chronicler (open)
+- [ ] **Turn in a quest.** → The day shows "Quests turned in: 1".
+- [ ] **Finish a known quest chain**, e.g. the druid's bear form or The Defias Brotherhood. →
+  "Completed the quest chain: …" with the time.
+- [ ] **How a chain entry reads.** `/ws simulate QUEST_CHAIN_COMPLETED chain=DEFIAS quest=166`. → An
+  entry appears, marked as a test; `/ws simulate clear` removes it.
 
-Unit tests cover the exit criterion (a curated chain added after the fact back-fills on the right
-day, once). These checks need the client.
+## Footsteps on the world map
 
-### Journal
+Wayscribe draws where you walked as a dark red line on the world map.
 
-- [x] **It looks like the spellbook.** `/ws` next to the spellbook: the same frame (portrait with
-  the book icon, title "Wayscribe"), the same two-page parchment, headers in the spellbook's dark
-  brown with the ornament line, "Seite 3/12" with the spellbook's arrow buttons. Screenshot it. Do
-  the text margins fit the page art (nothing on the torn edge or the spine)? *Yes (2026-10-06,
-  after moving the text off the page art's top bar and darkening the secondary text). The filter
-  menu opens with the four categories; times and sessions show in 24-hour format.*
-- [ ] **Day list.** Month headings, "Heute"/"Gestern" on the right, the selected day has a soft
-  shadow. The thin scroll bar appears only with more days than fit.
-- [ ] **Turning pages.** The arrows move one day, are disabled at the ends and play the page sound.
-- [ ] **Filter menu.** *Filter* in the top bar opens checkboxes per category. Turn off *Sammeln*:
-  ore lines disappear, days with only ore leave the list. After `/reload` it's still off.
-- [ ] **Resize and move.** Drag the corner grip and the title bar; after `/reload` size and position
-  are kept. The parchment stretches with the window; long entries wrap at the new width.
-- [ ] **Live updates.** With the journal open on today, loot ore or level up: the page updates
-  without flicker.
-- [ ] **Times** show as `14:05` with the 24-hour clock on and `2:05 PM` with it off.
-- [ ] **Login recap** *Tagebuch öffnen* opens the journal at the recap's day.
+- [ ] **Flight.** Take a flight path. → A thinner blue line from flight master to flight master, joined
+  to the walk before and after. With Settings > *Record flight paths* off, a flight leaves no line.
+- [ ] **Combat.** Fight a few mobs while moving. → The line has no gaps.
+- [ ] **Distance.** → The day page shows "Traveled *x* miles" (and "Flight paths: …" after a flight).
+- [ ] **Size.** After about two hours of play, `/ws stats`. → The "Footsteps: … KB packed" line is
+  well under 10 KB. Note the number.
+- [ ] **Speed.** Footsteps on or off (Settings > Tracking) makes no FPS difference with the map closed.
+  With several days of trails, set the map button to *All* and open a continent map. → No stutter.
+- [ ] **Map levels.** → The trail shows on the zone and the continent map. The world map (all of
+  Azeroth) shows none, and no error.
+- [ ] **From the journal.** On a day with trails, click *Show on the map*. → The map opens in front of
+  the journal, at that day's zone, showing only that day. After closing the map, the button says
+  *Today* again.
+- [ ] **Footsteps settings.** The map dropdown and the flights checkbox work. *Delete all trails*
+  asks first (try it only on a test character).
 
-### Quest chains
+## Journeys and deaths
 
-- [x] **`/ws probe` with a few quests in the log.** Paste the `questLine.*` and `questTitle.*` lines
-  into forever-probe.md. Answers §12 #4: does `C_QuestLine` know Vanilla quests? *No: nothing for
-  747 and 752 (2026-10-06), so only curated chains count.*
-- [ ] **Turn in any quest.** The day shows "Quests abgegeben: 1".
-- [ ] **Complete a curated chain**, the easiest being the druid bear form (Body and Heart) or the
-  Defias Brotherhood. Expect "Questreihe abgeschlossen: …" with the time.
-- [ ] **Back-fill on a real journal.** Developer mode, then
-  `/ws simulate QUEST_CHAIN_COMPLETED chain=DEFIAS quest=166` shows how a chain entry reads;
-  `/ws simulate clear` removes it.
+- [ ] **Hearthstone to another continent** (with a loading screen). → An entry "Hearthstone to …";
+  each continent's map shows the hearthstone icon at its end.
+- [ ] **Summon or boat.** → No entry, no icon; the line just breaks.
+- [ ] **Die at a named place**, e.g. Red Cloud Mesa. → "Died in Red Cloud Mesa, Mulgore".
+- [ ] **Release and resurrect.** → No second death entry.
+- [ ] **Yesterday's death.** The next day, set the map button to *Last 7 days*. → Yesterday's skull
+  shows, with the date in its tooltip. *Today* hides it.
 
-## 0.4 Footsteps (open)
+## Journal and windows
 
-Unit tests cover the size half of the exit criterion: two hours of simulated questing pack into
-about 3.2 KB (budget 10 KB). These checks need the client.
+- [ ] **Day list.** → Month headings, "Today" and "Yesterday", a soft shadow on the selected day. The
+  scroll bar appears only when there are more days than fit.
+- [ ] **Turning pages.** → The arrows move one day, are disabled at the ends, and play the page sound.
+- [ ] **Filter.** Click *Filter* at the top and untick *Gathering*. → Ore lines disappear, and days
+  with nothing else leave the list. After `/reload` it's still off.
+- [ ] **Resize and move.** Drag the corner and the title bar. → The page art stretches and long
+  entries wrap. After `/reload`, size and position are kept.
+- [ ] **Live.** With the journal open on today, loot ore or level up. → The page updates without
+  flicker.
+- [ ] **Item names.** → Gathered items show their names, not "item 2770" (they may fill in a moment
+  later).
+- [ ] **Clock.** → Times read `14:05` with the game's 24-hour clock on, `2:05 PM` with it off.
+- [ ] **Login recap.** At the first login of a new day. → A "Last session" window lists your previous
+  session. *Open journal* opens that day; *Don't show at login* works; `/ws recap` shows it again.
+- [ ] **Settings page.** → The toggles, the date format and the Data buttons work. *Reset journal*
+  only on a test character.
+- [ ] **Minimap button.** → Left-click opens the journal, right-click the settings, dragging moves it,
+  and the settings can hide it.
+- [ ] **Addon Compartment and key binding.** → The entry in the addons button at the minimap opens
+  the journal; so does a key set under Options > Keybindings > AddOns > Wayscribe.
+- [ ] **Export button.** Settings > Data > *Export...* → Opens the same window as `/ws export`.
 
-### Probe
+## Your Year
 
-- [x] **`/ws probe` outdoors, standing in a zone.** Paste the new lines (`has.taxiState`,
-  `has.worldMapCanvas`, `worldMap.frame`, `taxi`, `map.corners`, `map.fromWorld`, `map.atWorld`,
-  `map.parent`) into forever-probe.md. `map.fromWorld` must match `map.position` to about three
-  decimals: that proves the world-to-map transform. (§12 #3, #9) *Exact match, 0.4422, 0.7712
-  (2026-10-06). `map.atWorld` gave the continent, not the zone; fixed by walking down the maps.*
-- [ ] **`/ws probe` inside a dungeon.** Is `unitPosition` nil there? (§12 #3)
+The journal's second tab: a look back at the year, card by card.
 
-### Recording
+- [ ] **Before December.** With `/ws dev` **off**, open *Your Year*. → "Your year opens on Tuesday,
+  December 1, 2026. …"
+- [ ] **Live.** With `/ws dev` on and the tab open, level up or loot ore. → The cards update.
+- [ ] **The prompt** (optional; needs the computer's clock set to December 1). Log in and close the
+  "Last session" window. → A "Your 2026 is ready!" popup and a chat line; *Show* opens the tab. The
+  next login doesn't ask again.
 
-- [x] **Walk and ride for a few minutes, then open the world map.** A dark red line follows your
-  way, ending where you stand, and keeps growing while the map stays open. Does it lie on the roads
-  you took (not mirrored or shifted)? *2026-10-06: in the right place, and complete on the
-  full-screen map. On the small map (with the quest log) at its default zoom, the trail being
-  recorded broke up; zooming in showed it. Cause: its lines (8 yards a point) are under a pixel
-  there. A first fix (re-laying out the lines after drawing) didn't help; lines are now at least
-  3 pixels long, with a tail to the player, and drawn again after zooming. Rechecked: the line
-  stays whole and follows you on the small map too.*
-- [x] **Stand still for a minute, then walk on.** The line continues without a gap. *Yes (2026-10-06).*
-- [ ] **Take a flight.** The flight is a thinner blue line from flight master to flight master, the
-  walk before and after joins it. With *Record flight paths* off, the flight leaves no line.
-- [x] **Hearthstone or a portal.** No line across the jump. *2026-10-06: a hearthstone within
-  Mulgore (no loading screen) drew a straight 688-yard line. The jump was measured from the last
-  kept point, and the 10 s cast standing still made it look like a walk. Jumps are now measured
-  from the previous second's sample. Check again: no line, and see "Journeys" below.* *Rechecked
-  with the 0.5 copy: the trail ends 18 s before the cast finished, and no stored step covers the
-  340-yard jump (2026-10-06).*
-- [x] **Die and run back as a ghost.** The ghost's way is not drawn. *Yes; after resurrecting, the
-  trail goes on from the respawn spot (2026-10-06).*
-- [ ] **Fight a few mobs while moving.** The line has no gaps from combat. (Is the position
-  secret in combat? §12 #5)
-- [x] **`/reload` while walking.** The trail so far stays on the map; recording goes on. *Yes,
-  with a small gap where the reload was (2026-10-06): a reload ends the trail, and the new one
-  starts where you are once the UI is back.*
-- [ ] **Day page.** The journal shows "Zurückgelegt: 2,4 km" (and "Flugrouten: …" after a
-  flight).
-- [ ] **`/ws stats` after about two hours of play.** The "Fußspuren: … KB gepackt" line should be
-  well under 10 KB (exit criterion). Note the number here.
-- [ ] **Frame time.** With the map closed, the FPS doesn't change between Footsteps on and off
-  (exit criterion). With "Alle" on a continent map, opening the map doesn't stutter. *No frame rate
-  change noticed in the first sessions (about 63-66 FPS, map open or closed); "Alle" with a few
-  days of trails is still to try.*
+## Backup
 
-### Map
+- [ ] **A journal file that didn't load.** On a test character:
+  1. `/ws backup`, Ctrl+C, and paste the text into a file.
+  2. Close the game. Move `Wayscribe.lua` and `Wayscribe.lua.bak` out of
+     `WTF/Account/<account>/<realm>/<character>/SavedVariables/` (keep them).
+  3. Log in. → A chat warning that the journal didn't load, mentioning `/ws restore`. `/ws log` has
+     a line about it; BugSack has **nothing**.
+  4. `/ws restore`, paste the backup with Ctrl+V, *Restore...*, confirm. → The interface reloads with
+     the journal and the map trails back.
+  5. Log out. → A new `Wayscribe.lua` is in that `SavedVariables` folder.
+- [ ] **Another character** (optional). On a new character, restore the test character's backup. →
+  The confirmation says it belongs to another character; after the reload the journal is this
+  character's (its name is in the `/ws export` header).
 
-- [x] **Where the lines land.** Above the map art and explored areas, below the quest and flight
-  master icons? Zooming in keeps the lines equally thin. *Yes: the map's icons are drawn over the
-  lines (2026-10-06).*
-- [x] **The "Fußspuren: Heute" button** (upper right of the map) isn't hidden behind the map's own
-  controls. *At first it sat in the lower left, over the client's own coordinates; moved to the
-  upper right, which looks good (2026-10-06).* Its menu switches between Heute, Letzte 7 Tage, Alle and Aus; older days are lighter.
-- [ ] **Zone, continent, world.** The trail shows on the zone and the continent map; the world map
-  (all of Azeroth) shows none and no error.
-- [ ] **From the journal.** On a day with trails, the *Auf der Karte zeigen* button (now a real
-  button; the text link was easy to miss) opens the map at that day's zone with only that day
-  (*opens Mulgore, 2026-10-06*); does the map come up in front of the journal? After closing the
-  map, it shows "Heute" again.
-- [ ] **Settings:** the Fußspuren section (map dropdown, flights, *Alle Spuren löschen* with its
-  confirmation). Try deleting only on a test character.
+## Already verified
 
-### Journeys
+Done on build 70235 (2026-10-06 and 07); no need to repeat. Details are in
+[ARCHITECTURE.md §12](ARCHITECTURE.md#12-verify-on-the-forever-beta-run-ws-probe) and
+[forever-probe.md](forever-probe.md).
 
-- [x] **`/ws probe`:** the `spell.travel.*` lines name Ruhestein, Astraler Rückruf and the mage
-  teleports in German; `subZone` names where you stand. *All eight named, `subZone = Bloodhoof`
-  (2026-10-06). The list has since grown (Moonglade, Dalaran, the transporters): all 19 named in
-  German in the next probe.*
-- [x] **Hearthstone within a zone** (e.g. to Bloodhoof). The journal shows "Ruhestein nach
-  Bloodhoof" under *Reisen*, at the time you arrived. The map shows the hearthstone's icon where
-  you cast it and where you arrived; mouseover: "Ruhestein nach Bloodhoof" and "Mit Ruhestein
-  angekommen". No line between them. *Worked, icons shown at both ends (2026-10-06); the saved
-  `TELEPORT` has spell 8690, both places and `sub = "Bloodhoof"`.*
-- [ ] **Hearthstone to another continent** (a loading screen): the entry appears; each continent's
-  map shows its end.
-- [ ] **A summon or a boat** (no travel spell): no entry, no icon, just a break in the trail.
-
-### Deaths
-
-- [ ] **Die in a named spot** (e.g. Red Cloud Mesa): the entry reads "In Red Cloud Mesa, Mulgore
-  gestorben".
-- [x] **Die outdoors.** The journal shows "In Mulgore gestorben" (with the time), and the map shows a
-  skull where you died. Mouseover: "Hier gestorben" and the time; the skull keeps its size when
-  zooming. With the map open while dying, the skull appears at once. *Entry, skull and tooltip
-  shown (2026-10-06).*
-- [ ] **Next day / Letzte 7 Tage:** yesterday's skull shows with the date in its tooltip; "Heute"
-  hides it.
-- [ ] **Die in a dungeon.** The journal names the dungeon ("In Flammenschlund gestorben" or
-  similar); no skull, since there is no position inside.
-- [ ] **Release and resurrect** don't add a second entry.
-
-## 0.5 Your Year (open)
-
-Unit tests cover the exit criterion: a played year's cards come out the same after every day of the
-journal was deleted, so the recap renders from rollups (and sessions) alone. They also cover the
-prompt's timing (December 1, the January catch-up, once per year, after the login recap). These
-checks need the client.
-
-### Probe and upgrade
-
-- [x] **`/ws probe` outdoors.** Paste `has.mapChildren`, `has.panelTabs`, `coverage.zones` and the
-  `coverage.continent.*` lines into forever-probe.md. Do the zones and square miles look like
-  Kalimdor and the Eastern Kingdoms (roughly 20-25 zones each)? An unexpected continent ID with a
-  few zones would inflate the total. (§12 #10, #11) *Both true; Kalimdor 23 zones, Eastern
-  Kingdoms 26, plus continent 2991 with one zone: Forever's Zephras Isle (UiMap 2521, under
-  Azeroth), which belongs in the count (2026-10-06).*
-- [x] **First login after updating.** The rollups are rebuilt once, silently: `/ws log` stays
-  empty, the journal looks the same, and the saved file has `["rollup"] = 2` under `meta`. *Yes:
-  `rollup = 2`, no new log entries (2026-10-06).*
-- [x] **`/ws stats`.** The new line "Gespeicherte Datei: Tagebuch etwa … KB, Fußspuren etwa … KB"
-  should match the size of `Wayscribe.lua` in the character's SavedVariables folder (after a
-  `/reload`, to within a few percent). *The estimate, run on the saved file, gives 4,055 bytes for
-  the 4,056-byte file (2026-10-06).*
-
-### The tab
-
-- [x] **Tabs under the journal**: "Tagebuch" and "Dein Jahr" look like the spellbook's or the
-  character frame's tabs, sit right under the frame, and switch. On "Dein Jahr" the filter menu is
-  gone; back on "Tagebuch" it returns. Screenshot it. *Screenshots 2026-10-06: the default UI's
-  tabs under the frame, the chosen one raised.*
-- [ ] **Before December**: "Dein 2026" says when it opens (Dienstag, 1. Dezember 2026).
-- [x] **Preview with `/ws dev`**: the page switches to the cards at once, subtitle "Dein 2026 ·
-  Vorschau". Read every card in German: do the texts read well, and do all icons show (no green
-  squares)? Is the big number large but inside the page? Turn the cards with the page buttons
-  ("Seite 3/11", page sound) and by clicking them in the list. *Seven cards on this character
-  (Blick, Stufen, Tode, Berufe, Quests, Fußspuren, Spielzeit), all icons shown, big numbers inside
-  the page, "Vorige Karte" / "Nächste Karte" on the buttons (2026-10-06). The dungeon, boss,
-  companion and gathering cards need a character with those.*
-- [x] **Footsteps card**: briefly "Wird gemessen …", then "Du bist x % von Azeroth abgelaufen" and
-  "Am meisten erkundet: Mulgore (y %)". Note x and y here. No stutter while it measures. *x =
-  0,1 %, y = 2,2 % after 5,7 km (2026-10-06).*
-- [ ] **Live**: with the tab open, level up or loot ore: the cards update.
-
-### Prompt
-
-- [ ] Optional, needs the computer's clock set to December 1 (or later): at login, after the
-  "Letzte Sitzung" window is closed, the popup "Dein 2026 ist fertig!" appears with a chat line;
-  *Anzeigen* opens the tab. The next login doesn't ask again.
-
-### Export
-
-- [x] **`/ws export`**: the window opens with the text selected. Ctrl+C, paste into a text editor:
-  dates, times and German umlauts come through, entries line up under their times. *Dieser
-  Monat* / *Dieses Jahr* / *Alles* switch the text. Escape closes it. *Looks good (2026-10-06).*
-- [ ] **Settings > Daten > Tagebuch exportieren** opens the same window.
-
-## 0.6 Backup (open)
-
-Unit tests cover the first half of the exit criterion: a simulated year of journal and trails
-survives backup, Reset and restore with the same facts, the same caches and the same Your Year
-cards. They also cover the rules: a journal with entries is refused, a missing, renamed or empty
-one is restored, another character's backup takes this character's identity, read-only trails are
-left alone, and a cut-off, changed or wrapped paste is caught or tolerated. These checks need the
-client.
-
-### The clipboard (done: one string is enough)
-
-First build (2026-10-07): a multi-line box for the backup, the paste collected from `OnChar`.
-
-- [x] **`/ws dev`, then `/ws backup sample`.** *"Sicherung in 3,7 s erstellt (2416,5 KB)". The text
-  was invisible until clicking into the box, and Ctrl+A lagged briefly and hid it again: the
-  multi-line box can't draw 2.4 MB. Now a one-line field.*
-- [x] **The same text in a text editor**: *2,474,487 characters arrived through Ctrl+C.*
-- [x] **Ctrl+C, `/ws restore`, Ctrl+V.** *Every character came through `OnChar` (2,474,487), but the
-  window froze: "Das Einfügen dauerte 28,3 s, die Prüfung 1,2 s". About 11 µs per character,
-  one script call each: too slow. The box kept only its first 4,000 bytes, which looked like a
-  cut-off paste. The sample's *Wiederherstellen...* stays disabled on purpose (a made-up year
-  must not go into a real journal), but the reason was easy to miss. Now: a one-line field
-  without a limit, read once per paste, and the reason in red.*
-
-Second build: one-line fields, the restore field without a limit and no script per character.
-
-- [x] **The paste, step by step.** *7 days: 49,899 characters, 3.3 s; 30 days: 205,724 characters,
-  55.6 s (2026-10-07). 4.1 times the characters took 16.8 times as long: the square. The client
-  inserts a paste character by character and works through everything the field holds each time,
-  about 2.6 ns per character held. The 365-day step would have taken about two hours and was
-  rightly skipped.*
-
-Third build: the field holds 32 bytes, the paste is collected from `OnChar`.
-
-- [x] **`/ws backup sample`**: the field shows the beginning of the backup (`WSB1:…`), selected.
-  *Right away for 7 and 30 days; for the year, "Die Sicherung wird erstellt ..." first, then the
-  backup (2026-10-07).*
-- [x] **The paste, step by step.** *7 days: 49,899 characters, paste 0.1 s, check 0.0 s; 30 days:
-  205,724, 0.2 s, 0.1 s; the year: 2,474,487, 2.8 s, 1.2 s (2026-10-07). In line with the size; a
-  very active year pastes back and is checked in about 4 s. One string is enough.*
-
-### A real backup
-
-- [x] **`/ws backup`** on the test character: "Mit Fußspuren" is ticked and the line beside it
-  matches `/ws stats` (entries, days, trails). Unticking it makes a smaller backup without trails.
-  *Matched `/ws stats` (2026-10-07).*
-- [x] **Settings > Daten**: *Tagebuch sichern* and *Sicherung wiederherstellen* open the same windows.
-  *Yes (2026-10-07).*
-- [x] **Into the same character**: pasted into `/ws restore`, the status says in red "Dieses Tagebuch
-  hat schon Einträge …" and *Wiederherstellen...* stays disabled. *Yes (2026-10-07).*
-- [x] **After Reset**: Settings > Daten > *Tagebuch zurücksetzen*, then the backup into
-  `/ws restore`: confirmed and reloaded, everything is back. *The journal was emptied, and the
-  restore brought everything back (2026-10-07). This is the empty-journal path; the next section
-  is the one the missing-journal guard stops.*
-
-### A journal that didn't load (release exit criterion)
-
-- [x] Make a backup with footsteps and save it in a file. With the game closed, **move**
-  `Wayscribe.lua` (and its `.bak`) out of the character's `SavedVariables` folder; keep them. Log
-  in: the read-only warning now mentions `/ws restore`. Paste the backup into `/ws restore`, click
-  *Wiederherstellen...*: the popup names the backup and says that the file which didn't load is
-  overwritten. Confirm: the interface reloads, the journal is back (same days and entries, same
-  Your Year cards), there is no read-only banner and no `/ws accept` was needed. `/ws log` shows
-  no `backup` errors. *Worked: the warning at login, the popup, and after the reload everything
-  was back (2026-10-07). With `/ws dev` on, BugSack also showed "schema: missing" at login: the
-  guard's own log entry, forwarded like an error. Guard situations are now warnings, `/ws log`
-  only, and say what they found ("missing: the account file counted 42 entries").*
-- [x] After that reload: the world map shows the trails again (*Letzte 7 Tage* / *Alle*). *Yes.*
-- [ ] After logging out, a new `Wayscribe.lua` is in the character's folder.
-- [ ] With the next build and `/ws dev` on: the same login without a journal file shows the banner
-  and the `/ws log` line, and nothing in BugSack.
-
-### Other characters
-
-- [ ] Optional, on a new character: restore the test character's backup. The popup says it belongs
-  to another character; after the reload the journal is this character's (its name in the export
-  header).
+- **Probe:** all needed APIs, events, gather and travel spell names, and the libraries are there. A
+  profession reports its parent skill line (Skinning 393). `C_QuestLine` knows no Vanilla quests, so
+  only the curated chains count. The world-to-map math matches the client exactly. Coverage finds
+  50 zones, Forever's Zephras Isle included.
+- **Professions:** learning Skinning makes an entry.
+- **Journal:** looks like the spellbook (frame, parchment, headers, page buttons); the filter menu
+  opens; times use the 24-hour clock.
+- **Footsteps:** the trail lies on the roads you took, on the full and the small map, and grows while
+  the map is open. Standing still leaves no gap; a hearthstone draws no line; a ghost isn't followed;
+  `/reload` keeps the trail (with a small gap). The map's icons sit above the lines, the map button
+  sits top right, and *Show on the map* opens the right zone.
+- **Journeys and deaths:** a hearthstone within a zone makes an entry and an icon at both ends. A
+  death outdoors makes an entry and a skull with a tooltip.
+- **Your Year:** rollups are rebuilt silently after updating; `/ws stats` matches the saved file's
+  size; the tabs look like the default UI's; all cards and icons show in the preview; the Footsteps
+  card measures the share of Azeroth. The text export copies correctly, umlauts included.
+- **Backup:** a very active year (2.47 million characters) pastes back in 2.8 s and is checked in
+  1.2 s. A real backup matches `/ws stats`; the Settings buttons open it; it's refused for a journal
+  with entries; Reset then restore brings everything back; a journal whose file was moved away is
+  restored without `/ws accept`, map trails included.
