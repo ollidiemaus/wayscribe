@@ -159,6 +159,29 @@ describe("missing-journal guard", function()
         T.truthy(ns.Store:IsWritable())
     end)
 
+    it("is a warning in /ws log, not an error for BugSack, also in developer mode", function()
+        local reported = {}
+        local function devAccount(characters)
+            local db = account(characters)
+            db.settings.devMode = true
+            return db
+        end
+        local ns = Stubs.LoadAddon({ accountDB = devAccount({ [GUID] = { name = "Tester", realm = "Forever", seq = 42 } }) })
+        _G.geterrorhandler = function() return function(message) reported[#reported + 1] = message end end
+        Stubs.Login()
+        T.truthy(ns.devMode)
+        T.eq(#reported, 0)
+        T.eq(ns.Log:GetEntries()[1].message, "missing: the account file counted 42 entries")
+
+        ns = Stubs.LoadAddon({ accountDB = devAccount(), charDB = journal() })
+        _G.geterrorhandler = function() return function(message) reported[#reported + 1] = message end end
+        ns.Schema.CHAR_CURRENT = 2
+        ns.Schema.charMigrations[2] = function() error("boom") end
+        Stubs.Login()
+        T.eq(#reported, 1, "a migration that throws is a bug")
+        T.truthy(reported[1]:find("boom"))
+    end)
+
     it("keeps the canary current on logout", function()
         local ns = Stubs.LoadAddon()
         Stubs.Login()

@@ -125,6 +125,48 @@ function Codec.DecodePath(text)
 end
 
 ------------------------------------------------------------------------------------------------
+-- Single numbers in a longer text, for the backup's serializer (Data/Backup.lua). A varint ends
+-- itself (its last character is below 32), so numbers can sit between other characters.
+
+Codec.ALPHABET = ALPHABET
+
+-- Appends a non-negative integer (counts, lengths) without zigzag.
+function Codec.WriteUint(out, n)
+    if type(n) ~= "number" or n % 1 ~= 0 or n < 0 or n >= MAX_SAFE then
+        error("Codec only stores integers below 2^52, got " .. tostring(n), 2)
+    end
+    writeVarint(out, n)
+end
+
+function Codec.WriteInt(out, n)
+    checkInteger(n)
+    writeVarint(out, zigzag(n))
+end
+
+-- The number starting at text[pos] and the position after it, or nil plus a reason.
+function Codec.ReadUint(text, pos)
+    local value, scale = 0, 1
+    for i = pos, #text do
+        local digit = VALUE[text:byte(i)]
+        if not digit then
+            return nil, "invalid character at " .. i
+        end
+        if digit < DATA_RANGE then
+            return value + digit * scale, i + 1
+        end
+        value = value + (digit - DATA_RANGE) * scale
+        scale = scale * DATA_RANGE
+    end
+    return nil, "truncated number"
+end
+
+function Codec.ReadInt(text, pos)
+    local z, nextPos = Codec.ReadUint(text, pos)
+    if not z then return nil, nextPos end
+    return unzigzag(z), nextPos
+end
+
+------------------------------------------------------------------------------------------------
 -- About how many bytes a value takes in a SavedVariables file, as the client writes it (build
 -- 70235): `["key"] = value,` per line, array items as `value,`, no indentation. /ws stats reports
 -- it, so the archive (docs/ARCHITECTURE.md §4.7) can be decided on real numbers.

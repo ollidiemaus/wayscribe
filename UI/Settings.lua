@@ -138,6 +138,10 @@ local function addData(layout)
     addButton(layout, L.SETTINGS_REBUILD, L.SETTINGS_REBUILD_BUTTON, function() ns.Slash:Handle("rebuild") end,
         L.SETTINGS_REBUILD_TIP)
     addButton(layout, L.SETTINGS_EXPORT, L.SETTINGS_EXPORT_BUTTON, function() ns.Export:Open() end, L.SETTINGS_EXPORT_TIP)
+    addButton(layout, L.SETTINGS_BACKUP, L.SETTINGS_BACKUP_BUTTON, function() ns.Export:OpenBackup() end,
+        L.SETTINGS_BACKUP_TIP)
+    addButton(layout, L.SETTINGS_RESTORE, L.SETTINGS_RESTORE_BUTTON, function() ns.Export:OpenRestore() end,
+        L.SETTINGS_RESTORE_TIP)
     addButton(layout, L.SETTINGS_RESET, L.SETTINGS_RESET_BUTTON, confirmReset, L.SETTINGS_RESET_TIP)
 end
 

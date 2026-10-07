@@ -239,3 +239,81 @@ checks need the client.
   dates, times and German umlauts come through, entries line up under their times. *Dieser
   Monat* / *Dieses Jahr* / *Alles* switch the text. Escape closes it. *Looks good (2026-10-06).*
 - [ ] **Settings > Daten > Tagebuch exportieren** opens the same window.
+
+## 0.6 Backup (open)
+
+Unit tests cover the first half of the exit criterion: a simulated year of journal and trails
+survives backup, Reset and restore with the same facts, the same caches and the same Your Year
+cards. They also cover the rules: a journal with entries is refused, a missing, renamed or empty
+one is restored, another character's backup takes this character's identity, read-only trails are
+left alone, and a cut-off, changed or wrapped paste is caught or tolerated. These checks need the
+client.
+
+### The clipboard (done: one string is enough)
+
+First build (2026-10-07): a multi-line box for the backup, the paste collected from `OnChar`.
+
+- [x] **`/ws dev`, then `/ws backup sample`.** *"Sicherung in 3,7 s erstellt (2416,5 KB)". The text
+  was invisible until clicking into the box, and Ctrl+A lagged briefly and hid it again: the
+  multi-line box can't draw 2.4 MB. Now a one-line field.*
+- [x] **The same text in a text editor**: *2,474,487 characters arrived through Ctrl+C.*
+- [x] **Ctrl+C, `/ws restore`, Ctrl+V.** *Every character came through `OnChar` (2,474,487), but the
+  window froze: "Das Einfügen dauerte 28,3 s, die Prüfung 1,2 s". About 11 µs per character,
+  one script call each: too slow. The box kept only its first 4,000 bytes, which looked like a
+  cut-off paste. The sample's *Wiederherstellen...* stays disabled on purpose (a made-up year
+  must not go into a real journal), but the reason was easy to miss. Now: a one-line field
+  without a limit, read once per paste, and the reason in red.*
+
+Second build: one-line fields, the restore field without a limit and no script per character.
+
+- [x] **The paste, step by step.** *7 days: 49,899 characters, 3.3 s; 30 days: 205,724 characters,
+  55.6 s (2026-10-07). 4.1 times the characters took 16.8 times as long: the square. The client
+  inserts a paste character by character and works through everything the field holds each time,
+  about 2.6 ns per character held. The 365-day step would have taken about two hours and was
+  rightly skipped.*
+
+Third build: the field holds 32 bytes, the paste is collected from `OnChar`.
+
+- [x] **`/ws backup sample`**: the field shows the beginning of the backup (`WSB1:…`), selected.
+  *Right away for 7 and 30 days; for the year, "Die Sicherung wird erstellt ..." first, then the
+  backup (2026-10-07).*
+- [x] **The paste, step by step.** *7 days: 49,899 characters, paste 0.1 s, check 0.0 s; 30 days:
+  205,724, 0.2 s, 0.1 s; the year: 2,474,487, 2.8 s, 1.2 s (2026-10-07). In line with the size; a
+  very active year pastes back and is checked in about 4 s. One string is enough.*
+
+### A real backup
+
+- [x] **`/ws backup`** on the test character: "Mit Fußspuren" is ticked and the line beside it
+  matches `/ws stats` (entries, days, trails). Unticking it makes a smaller backup without trails.
+  *Matched `/ws stats` (2026-10-07).*
+- [x] **Settings > Daten**: *Tagebuch sichern* and *Sicherung wiederherstellen* open the same windows.
+  *Yes (2026-10-07).*
+- [x] **Into the same character**: pasted into `/ws restore`, the status says in red "Dieses Tagebuch
+  hat schon Einträge …" and *Wiederherstellen...* stays disabled. *Yes (2026-10-07).*
+- [x] **After Reset**: Settings > Daten > *Tagebuch zurücksetzen*, then the backup into
+  `/ws restore`: confirmed and reloaded, everything is back. *The journal was emptied, and the
+  restore brought everything back (2026-10-07). This is the empty-journal path; the next section
+  is the one the missing-journal guard stops.*
+
+### A journal that didn't load (release exit criterion)
+
+- [x] Make a backup with footsteps and save it in a file. With the game closed, **move**
+  `Wayscribe.lua` (and its `.bak`) out of the character's `SavedVariables` folder; keep them. Log
+  in: the read-only warning now mentions `/ws restore`. Paste the backup into `/ws restore`, click
+  *Wiederherstellen...*: the popup names the backup and says that the file which didn't load is
+  overwritten. Confirm: the interface reloads, the journal is back (same days and entries, same
+  Your Year cards), there is no read-only banner and no `/ws accept` was needed. `/ws log` shows
+  no `backup` errors. *Worked: the warning at login, the popup, and after the reload everything
+  was back (2026-10-07). With `/ws dev` on, BugSack also showed "schema: missing" at login: the
+  guard's own log entry, forwarded like an error. Guard situations are now warnings, `/ws log`
+  only, and say what they found ("missing: the account file counted 42 entries").*
+- [x] After that reload: the world map shows the trails again (*Letzte 7 Tage* / *Alle*). *Yes.*
+- [ ] After logging out, a new `Wayscribe.lua` is in the character's folder.
+- [ ] With the next build and `/ws dev` on: the same login without a journal file shows the banner
+  and the `/ws log` line, and nothing in BugSack.
+
+### Other characters
+
+- [ ] Optional, on a new character: restore the test character's backup. The popup says it belongs
+  to another character; after the reload the journal is this character's (its name in the export
+  header).

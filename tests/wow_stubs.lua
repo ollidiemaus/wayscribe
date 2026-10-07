@@ -35,10 +35,10 @@ local function newFontString()
     return permissive(fontString)
 end
 
-local function newFrame(frameType, name, _, template)
+local function newFrame(frameType, name, parent, template)
     local frame = {
         events = {}, scripts = {}, shown = true, width = 0, height = 0, regions = {}, name = name,
-        frameType = frameType, template = template,
+        frameType = frameType, template = template, parent = parent,
     }
     function frame:RegisterEvent(event)
         if state.unknownEvents[event] then error("Attempt to register unknown event \"" .. event .. "\"") end
@@ -77,6 +77,8 @@ local function newFrame(frameType, name, _, template)
     function frame:GetFrameLevel() return 1 end
     function frame:SetPoint(...) self.lastPoint = { ... } end
     function frame:SetText(text) self.text = text end
+    function frame:GetText() return self.text end
+    function frame:GetNumLetters() return #(self.text or "") end
     function frame:CreateFontString()
         local fontString = newFontString()
         self.regions[#self.regions + 1] = fontString
