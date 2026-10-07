@@ -5,16 +5,20 @@ local L, Store, Time, DayView, YearCards = ns.L, ns.Store, ns.Time, ns.DayView, 
 -- §4.8, §7). Three windows share one look:
 --   * the export: the journal as plain text, a copy to read, selected for Ctrl+C,
 --   * the backup: the character's facts as one string, selected for Ctrl+C,
---   * the restore: an empty box to paste a backup into, checked before anything changes.
+--   * the restore: an empty field to paste a backup into, checked before anything changes.
+-- A backup is one long token, so it sits in a one-line field: in game, a multi-line box drew
+-- nothing of a 2.4 MB backup until it was clicked.
 local Export = {}
 ns.Export = Export
 
 local RANGES = { "month", "year", "all" }
 local VALID_RANGE = { month = true, year = true, all = true }
 local WIDTH, HEIGHT = 640, 480
+local BACKUP_HEIGHT, RESTORE_HEIGHT = 196, 236
 local PADDING = 20
 local BUTTON_WIDTH = 120
-local PASTE_KEPT = 4000 -- bytes the restore box holds; a paste arrives in full through OnChar
+local FIELD_TOP = -80
+local GOLD, GOOD, BAD = { 1, 0.82, 0 }, { 0.4, 1, 0.4 }, { 1, 0.35, 0.3 }
 local RESTORE_POPUP = "WAYSCRIBE_RESTORE_BACKUP"
 
 local export, backup, restore -- the windows, made when first opened
@@ -80,35 +84,61 @@ end
 ------------------------------------------------------------------------------------------------
 -- Windows
 
-local function createTextBox(frame, top)
-    local box = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-    box:SetPoint("TOPLEFT", PADDING, top)
-    box:SetPoint("BOTTOMRIGHT", -PADDING, PADDING + 32)
-    box:SetBackdrop({
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 },
-    })
-    box:SetBackdropColor(0, 0, 0, 0.6)
-    local scroll = CreateFrame("ScrollFrame", nil, box, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 8, -8)
-    scroll:SetPoint("BOTTOMRIGHT", -28, 8)
-    local editBox = CreateFrame("EditBox", nil, scroll)
-    editBox:SetMultiLine(true)
+local BOX_BACKDROP = {
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 16,
+    insets = { left = 4, right = 4, top = 4, bottom = 4 },
+}
+
+local function createBorder(frame)
+    local border = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    border:SetBackdrop(BOX_BACKDROP)
+    border:SetBackdropColor(0, 0, 0, 0.6)
+    return border
+end
+
+local function createEditBox(parent, frame, multiLine)
+    local editBox = CreateFrame("EditBox", nil, parent)
+    editBox:SetMultiLine(multiLine)
     editBox:SetAutoFocus(false)
     editBox:SetMaxLetters(0)
+    editBox:SetMaxBytes(0)
     editBox:SetFontObject("ChatFontNormal")
-    editBox:SetWidth(WIDTH - 2 * PADDING - 40)
     editBox:SetScript("OnEscapePressed", function() frame:Hide() end)
+    return editBox
+end
+
+-- The export's text: many lines, scrolled.
+local function createTextBox(frame, top)
+    local border = createBorder(frame)
+    border:SetPoint("TOPLEFT", PADDING, top)
+    border:SetPoint("BOTTOMRIGHT", -PADDING, PADDING + 32)
+    local scroll = CreateFrame("ScrollFrame", nil, border, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 8, -8)
+    scroll:SetPoint("BOTTOMRIGHT", -28, 8)
+    local editBox = createEditBox(scroll, frame, true)
+    editBox:SetWidth(WIDTH - 2 * PADDING - 40)
     scroll:SetScrollChild(editBox)
     return editBox, scroll
 end
 
--- A movable dialog: title, hint, a text box from `top` down, and a Close button.
-local function createWindow(name, titleText, hintText, top)
+-- A backup string: one line.
+local function createField(frame)
+    local border = createBorder(frame)
+    border:SetPoint("TOPLEFT", PADDING, FIELD_TOP)
+    border:SetPoint("TOPRIGHT", -PADDING, FIELD_TOP)
+    border:SetHeight(32)
+    local field = createEditBox(border, frame, false)
+    field:SetPoint("TOPLEFT", 10, -6)
+    field:SetPoint("BOTTOMRIGHT", -10, 6)
+    return field
+end
+
+-- A movable dialog: title, hint and a Close button.
+local function createWindow(name, titleText, hintText, height)
     local frame = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
-    frame:SetSize(WIDTH, HEIGHT)
+    frame:SetSize(WIDTH, height)
     frame:SetPoint("CENTER")
     frame:SetFrameStrata("DIALOG")
     frame:SetClampedToScreen(true)
@@ -139,10 +169,7 @@ local function createWindow(name, titleText, hintText, top)
     close:SetPoint("BOTTOMRIGHT", -PADDING, PADDING)
     close:SetText(L.CLOSE)
     close:SetScript("OnClick", function() frame:Hide() end)
-
-    local window = { frame = frame }
-    window.box, window.scroll = createTextBox(frame, top)
-    return window
+    return { frame = frame }
 end
 
 -- A box that can't be changed, only selected and copied.
@@ -161,14 +188,24 @@ local function setText(window, text)
     window.box:SetCursorPosition(0)
     window.box:HighlightText()
     window.box:SetFocus()
-    window.scroll:SetVerticalScroll(0)
+    if window.scroll then window.scroll:SetVerticalScroll(0) end
+end
+
+-- Milliseconds, where the client can tell (developer mode prints how long things took).
+local function clock()
+    return type(debugprofilestop) == "function" and debugprofilestop() or nil
+end
+
+local function since(started)
+    return started and (clock() - started) / 1000 or 0
 end
 
 ------------------------------------------------------------------------------------------------
 -- Export
 
 local function createExport()
-    local window = createWindow("WayscribeExportFrame", L.EXPORT_TITLE, L.EXPORT_HINT, -108)
+    local window = createWindow("WayscribeExportFrame", L.EXPORT_TITLE, L.EXPORT_HINT, HEIGHT)
+    window.box, window.scroll = createTextBox(window.frame, -108)
     window.rangeButtons = {}
     for i, range in ipairs(RANGES) do
         local button = CreateFrame("Button", nil, window.frame, "UIPanelButtonTemplate")
@@ -226,11 +263,12 @@ local function contents(header, withTrails)
 end
 
 local function createBackup()
-    local window = createWindow("WayscribeBackupFrame", L.BACKUP_TITLE, L.BACKUP_HINT, -108)
+    local window = createWindow("WayscribeBackupFrame", L.BACKUP_TITLE, L.BACKUP_HINT, BACKUP_HEIGHT)
     local frame = window.frame
+    window.box = createField(frame)
     local check = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
     check:SetSize(24, 24)
-    check:SetPoint("TOPLEFT", PADDING - 4, -74)
+    check:SetPoint("TOPLEFT", PADDING - 4, FIELD_TOP - 40)
     check:SetScript("OnClick", function(button) Export:OpenBackup(button:GetChecked()) end)
     window.check = check
     window.label = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -241,24 +279,16 @@ local function createBackup()
     return window
 end
 
--- Milliseconds, where the client can tell (developer mode prints how long things took).
-local function clock()
-    return type(debugprofilestop) == "function" and debugprofilestop() or nil
-end
-
-local function since(started)
-    return started and (clock() - started) / 1000 or 0
-end
-
 local function backupReady(token, text, header)
     if backup.token ~= token or not backup.frame:IsShown() then return end
     if not text then
         setText(backup, header)
         return
     end
+    local made, shown = since(token.started), clock()
     backup.summary:SetText(contents(header, true) .. " · " .. kilobytes(#text))
     setText(backup, text)
-    if ns.devMode then ns.Print(L.BACKUP_TIMING:format(since(token.started), kilobytes(#text))) end
+    if ns.devMode then ns.Print(L.BACKUP_TIMING:format(made, since(shown), kilobytes(#text))) end
 end
 
 local function showBackup(label, checked, enabled)
@@ -310,7 +340,6 @@ local function madeOn(found)
 end
 
 local function readyText(plan)
-    if plan.refused then return plan.refused end
     if plan.journal and plan.trails then return L.RESTORE_READY_ALL end
     if plan.trails then return L.RESTORE_READY_TRAILS end
     if plan.keepsTrails then return L.RESTORE_READY_JOURNAL .. " " .. L.RESTORE_KEEPS_TRAILS end
@@ -343,57 +372,65 @@ local function confirmText(found, plan)
     return table.concat(lines, "\n")
 end
 
--- A paste arrives as one OnChar per character, all within one frame. The box keeps only the first
--- few thousand bytes (a multi-line box with megabytes of text would stall the client), so the
--- characters are collected here and handed over on the next frame. Typed text arrives a
--- character per frame and is read from the box instead.
-local pasted, pastedAt
-
-local function finishPaste(box)
-    box:SetScript("OnUpdate", nil)
-    local text = table.concat(pasted)
-    pasted = nil
-    local shown = box:GetText() or ""
-    Export:CheckRestore(#text >= #shown and text or shown, since(pastedAt))
+-- What was found (white) and what a restore would do: gold while waiting, green when it can,
+-- red when it can't.
+local function setVerdict(found, verdict, color)
+    restore.status:SetText(found or "")
+    restore.verdict:SetText(verdict)
+    restore.verdict:SetTextColor(color[1], color[2], color[3])
+    restore.verdictColor = color
 end
 
-local function onChar(box, char)
-    if not pasted then
-        pasted, pastedAt = {}, clock()
-        box:SetScript("OnUpdate", finishPaste)
+-- The field is looked at once a frame. A paste lands in it in one piece between two frames; it is
+-- read once and the field emptied, so no script runs per character. (Collecting the paste from
+-- OnChar, one call per character, took 28 s for a 2.4 MB backup in game.)
+local function letters(field)
+    if field.GetNumLetters then return field:GetNumLetters() or 0 end
+    return #(field:GetText() or "")
+end
+
+local function watchField()
+    local field = restore.field
+    if letters(field) > 0 then
+        local text = field:GetText() or ""
+        local pasted = since(restore.lastFrame)
+        field:SetText("")
+        Export:CheckRestore(text, pasted)
     end
-    pasted[#pasted + 1] = char
+    restore.lastFrame = clock()
 end
 
 local function createRestore()
-    local window = createWindow("WayscribeRestoreFrame", L.RESTORE_TITLE, L.RESTORE_HINT, -112)
+    local window = createWindow("WayscribeRestoreFrame", L.RESTORE_TITLE, L.RESTORE_HINT, RESTORE_HEIGHT)
     local frame = window.frame
+    window.field = createField(frame)
     window.status = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    window.status:SetPoint("TOPLEFT", PADDING, -72)
-    window.status:SetPoint("TOPRIGHT", -PADDING, -72)
-    window.status:SetHeight(34)
+    window.status:SetPoint("TOPLEFT", PADDING, FIELD_TOP - 42)
+    window.status:SetPoint("TOPRIGHT", -PADDING, FIELD_TOP - 42)
     window.status:SetJustifyH("LEFT")
-    window.status:SetJustifyV("TOP")
+    window.verdict = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    window.verdict:SetPoint("TOPLEFT", window.status, "BOTTOMLEFT", 0, -6)
+    window.verdict:SetPoint("TOPRIGHT", window.status, "BOTTOMRIGHT", 0, -6)
+    window.verdict:SetJustifyH("LEFT")
     local button = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     button:SetSize(BUTTON_WIDTH, 22)
     button:SetPoint("BOTTOMRIGHT", -PADDING - BUTTON_WIDTH - 8, PADDING)
     button:SetText(L.RESTORE_BUTTON)
     button:SetScript("OnClick", function() Export:ConfirmRestore() end)
     window.button = button
-    window.box:SetMaxBytes(PASTE_KEPT)
-    window.box:SetScript("OnChar", onChar)
+    frame:SetScript("OnUpdate", watchField)
     return window
 end
 
--- /ws restore and Settings > Data: an empty box to paste a backup into.
+-- /ws restore and Settings > Data: an empty field to paste a backup into.
 function Export:OpenRestore()
     restore = restore or createRestore()
     restore.found, restore.token = nil, nil
-    restore.box:SetText("")
-    restore.status:SetText(L.RESTORE_WAITING)
+    restore.field:SetText("")
+    setVerdict(nil, L.RESTORE_WAITING, GOLD)
     restore.button:SetEnabled(false)
     restore.frame:Show()
-    restore.box:SetFocus()
+    restore.field:SetFocus()
 end
 
 -- Decodes and checks the pasted text in the background, then says what a restore would do.
@@ -403,8 +440,7 @@ function Export:CheckRestore(text, pasteSeconds)
     if not window then return end
     window.found = nil
     window.button:SetEnabled(false)
-    window.status:SetText(L.RESTORE_CHECKING)
-    window.box:HighlightText() -- the next paste replaces it
+    setVerdict(nil, L.RESTORE_CHECKING, GOLD)
     local token = {}
     window.token = token
     local started = clock()
@@ -414,13 +450,17 @@ function Export:CheckRestore(text, pasteSeconds)
             ns.Print(L.RESTORE_TIMING:format(#text, pasteSeconds or 0, since(started)))
         end
         if not found then
-            window.status:SetText(reason)
+            setVerdict(nil, reason, BAD)
             return
         end
         local plan = ns.Backup:Plan(found)
         window.found = found
-        window.status:SetText(L.RESTORE_FOUND:format(owner(found), madeOn(found), contents(found.header, true))
-            .. " " .. readyText(plan))
+        local summary = L.RESTORE_FOUND:format(owner(found), madeOn(found), contents(found.header, true))
+        if plan.refused then
+            setVerdict(summary, plan.refused, BAD)
+        else
+            setVerdict(summary, readyText(plan), GOOD)
+        end
         window.button:SetEnabled(not plan.refused)
     end)
 end
@@ -430,7 +470,7 @@ function Export:ConfirmRestore()
     if not found then return end
     local plan = ns.Backup:Plan(found)
     if plan.refused then
-        restore.status:SetText(plan.refused)
+        setVerdict(restore.status:GetText(), plan.refused, BAD)
         restore.button:SetEnabled(false)
         return
     end
@@ -461,6 +501,11 @@ function Export:ApplyRestore()
     ReloadUI()
 end
 
+-- What the window says: what was found and what a restore would do, and the verdict's color
+-- ("good", "bad" or "waiting").
 function Export:GetRestoreStatus()
-    return restore and restore.status:GetText()
+    if not restore then return nil end
+    local found, verdict = restore.status:GetText() or "", restore.verdict:GetText() or ""
+    local color = restore.verdictColor == GOOD and "good" or restore.verdictColor == BAD and "bad" or "waiting"
+    return found == "" and verdict or (found .. " " .. verdict), color
 end

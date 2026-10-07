@@ -251,26 +251,41 @@ client.
 
 ### The clipboard (first: it decides whether one string is enough)
 
-- [ ] **`/ws dev`, then `/ws backup sample`.** The "Tagebuch sichern" window says "Ein ausgedachtes
-  Jahr mit 365 Tagen, zum Testen" and "14.600 Einträge an 365 Tagen, 3.650 Spuren · 2425,0 KB".
-  Chat: "Sicherung in … s erstellt". Note how long it took until the text showed, and
-  whether the game stuttered while "Die Sicherung wird erstellt ..." was shown.
-- [ ] **Ctrl+C, `/ws restore`, Ctrl+V into the box.** Chat: "… Zeichen: Das Einfügen dauerte x s,
-  die Prüfung y s." The number of characters should be the whole backup (2,483,231): then
-  every pasted character came through `OnChar`. If it is about 4,000, Forever's client doesn't send
-  pastes through `OnChar`, and the restore box needs another way (report back). The status line
-  says "Sicherung von …: 14.600 Einträge an 365 Tagen, 3.650 Spuren. Sie ist ein Beispiel zum
-  Testen …". Note x and y here: is it "a few seconds"?
-- [ ] **The same text in a text editor**: one line of about 2.4 MB, only letters, digits, `-` and
-  `_` after `WSB1:`. Save it; pasting it back from the file works the same.
+First build (2026-10-07): a multi-line box for the backup, the paste collected from `OnChar`.
+
+- [x] **`/ws dev`, then `/ws backup sample`.** *"Sicherung in 3,7 s erstellt (2416,5 KB)". The text
+  was invisible until clicking into the box, and Ctrl+A lagged briefly and hid it again: the
+  multi-line box can't draw 2.4 MB. Now a one-line field.*
+- [x] **The same text in a text editor**: *2,474,487 characters arrived through Ctrl+C.*
+- [x] **Ctrl+C, `/ws restore`, Ctrl+V.** *Every character came through `OnChar` (2,474,487), but the
+  window froze: "Das Einfügen dauerte 28,3 s, die Prüfung 1,2 s". About 11 µs per character,
+  one script call each: too slow. The box kept only its first 4,000 bytes, which looked like a
+  cut-off paste. The sample's *Wiederherstellen...* stays disabled on purpose (a made-up year
+  must not go into a real journal), but the reason was easy to miss. Now: a one-line field
+  without a limit, read once per paste, and the reason in red.*
+
+Second build: one-line fields, no script per pasted character.
+
+- [ ] **`/ws backup sample`**: the field shows the beginning of the backup (`WSB1:…`) right away,
+  selected. Chat: "Sicherung in x s erstellt und in y s angezeigt (… KB)". Note x and y.
+- [ ] **The paste, step by step** (stop if a step freezes the game for long). Each time: make the
+  sample, Ctrl+C, `/ws restore`, click into the field, Ctrl+V, and note the chat line "… Zeichen:
+  Das Einfügen dauerte x s, die Prüfung y s":
+  - `/ws backup sample 7`: 50,052 characters (give or take a few for the name).
+  - `/ws backup sample 30`: about 206,400. If x is much more than 4 times the 7-day x, the client
+    inserts a paste character by character after all: stop here and report.
+  - `/ws backup sample`: about 2,483,000. Is x + y "a few seconds"?
+  Each time the field empties after the paste, the status names the backup ("Sicherung von …:
+  14.600 Einträge an 365 Tagen, 3.650 Spuren.") and below it, in red, why it can't be restored
+  ("Sie ist ein Beispiel zum Testen …").
 
 ### A real backup
 
 - [ ] **`/ws backup`** on the test character: "Mit Fußspuren" is ticked and the line beside it
   matches `/ws stats` (entries, days, trails). Unticking it makes a smaller backup without trails.
 - [ ] **Settings > Daten**: *Tagebuch sichern* and *Sicherung wiederherstellen* open the same windows.
-- [ ] **Into the same character**: pasted into `/ws restore`, the status says "Dieses Tagebuch hat
-  schon Einträge …" and *Wiederherstellen...* stays disabled.
+- [ ] **Into the same character**: pasted into `/ws restore`, the status says in red "Dieses Tagebuch
+  hat schon Einträge …" and *Wiederherstellen...* stays disabled.
 
 ### A journal that didn't load (release exit criterion)
 

@@ -523,16 +523,17 @@ describe("checking a pasted backup", function()
 end)
 
 describe("restore window", function()
-    local function paste(box, text)
-        local onChar = box:GetScript("OnChar")
-        for i = 1, #text, 1000 do onChar(box, text:sub(i, i + 999)) end
-        box:GetScript("OnUpdate")(box)
-    end
-
-    local function restoreBox()
+    -- The client puts a paste into the field at once; the window reads it on the next frame.
+    local function paste(text)
+        local field
         for _, frame in ipairs(Stubs.state.frames) do
-            if frame.frameType == "EditBox" and frame:GetScript("OnChar") then return frame end
+            if frame.frameType == "EditBox" and frame.parent and frame.parent.parent == _G.WayscribeRestoreFrame then
+                field = frame
+            end
         end
+        field:SetText(text)
+        _G.WayscribeRestoreFrame:GetScript("OnUpdate")()
+        return field
     end
 
     it("checks a paste, asks, restores and reloads", function()
@@ -548,11 +549,16 @@ describe("restore window", function()
 
         ns.Slash:Handle("restore")
         T.truthy(_G.WayscribeRestoreFrame:IsShown())
-        T.eq(ns.Export:GetRestoreStatus(), "Waiting for a backup.")
-        paste(restoreBox(), text)
-        T.eq(ns.Export:GetRestoreStatus(),
+        T.same({ ns.Export:GetRestoreStatus() }, { "Waiting for a backup.", "waiting" })
+        _G.WayscribeRestoreFrame:GetScript("OnUpdate")()
+        T.eq(ns.Export:GetRestoreStatus(), "Waiting for a backup.", "an empty field is no paste")
+        local field = paste(text)
+        T.eq(field:GetText(), "", "read once, then emptied")
+        T.same({ ns.Export:GetRestoreStatus() }, {
             "Backup of Tester-Forever from Tuesday, October 6, 2026: 345 entries on 69 days, 345 trails."
-            .. " The journal and its footsteps can be restored.")
+                .. " The journal and its footsteps can be restored.",
+            "good",
+        })
 
         ns.Export:ConfirmRestore()
         T.eq(shown, "WAYSCRIBE_RESTORE_BACKUP")
@@ -569,18 +575,27 @@ describe("restore window", function()
         _G.StaticPopupDialogs, _G.StaticPopup_Show, _G.ReloadUI = nil, nil, nil
     end)
 
-    it("reads typed text from the box, and says what's wrong", function()
+    it("says in red what's wrong, and offers nothing to confirm", function()
         local ns = playYear()
         ns.Export:OpenRestore()
-        local box = restoreBox()
-        box.GetText = function() return "WSB1:abc" end
-        box:GetScript("OnChar")(box, "c")
-        box:GetScript("OnUpdate")(box)
-        T.truthy(ns.Export:GetRestoreStatus():find("damaged"))
-        paste(box, makeBackup(ns))
-        T.truthy(ns.Export:GetRestoreStatus():find("already has entries"))
+        paste("WSB1:abc")
+        local status, color = ns.Export:GetRestoreStatus()
+        T.truthy(status:find("damaged"))
+        T.eq(color, "bad")
+        paste(makeBackup(ns))
+        status, color = ns.Export:GetRestoreStatus()
+        T.truthy(status:find("^Backup of Tester%-Forever .* This journal already has entries"), status)
+        T.eq(color, "bad")
         ns.Export:ConfirmRestore()
         T.eq(_G.StaticPopupDialogs, nil, "nothing to confirm")
+    end)
+
+    it("prints how long the paste and the check took, in developer mode", function()
+        local ns = playYear()
+        ns.Slash:Handle("dev")
+        ns.Export:OpenRestore()
+        paste("WSB1:abc")
+        T.eq(Stubs.Printed()[#Stubs.Printed()], "|cffd4a017Wayscribe|r: 8 characters: the paste took 0.0 s, the check 0.0 s.")
     end)
 
     it("reads in German", function()
@@ -590,7 +605,7 @@ describe("restore window", function()
         ns = Stubs.LoadAddon({ locale = "deDE", accountDB = Stubs.Copy(WayscribeDB) })
         Stubs.Login()
         ns.Export:OpenRestore()
-        paste(restoreBox(), text)
+        paste(text)
         T.eq(ns.Export:GetRestoreStatus(),
             "Sicherung von Tester-Forever vom Dienstag, 6. Oktober 2026: 345 Einträge an 69 Tagen, 345 Spuren."
             .. " Das Tagebuch und seine Fußspuren können wiederhergestellt werden.")

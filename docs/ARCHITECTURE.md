@@ -422,24 +422,35 @@ Making it took 0.37 s, reading and checking it 0.26 s (Adler-32: 0.08 s), rebuil
 journal shrinks to a third through the string table, and the trails are already packed. Splitting
 by year or LibDeflate wait for the in-game paste of a long backup (`/ws backup sample`, below).
 
+**In game** (2026-10-07, the 365-day sample, 2,474,487 characters): made and shown in 3.7 s, all of
+it arrived in a text editor through Ctrl+C, and the check took 1.2 s. Two findings changed the
+windows. A multi-line box drew nothing of the 2.4 MB string until it was clicked, and lagged on
+Ctrl+A; the backup now sits in a one-line field, which is the shape of a token anyway. And
+collecting the paste from `OnChar` (a 4,000-byte box, the way WeakAuras imports long strings)
+delivered every character but took 28.3 s, about 11 µs per character: one script call each. The
+restore field is now one line with no limit and no script per character: it is looked at once a
+frame (`GetNumLetters`), read once with `GetText` and emptied. Whether the client inserts a paste
+of megabytes into it quickly is the next in-game check.
+
 **Making one.** `/ws backup` and Settings > Data > Back up journal open a window like the export's
-with the string selected for Ctrl+C, "With footsteps" (on by default; off, or disabled when the
+with the string selected for Ctrl+C in a one-line field (it shows the beginning), "With footsteps" (on by default; off, or disabled when the
 trails can't be read) and what it holds ("14,600 entries on 365 days, 3,650 trails · 2,503.4 KB").
 It works on a read-only journal too (a foreign one, or one whose account file is newer): a journal
 in safe mode is exactly the one worth saving. A journal that didn't load at all can't be backed
 up; the message points at the file instead.
 
 **Restoring** never destroys data (principle 3):
-- `/ws restore` and Settings > Data > Restore backup open a window with an empty box to paste into.
-- **The paste.** A multi-line box with megabytes of text would stall the client, so the box keeps
-  only 4,000 bytes and the characters are collected from `OnChar`, which fires for each pasted
-  character, and handed over on the next frame (the way WeakAuras imports long strings). Typed
-  text is read from the box.
+- `/ws restore` and Settings > Data > Restore backup open a window with an empty field to paste into.
+- **The paste.** The field is one line without a limit, and no script runs per character: once a
+  frame the window asks how many letters it holds, and when there are any, reads them with
+  `GetText` in one piece and empties the field (see *In game* above for why).
 - The string is decoded completely and checked first: the magic, the header, the length, the
   checksum, then the journal and the trails go through the same migrations and shape checks as a
   loaded file (`Schema:PrepareCharacter` / `PreparePaths`, §4.6), build-then-swap. A newer format
   or schema is refused (update the addon). Records of unknown types are kept, as everywhere. The
-  window then says what it found and what a restore would do; nothing has changed yet.
+  window then says what it found (white) and what a restore would do: green when it can, red
+  with the reason when it can't, so a disabled *Restore...* button always has its reason next to
+  it. Nothing has changed yet.
 - **The journal** goes only into one with **no entries** (`seq` 0: a new character, a fresh
   install, after Reset) or one the missing-journal guard stopped (*missing* or *renamed*, §4.6).
   Counters, sessions and trails recorded so far next to a journal without entries are replaced,
@@ -801,7 +812,7 @@ card (§8), its only consumer.
 | **World map** | Footsteps trails and death skulls on `WorldMapFrame` through a MapCanvas data provider, plus a "Footsteps: Today" button that picks the filter (§6.8, §6.9). Without the data provider API, nothing is added and the journal hides its map link. |
 | **Your Year** | The journal's second tab (`UI/YourYear.lua`, §8). Left page: "Your Year" above the years with entries, newest first ("Your 2026"); the shown year lists its cards. Right page: the card's title, "Your 2026", its icon with a big number (`Game40Font` where the client has it) and a caption, then a few lines. A year that hasn't opened yet shows when it opens. |
 | **Export** | `UI/Export.lua`: a dialog with the journal as plain text in a read-only, multi-line edit box, selected and focused, so Ctrl+C copies it (addons can't write files). This month / This year / Everything (default). Every day reads like its page (long date, played time, entries with times in one column, counter lines, sessions), oldest first, with every category whatever the journal's filter. A reading copy: it can't be imported. Works on a read-only journal too. `/ws export [month\|year\|all]` and a button under Settings > Data. |
-| **Backup and restore** | `UI/Export.lua`, the same window (0.6, §4.8). *Back up journal*: the backup string selected for Ctrl+C, a "With footsteps" checkbox and what the backup holds, made in the background ("Preparing the backup..."). *Restore backup*: an empty box to paste into (it keeps 4,000 bytes; the paste is collected from `OnChar`), a status line that says what was found and what a restore would do, *Restore...* and a confirmation popup, then a reload. `/ws backup`, `/ws restore` and two buttons under Settings > Data. |
+| **Backup and restore** | `UI/Export.lua`, the same window (0.6, §4.8). *Back up journal*: the backup string selected for Ctrl+C, a "With footsteps" checkbox and what the backup holds, made in the background ("Preparing the backup..."). Both strings sit in a one-line field. *Restore backup*: an empty field to paste into (watched once a frame and read in one piece), what was found and, in green or red, what a restore would do, *Restore...* and a confirmation popup, then a reload. `/ws backup`, `/ws restore` and two buttons under Settings > Data. |
 | **Login recap** | On `isInitialLogin` and `state.lastRecapDay ~= today`, 3 s after the loading screen, show the previous session: date, duration, rendered milestones and the counter totals of its day(s) (counters are per day, so they can include another session that day). Simulated entries are left out; an empty session shows nothing. Buttons: *Open journal* (at that day), *Close*, and a *Don't show at login* checkbox wired to the setting. Setting `showLoginRecap` defaults to **on**. `/ws recap` shows it any time. |
 | **Settings** | Blizzard `Settings` API: `RegisterVerticalLayoutCategory`, and `RegisterProxySetting` for every control, so the page reads and writes `ns.Options` / `ns.Trackers` and never owns data. Sections: **General** (login recap, minimap button, date format dropdown), **Tracking** (one toggle per tracker, generated from the registry; Footsteps is one of them), **Footsteps** (what the world map shows, record flight paths, delete all trails with a confirmation popup), **Data** (stats, error log, rebuild indexes, export, back up, restore, reset with a confirmation popup and a reload; reset deletes the trails too). Without the API the page is skipped and `/ws settings` says so. |
 | **Minimap button** | LibDataBroker-1.1 + LibDBIcon-1.0, position and hidden flag in `WayscribeDB.settings.minimap`. Placeholder icon: `Interface\Icons\INV_Misc_Book_09`. Left-click toggles the journal, right-click opens settings. Skipped when the libraries are missing. The Addon Compartment entry comes from the TOC (`AddonCompartmentFunc`), so it works without libraries. |
@@ -1088,9 +1099,11 @@ Other findings:
 - **Read-only journals refuse a restore** unless the missing-journal guard made them read-only
   (missing, renamed). Newer, failed and corrupt data is what principle 3 protects; a foreign
   journal has entries.
-- **The paste is collected from `OnChar`.** The box keeps 4,000 bytes; a box holding megabytes would
-  stall the client. Whether Forever's client sends every pasted character through `OnChar` is the
-  first in-game check (docs/ingame-tests.md); typed text is read from the box either way.
+- **No script per pasted character.** The plan's way (and WeakAuras'), a 4,000-byte box with the
+  paste collected from `OnChar`, worked in game but took 28.3 s for the 2.4 MB sample. The restore
+  field now has no limit and is read once with `GetText` on the next frame.
+- **One-line fields for backup strings.** A multi-line box with the 2.4 MB backup drew nothing until
+  clicked. The export (pages of text) keeps its multi-line box.
 - **Samples can't be restored.** `/ws backup sample` exists to time the clipboard; restoring a
   made-up year into a real character is refused.
 
