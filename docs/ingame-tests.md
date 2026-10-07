@@ -249,7 +249,7 @@ one is restored, another character's backup takes this character's identity, rea
 left alone, and a cut-off, changed or wrapped paste is caught or tolerated. These checks need the
 client.
 
-### The clipboard (first: it decides whether one string is enough)
+### The clipboard (done: one string is enough)
 
 First build (2026-10-07): a multi-line box for the backup, the paste collected from `OnChar`.
 
@@ -274,18 +274,12 @@ Second build: one-line fields, the restore field without a limit and no script p
 
 Third build: the field holds 32 bytes, the paste is collected from `OnChar`.
 
-- [ ] **`/ws backup sample`**: the field shows the beginning of the backup (`WSB1:…`) right away,
-  selected. Chat: "Sicherung in x s erstellt und in y s angezeigt (… KB)". Note x and y.
-- [ ] **The paste, step by step** (stop if a step takes much longer than expected). Each time: make
-  the sample, Ctrl+C, `/ws restore`, click into the field, Ctrl+V, and note the chat line "…
-  Zeichen: Das Einfügen dauerte x s, die Prüfung y s":
-  - `/ws backup sample 7`: about 50,000 characters, expected well under a second.
-  - `/ws backup sample 30`: about 206,000, expected under a second, about 4 times the 7-day x.
-  - `/ws backup sample`: about 2,480,000, expected about 2.5 s for the paste and 1-2 s for the
-    check.
-  Each time the field empties after the paste, the status names the backup ("Sicherung von …:
-  14.600 Einträge an 365 Tagen, 3.650 Spuren.") and below it, in red, why it can't be restored
-  ("Sie ist ein Beispiel zum Testen …").
+- [x] **`/ws backup sample`**: the field shows the beginning of the backup (`WSB1:…`), selected.
+  *Right away for 7 and 30 days; for the year, "Die Sicherung wird erstellt ..." first, then the
+  backup (2026-10-07).*
+- [x] **The paste, step by step.** *7 days: 49,899 characters, paste 0.1 s, check 0.0 s; 30 days:
+  205,724, 0.2 s, 0.1 s; the year: 2,474,487, 2.8 s, 1.2 s (2026-10-07). In line with the size; a
+  very active year pastes back and is checked in about 4 s. One string is enough.*
 
 ### A real backup
 

@@ -419,8 +419,8 @@ small serializer (`Data/Backup.lua`):
 
 Making it took 0.37 s, reading and checking it 0.26 s (Adler-32: 0.08 s), rebuilding the caches
 0.01 s. In game both run in a coroutine at 10 ms per frame. So one string, no compression: the
-journal shrinks to a third through the string table, and the trails are already packed. Splitting
-by year or LibDeflate wait for the in-game paste of a long backup (`/ws backup sample`, below).
+journal shrinks to a third through the string table, and the trails are already packed. The
+in-game paste of the sample confirmed it (below).
 
 **In game** (2026-10-07, the 365-day sample, 2,474,487 characters): made and shown in 3.7 s, all of
 it arrived in a text editor through Ctrl+C, and the check took 1.2 s. Two findings changed the
@@ -434,8 +434,10 @@ works through everything the field already holds for each one**, about 2.6 ns pe
 (both runs within 2% of it). The same figure explains the first build: 4,000 bytes held cost
 10.5 µs of the 11.4 µs per character, so the `OnChar` call itself costs about 1 µs. Hence the
 third build: the field holds 32 bytes, and the paste is collected from `OnChar` in chunks of
-4,096 characters (0.14 s for the whole sample in plain Lua); expected in game: about 2.5 s for
-2.4 MB.
+4,096 characters (0.14 s for the whole sample in plain Lua). In game it took 0.1 s for 49,899
+characters, 0.2 s for 205,724 and **2.8 s for the 2,474,487-character year**, checked in 1.2 s:
+straight in line with the size, and about the 2.5 s the model predicted. So one string is
+practical for a very active year, and neither splitting by year nor compression is needed.
 
 **Making one.** `/ws backup` and Settings > Data > Back up journal open a window like the export's
 with the string selected for Ctrl+C in a one-line field (it shows the beginning), "With footsteps" (on by default; off, or disabled when the
@@ -973,6 +975,7 @@ release in [ingame-tests.md](ingame-tests.md).
 | 9 | Does `WorldMapFrame` take a MapCanvas data provider, and where do the lines land? | ✅ `has.worldMapCanvas`; the trail was drawn in the right place, above the explored-area art. `C_Map.GetMapPosFromWorldPos` answers with the continent (worked around). ✅ Lines at least 3 pixels long stay whole on the small map too. ✅ The map's icons are drawn over the lines. ✅ The journal button opens the map at the zone. | — | No overlay; the journal hides its map link. |
 | 10 | Does `C_Map.GetMapChildrenInfo` list the zone maps, and how big is Azeroth then? (0.5) | ✅ 50 zones: Kalimdor 23 (71 sq mi), Eastern Kingdoms 26 (45 sq mi), and Forever's **Zephras Isle** on a world map of its own (2991, 7 sq mi; `UiMap` 2521 under Azeroth). A short session read 0.1%, Mulgore 2.2%. | — | No "% of Azeroth walked" line; the rest of the Footsteps card stays. |
 | 11 | Is `PanelTabButtonTemplate` there for the journal's tabs? (0.5) | ✅ `has.panelTabs`; the tabs show under the journal like the default UI's. | — | Plain buttons under the frame. |
+| 12 | Can a backup of megabytes be pasted back into an addon? (0.6) | ✅ `OnChar` fires for every pasted character, also past the field's limit. The client inserts a paste character by character, about 2.6 ns per character the field already holds: a field without a limit grows with the square (55.6 s for 200 KB). Holding 32 bytes, 2,474,487 characters arrive in 2.8 s. A multi-line box can't draw 2.4 MB of text. | — | Split the backup by year (months are independent partitions). |
 
 Other findings:
 - wago.tools lists build 70235 as product `wow_cn_beta`, so its DB2 tables (`DungeonEncounter`, `Map`,
@@ -1089,9 +1092,8 @@ Other findings:
 ### Decided during 0.6
 
 - **One string, no compression.** A very active simulated year backs up to 2.5 MB with its
-  footsteps (1.06 MB without), made in 0.37 s and checked in 0.26 s in plain Lua (§4.8). Whether a
-  long backup needs splitting by year or LibDeflate is left to the in-game paste of
-  `/ws backup sample`.
+  footsteps (1.06 MB without), made in 0.37 s and checked in 0.26 s in plain Lua (§4.8). In game it
+  pasted back in 2.8 s and was checked in 1.2 s, so splitting by year and LibDeflate aren't needed.
 - **A backup is a snapshot of its first frame.** It is built over many frames, so `meta`, `state`
   and `players` are copied first and newer records are left out: ids, `seq` and the trackers'
   state always agree in a backup.
