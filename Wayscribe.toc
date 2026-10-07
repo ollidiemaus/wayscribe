@@ -3,7 +3,7 @@
 ## Notes: An automatic journal of your character's adventures.
 ## Notes-deDE: Ein automatisches Tagebuch der Abenteuer deines Charakters.
 ## Author: ollidiemaus
-## Version: 0.1
+## Version: @project-version@
 ## SavedVariables: WayscribeDB
 ## SavedVariablesPerCharacter: WayscribeCharDB, WayscribeFootstepsDB
 ## IconTexture: Interface\Icons\INV_Misc_Book_09
