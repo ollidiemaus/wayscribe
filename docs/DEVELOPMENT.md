@@ -45,7 +45,9 @@ and `tests/` do no harm there.
 
 The minimap button needs the libraries in `Libs/`, which the packager fetches (see `.pkgmeta`). For
 a local copy, put LibStub, CallbackHandler-1.0, LibDataBroker-1.1 and LibDBIcon-1.0 there yourself.
-Without them, everything except the minimap button works.
+Without them, everything except the minimap button works. An unpackaged copy also reports its
+version as the literal `@project-version@` (in `/ws probe`, for example); only the packager fills
+it in.
 
 ### Developer commands
 
@@ -88,26 +90,40 @@ feature-detected in `Compat`, never assumed (ARCHITECTURE.md §1, §5).
 
 ## Releasing
 
+Releases go to CurseForge (project `1731716`) and to GitHub Releases. There is no Wago upload.
+
 `.github/workflows/release.yml` runs the [BigWigsMods packager](https://github.com/BigWigsMods/packager)
-on every pushed tag. It fetches the libraries from `.pkgmeta`, replaces `@project-version@` with the
-tag, leaves out `docs/`, `tests/` and `README.md`, and uploads the zip. A tag containing `alpha` or
-`beta` is uploaded as that release type, any other tag as a release.
+on every pushed tag. It:
 
-Before the first public release:
+- fetches the libraries listed under `externals` in `.pkgmeta` into `Libs/` (the repository never
+  holds them), so players get them inside the zip;
+- replaces `@project-version@` in the TOC with the tag name, exactly as written: tag `0.1.0` gives
+  version `0.1.0`, tag `v0.1.0` gives `v0.1.0`;
+- leaves out `docs/`, `tests/` and `README.md`;
+- uploads the zip to the CurseForge project named by `## X-Curse-Project-ID` in the TOC, then
+  creates the GitHub release.
 
-- Add `## X-Curse-Project-ID:` and `## X-Wago-ID:` with the project IDs to `Wayscribe.toc`; the
-  packager reads them to know where to upload.
-- Set the repository secrets `CF_API_KEY` (CurseForge) and `WAGO_API_TOKEN` (Wago). GitHub Releases
-  use the workflow's own token.
-- Use the [README](../README.md) as the project description: it's written for players, and
-  CurseForge takes Markdown.
+A tag containing `alpha` or `beta` (e.g. `0.1.0-beta`) is uploaded to CurseForge as that release
+type, any other tag as a full release.
 
-Then tag and push:
+What the workflow relies on (all set up):
+
+- `## X-Curse-Project-ID: 1731716` in `Wayscribe.toc`.
+- The repository secret `CF_API_KEY`: a CurseForge API token, made in the author console under
+  Settings > API tokens.
+- Read and write permissions for workflows (repository Settings > Actions > General), so the
+  workflow's own token can create the GitHub release.
+
+The CurseForge project description is the [README](../README.md), pasted by hand: it's written for
+players, and CurseForge takes Markdown. The packager doesn't update it, so paste it again when the
+README changes.
+
+To release, tag the commit on `main` and push the tag; the run shows under the repository's Actions:
 
 ```bash
-git tag v0.6.0
+git tag 0.1.0
 ```
 
 ```bash
-git push origin v0.6.0
+git push origin 0.1.0
 ```

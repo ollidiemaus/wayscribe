@@ -990,7 +990,8 @@ How to run all of this: [DEVELOPMENT.md](DEVELOPMENT.md).
   test-only serializer round-trips the DB the way the client writes SavedVariables, which proves it
   holds plain data only. Migration tests use frozen fixture DBs from every past schema.
 - **CI:** `ci.yml` runs luacheck and the tests on Lua 5.1 on every push and PR. `release.yml` runs
-  the BigWigsMods packager on tags. `package-as: Wayscribe` keeps the folder name capitalized to
+  the BigWigsMods packager on tags, which uploads to CurseForge and GitHub Releases (no Wago).
+  The tag becomes the version (`@project-version@` in the TOC). `package-as: Wayscribe` keeps the folder name capitalized to
   match `Wayscribe.toc`, since the repository is the lowercase `wayscribe`.
 - **In-game dev tools** (developer mode, `/ws dev`): `/ws simulate LEVEL_UP level=12` injects records
   through the real write path, flagged as test data and removable with `/ws simulate clear`; Your
@@ -1015,8 +1016,8 @@ game is in [ingame-tests.md](ingame-tests.md).
 | **0.6 Backup** | A restorable backup string, and restoring it into an empty or missing journal (§4.8). | A simulated year survives backup, wipe and restore (unit test); a missing journal restored in game. |
 
 **Next:**
-- **First public release:** CurseForge and Wago project IDs in the TOC, then a tag (see
-  [DEVELOPMENT.md](DEVELOPMENT.md#releasing)).
+- **First public release:** CurseForge and GitHub Releases are set up; pushing the first tag
+  publishes it (see [DEVELOPMENT.md](DEVELOPMENT.md#releasing)).
 - **The archive** (Phase B, §4.7), once `/ws stats` from real players says it's needed.
 - **Tracker ideas** (each a single-file addition): gold earned and spent, reputation milestones,
   first mount, zones discovered, epic loot, talent milestones, PvP honor kills, guild join,
