@@ -283,11 +283,17 @@ Third build: the field holds 32 bytes, the paste is collected from `OnChar`.
 
 ### A real backup
 
-- [ ] **`/ws backup`** on the test character: "Mit Fußspuren" is ticked and the line beside it
+- [x] **`/ws backup`** on the test character: "Mit Fußspuren" is ticked and the line beside it
   matches `/ws stats` (entries, days, trails). Unticking it makes a smaller backup without trails.
-- [ ] **Settings > Daten**: *Tagebuch sichern* and *Sicherung wiederherstellen* open the same windows.
-- [ ] **Into the same character**: pasted into `/ws restore`, the status says in red "Dieses Tagebuch
-  hat schon Einträge …" and *Wiederherstellen...* stays disabled.
+  *Matched `/ws stats` (2026-10-07).*
+- [x] **Settings > Daten**: *Tagebuch sichern* and *Sicherung wiederherstellen* open the same windows.
+  *Yes (2026-10-07).*
+- [x] **Into the same character**: pasted into `/ws restore`, the status says in red "Dieses Tagebuch
+  hat schon Einträge …" and *Wiederherstellen...* stays disabled. *Yes (2026-10-07).*
+- [x] **After Reset**: Settings > Daten > *Tagebuch zurücksetzen*, then the backup into
+  `/ws restore`: confirmed and reloaded, everything is back. *The journal was emptied, and the
+  restore brought everything back (2026-10-07). This is the empty-journal path; the next section
+  is the one the missing-journal guard stops.*
 
 ### A journal that didn't load (release exit criterion)
 
