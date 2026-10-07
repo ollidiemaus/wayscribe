@@ -7,8 +7,6 @@ local L = ns.L
 local Minimap = {}
 ns.Minimap = Minimap
 
-local ICON = "Interface\\Icons\\INV_Misc_Book_09"
-
 local function onClick(button)
     if button == "RightButton" then
         ns.SettingsPanel:Open()
@@ -30,7 +28,7 @@ function Minimap:Register()
     if self.icon or not (broker and icon) then return end
     local launcher = broker:NewDataObject(addonName, {
         type = "launcher",
-        icon = ICON,
+        icon = ns.Theme.ICON,
         label = L.ADDON_TITLE,
         OnClick = function(_, button) onClick(button) end,
         OnTooltipShow = showTooltip,
