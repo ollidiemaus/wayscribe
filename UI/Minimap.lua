@@ -77,7 +77,12 @@ end
 -- Key binding (Bindings.xml); unbound by default.
 BINDING_HEADER_WAYSCRIBE = L.ADDON_TITLE
 BINDING_NAME_WAYSCRIBE_TOGGLE = L.BINDING_TOGGLE_JOURNAL
+BINDING_NAME_WAYSCRIBE_MAP = L.BINDING_TOGGLE_MAP
 
 function Wayscribe_ToggleJournal()
     ns.Journal:Toggle()
+end
+
+function Wayscribe_ToggleMap()
+    ns.Journal:ToggleMap()
 end

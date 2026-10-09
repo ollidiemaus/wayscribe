@@ -5,6 +5,19 @@ covered by fog that lifts as the character explores, and keep what was found, so
 again outside the dungeon. This page says whether that's possible on the client as it is
 (build 70291, checked 2026-10-09), how it would work, and what still has to be tried in game.
 
+**Status (2026-10-09):** the decisions are made (see the end), and the first in-game check passed:
+on the German client in Bloodhoof, the test line drew a Ragefire Chasm tile and a Hall of Thanes
+minimap tile from the client's own files. Phases 1 and 2 are built for four dungeons (Ragefire
+Chasm, Wailing Caverns, the Deadmines, the Hall of Thanes): the generator in `tools/dungeonmaps/`
+(see DEVELOPMENT.md), the facts in `Data/Charted.lua`, the tracker `Trackers/DungeonMaps.lua`, and
+the Maps tab (`UI/MapsView.lua`, `UI/DungeonMap.lua`). They wait for the in-game checks
+(ingame-tests.md, *Dungeon maps*) before the other dungeons get their data.
+
+**Boss positions, as built:** by hand where set in `dungeons.py`, else retail's encounter journal
+(its spots are the skulls in the art), else AzerothCore's spawn table (Wrath-era server data, close
+to Vanilla). A spot that lands off the drawn floor is skipped for the next source. Entrances come
+from AzerothCore's `areatrigger_teleport` (the point a portal puts the player).
+
 ## Verdict
 
 **Possible, with one twist forced by the game.** The maps are still in the client's files, so
@@ -27,6 +40,14 @@ don't point to them; their file IDs come from retail's `UiMapArtTile` (build 12.
 for build 1.60.1.70291 from wago.tools and decoded, Ragefire Chasm (449736–449747) and the
 Deadmines (449591…) are the familiar maps. An addon can show such a file with
 `Texture:SetTexture(fileID)`, so **Wayscribe would ship file IDs, not images.**
+
+**Why retail's tables.** They are only the index: the pictures are Forever's own files either way.
+No Classic client has a better index. Classic Era has no dungeon maps at all, Wrath Classic
+(3.4.5) only Northrend's, and Cata Classic (4.4.2) names the same files as retail. Vanilla itself
+never had dungeon maps, so no older drawing exists. For Scholomance, Cata Classic's index is even
+wrong for Forever: the files it names for the old Scholomance (448178…) now hold the Mists
+drawing (retail puts Instructor Chillheart exactly on its skull). The old layout is in the files of
+retail's "Legacy of Scholomance" (5332424…).
 
 | Instance | Retail map(s) with this art | Floors |
 |---|---|---|
@@ -60,7 +81,11 @@ Scarlet Monastery's four wings and the "Legacy of Scholomance" maps show the old
 rendered and checked). Zul'Gurub's map is the one retail has, drawn after the Cataclysm rebuild,
 so parts of it may differ from Forever's.
 
-**3. Forever's new instances have no art,** as guides note for the Hall of Thanes. But the client
+**3. Forever's new instances have no art,** as guides note for the Hall of Thanes. Forever lists
+nine new dungeons ([Warcraft Tavern](https://www.warcrafttavern.com/forever/guides/dungeons/)); four
+are in build 70291: the Hall of Thanes, the Ruins of Lordaeron, the Wetlands excavation site and the
+City of Dalaran. The Drowned City, Krol'Dok Stronghold, Alcaz Island Prison, Blackmaw Hold and
+Shaper's Terrace aren't in the client yet. But the client
 does have their **minimap images**. The Hall of Thanes' map file (WDT 7713294) lists 81 terrain
 tiles, and their minimap textures (512 px) show its halls and caves from above. Tinted toward the
 parchment, that could serve as a "survey sketch". Most new instances are built the same way (the
@@ -68,6 +93,12 @@ Ruins of Lordaeron, the Wetlands excavation site, Dalaran, the Burning of Andorh
 that is a single indoor building keeps its minimap images in `WMOMinimapTexture.db2` (156,027 rows
 in build 70291) instead, and placing them needs the building's group bounds from its model file.
 That is a spike of its own. Manor Mistmantle's map file lists nothing yet.
+
+The Ruins of Lordaeron, the excavation site and Dalaran are open-air copies of their zone, so their
+minimap images show the whole land around them. Their map is a crop around the instance's part:
+the ruined city, the dig site, Dalaran. What lies indoors (Dalaran's sewers, where the instance
+starts) isn't in the terrain images; such parts stay unmapped unless the building's own minimap
+images can be placed.
 
 **4. No position inside instances.** Since patch 7.1, `UnitPosition` and `GetPlayerFacing` return
 nil in instances ([warcraft.wiki.gg](https://warcraft.wiki.gg/wiki/API_UnitPosition)), and
@@ -136,11 +167,11 @@ highlighted instead, and opening the map inside an instance shows that section's
   row, with soft sprites along the edge so the border looks inked, not blocky. That is a few hundred
   textures at most, drawn once when a floor is shown. A section that is revealed while the map is
   open fades out. The same grid would take real positions if Forever ever gives them.
-- **Where:** a new journal tab. Left page: the dungeons entered, each with "62% charted", its first
-  clear and its runs (from the records already kept). Right page: the dungeon's floors and bosses
-  (killed, how often, first on which day). Opening a map spreads it across both pages: the book's
-  spread is about 3:2, like the art. Inside an instance it also opens with a key binding, `/ws map`
-  and a button on the world map.
+- **Where:** a new journal tab, **Maps** (German *Karten*), between Notes and Your Year. Left page:
+  the dungeons entered, each with "62% charted", its first clear and its runs (from the records
+  already kept). Right page: the dungeon's floors and bosses (killed, how often, first on which
+  day). Opening a map spreads it across both pages: the book's spread is about 3:2, like the art.
+  Inside an instance it also opens with a key binding, `/ws map` and a button on the world map.
 
 ## Phases
 
@@ -149,8 +180,8 @@ highlighted instead, and opening the map inside an instance shows that section's
 | **0. Proof in game** (no code) | The test lines below, on the beta. | Both map pieces are visible; the probe shows what an instance gives. |
 | **1. Tooling** | Generator (wago.tools tables → floors, file IDs, boss anchors), composed maps on disk, section authoring page; data for Ragefire Chasm, the Deadmines and Wailing Caverns. | The three dungeons' sections look right on their maps. |
 | **2. 0.8 Dungeon maps** | `charted` facts with back-fill, `ENCOUNTER_START` and area triggers in the Dungeons tracker, `DUNGEON_CHARTED`, the journal tab, the map with fog, binding and `/ws map`, unit tests. | A Ragefire Chasm run lifts the entrance and four bosses' rooms, survives a `/reload`, reads the same outside, and the backup carries it. |
-| **3. Every old dungeon and raid** | Data only: about 25 instances, 70 floors. | Each checked once in game against its run. |
-| **4. Forever's new instances** | Minimap-based maps, with the Hall of Thanes as the spike. | The Hall of Thanes is drawn and lifts by its four bosses. |
+| **3. Every old dungeon** | Data only: 19 instances, 51 floors. The raids come later. | Each checked once in game against its run. |
+| **4. Forever's new instances** | Minimap-based maps for the four in the client, as good as the images allow; the Hall of Thanes first. Part of 0.8. | Each is drawn and lifts by its bosses (and areas, where it has them). |
 
 **Phase 0 test lines.** On the beta, out of combat, paste:
 
@@ -186,10 +217,11 @@ instead, Forever gives positions after all, and the fog could follow your steps.
 - **Fan art** (the Hall of Thanes map by Santiago Reyes, Atlas Forever's maps) only with the
   artist's permission. The minimap route avoids the question.
 
-## Decisions for you
+## Decisions (2026-10-09)
 
-1. Is room-by-room good enough, or not worth it without step-by-step?
-2. The tab: its name ("Dungeons"? "Maps"?) and its place (between Notes and Your Year?).
-3. Does an engaged boss reveal its room (my suggestion), or only a kill?
-4. Raids too, or dungeons first?
-5. Forever's new instances from minimap images in 0.8, or later?
+1. **Room by room is good enough.**
+2. **The tab is called Maps** (*Karten*) and sits between Notes and Your Year: Journal, Notes,
+   Maps, Your Year.
+3. **Reaching a boss reveals its room.** `ENCOUNTER_START` counts, a wipe included.
+4. **Dungeons first.** Raids come in a later release.
+5. **Forever's new instances are in 0.8 too**, as good as their minimap images allow.

@@ -47,6 +47,11 @@ commands.notes = function()
     ns.Journal:OpenNotes()
 end
 
+-- /ws map: the map of the dungeon the player is in, unfolded; else the Maps tab.
+commands.map = function()
+    ns.Journal:ShowMap()
+end
+
 -- /ws mark [title]: a note whose text is the /way line of where the player stands, so a marker
 -- on the world map. Its title is the one given, else the subzone's or the zone's name.
 commands.mark = function(rest)

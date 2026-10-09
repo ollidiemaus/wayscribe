@@ -36,6 +36,7 @@ Data\Codec.lua
 Data\RecordTypes.lua
 Data\Players.lua
 Data\Notes.lua
+Data\Charted.lua
 Data\Index.lua
 Data\Store.lua
 Data\Paths.lua
@@ -45,6 +46,7 @@ Data\Schema.lua
 Data\Backup.lua
 
 StaticData\Dungeons.lua
+StaticData\DungeonMaps.lua
 StaticData\Gathering.lua
 StaticData\QuestChains.lua
 StaticData\Travel.lua
@@ -56,6 +58,7 @@ Trackers\Professions.lua
 Trackers\Gathering.lua
 Trackers\Bosses.lua
 Trackers\Dungeons.lua
+Trackers\DungeonMaps.lua
 Trackers\QuestChains.lua
 Trackers\Footsteps.lua
 Trackers\Deaths.lua
@@ -64,6 +67,8 @@ UI\Theme.lua
 UI\DayView.lua
 UI\YourYear.lua
 UI\NotesView.lua
+UI\DungeonMap.lua
+UI\MapsView.lua
 UI\Journal.lua
 UI\Export.lua
 UI\FootstepsMap.lua

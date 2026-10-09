@@ -15,8 +15,10 @@ globals = {
     "StaticPopupDialogs",
     "BINDING_HEADER_WAYSCRIBE",
     "BINDING_NAME_WAYSCRIBE_TOGGLE",
+    "BINDING_NAME_WAYSCRIBE_MAP",
     "Wayscribe_OnAddonCompartmentClick",
     "Wayscribe_ToggleJournal",
+    "Wayscribe_ToggleMap",
 }
 
 -- WoW API the addon reads. Keep this list explicit: an unexpected global is usually a typo.
@@ -48,6 +50,8 @@ read_globals = {
 }
 
 files["Locales/"] = { max_line_length = false }
+-- Generated: a floor's packed grid is one string.
+files["StaticData/DungeonMaps.lua"] = { max_line_length = false }
 
 -- Tests replace the WoW API with stubs through _G.
 files["tests/"] = {

@@ -260,6 +260,8 @@ local function installMaps()
             local u, v = Stubs.WorldToMap(mapID, position.x, position.y)
             return { x = u, y = v }
         end,
+        -- An area's (subzone's) name, set with Stubs.SetAreaName.
+        GetAreaInfo = function(areaID) return state.areaNames and state.areaNames[areaID] end,
         GetMapInfo = function(mapID)
             local map = MAPS[mapID]
             return { mapID = mapID, name = map and map.name, parentMapID = map and map.parent or 0 }
@@ -609,6 +611,10 @@ function Stubs.SetTaxi(onTaxi) state.onTaxi = onTaxi end
 -- The map C_Map.GetBestMapForUnit reports (default 1411), and GetSubZoneText (default "").
 function Stubs.SetBestMap(mapID) state.bestMap = mapID end
 function Stubs.SetSubZone(name) state.subZone = name end
+function Stubs.SetAreaName(areaID, name)
+    state.areaNames = state.areaNames or {}
+    state.areaNames[areaID] = name
+end
 function Stubs.SetDead(dead) state.dead = dead end
 function Stubs.SetCombat(inCombat) state.combat = inCombat end
 -- Modifier keys held down: { alt = true, ctrl = true, shift = true }; no argument = none.
@@ -654,6 +660,7 @@ function Stubs.Relog(opts, reload)
         spellNames = state.spellNames, itemNames = state.itemNames, itemClasses = state.itemClasses,
         questTitles = state.questTitles, cvars = state.cvars, position = state.position,
         onTaxi = state.onTaxi, dead = state.dead, subZone = state.subZone, bestMap = state.bestMap,
+        areaNames = state.areaNames,
         spellIcons = state.spellIcons,
     }
     opts = opts or {}
