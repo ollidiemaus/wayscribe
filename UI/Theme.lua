@@ -8,8 +8,12 @@ local L, Compat = ns.L, ns.Compat
 local Theme = {}
 ns.Theme = Theme
 
--- Wayscribe's icon (source: Media/Icon.svg); the TOC's IconTexture names the same file.
+-- Wayscribe's icon (source: Media/Icon.svg).
 Theme.ICON = "Interface\\AddOns\\" .. addonName .. "\\Media\\Icon"
+-- The same picture redrawn bolder for the places that show it at about 20 px: the minimap button
+-- and, through the TOC's IconTexture, the Addon Compartment and the addon list (source:
+-- Media/IconSmall.svg).
+Theme.ICON_SMALL = "Interface\\AddOns\\" .. addonName .. "\\Media\\IconSmall"
 
 -- SPELLBOOK_FONT_COLOR on client 1.60.1.70235 (GlobalColor.db2), used when the global is missing.
 local SPELLBOOK_INK = { 0.18, 0.106, 0.059 }

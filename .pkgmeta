@@ -11,3 +11,4 @@ ignore:
   - tests
   - README.md
   - Media/Icon.svg
+  - Media/IconSmall.svg

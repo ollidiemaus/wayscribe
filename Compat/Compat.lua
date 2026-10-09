@@ -40,7 +40,8 @@ do
     Compat.clientVersion = type(version) == "string" and version or "?"
     Compat.clientBuild = type(build) == "string" and build or "?"
     Compat.interface = type(interface) == "number" and interface or 0
-    -- Forever reports WOW_PROJECT_MAINLINE, so only the interface number tells it apart.
+    -- Forever's WOW_PROJECT_ID was Mainline's in early beta builds and is 18 since build 70235, so
+    -- only the interface number tells it apart.
     Compat.isForever = Compat.interface >= 16000 and Compat.interface < 20000
 end
 
