@@ -73,6 +73,22 @@ The client writes these files only on logout and `/reload`. Trails are packed st
 one outside the game, load the addon the way the specs do
 (`require("wow_stubs").LoadAddon().Codec.DecodePath(p)`, with `tests/` on `package.path`).
 
+## Dungeon map data
+
+`StaticData/DungeonMaps.lua` is generated (docs/dungeon-maps.md). The dungeons, and what can't be
+looked up (hand-placed bosses, the title banner to leave out of the fog), are in
+`tools/dungeonmaps/dungeons.py`. Then, with Python 3 and curl:
+
+```bash
+python3 tools/dungeonmaps/build.py
+```
+
+It downloads what it needs once into `tools/dungeonmaps/.cache/` (never committed): Forever's and
+retail's tables and Forever's map tiles from wago.tools, and AzerothCore's spawn and entrance
+positions. Then it writes the Lua file and, for every floor, a review page
+(`.cache/review/<instanceID>.html`) with the map, its sections in color and the bosses where they
+were placed. `python3 tools/dungeonmaps/build.py 389 43` builds only those review pages.
+
 ## Adding a tracker
 
 A feature is one file (ARCHITECTURE.md §6):

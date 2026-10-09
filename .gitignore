@@ -11,3 +11,7 @@ Thumbs.db
 
 # Editor
 .vscode
+
+# Dungeon map tooling: downloads, composed maps and review pages (never committed)
+tools/dungeonmaps/.cache/
+__pycache__/
