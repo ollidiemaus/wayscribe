@@ -17,7 +17,7 @@ the events, does it look right, is it fast enough.
 
 **Where things are**
 - `/ws` opens the journal: the day list on the left, the selected day on the right, the tabs
-  *Journal*, *Notes* and *Your Year* below.
+  *Journal*, *Notes*, *Maps* and *Your Year* below.
 - The world map has a *Footsteps: Today* button in its top right corner.
 - Settings: Options > AddOns > Wayscribe.
 - `/etrace` is the game's own event trace, for the "does this event fire?" checks.
@@ -48,6 +48,37 @@ and [a journal file that didn't load](#backup).
   (probably nil).
 - [ ] **Dungeon finder**, if Forever has one. With `/etrace` open, finish a finder dungeon. → Note
   whether `LFG_COMPLETION_REWARD` or `SCENARIO_COMPLETED` fires at the end.
+
+## Dungeon maps
+
+So far only Ragefire Chasm, Wailing Caverns, the Deadmines and the Hall of Thanes have a map.
+
+- [ ] **Arrive.** Enter Ragefire Chasm (or Wailing Caverns) and type `/ws map`. → The journal opens
+  on *Maps* with the dungeon's map across both pages. Everything is under fog but the entrance.
+  Note whether the map shows at all (a blank or green square means the client lacks the file).
+- [ ] **Reach a boss.** Pull a boss (a wipe is fine) with the map open. → Its room and the way to it
+  clear within about a second. The rest stays fogged.
+- [ ] **Right rooms?** After each boss, look at what cleared. → Note any boss whose room cleared in
+  the wrong place, with the boss's name. (Ragefire Chasm's printed skulls mark later bosses; the
+  fog follows Forever's.)
+- [ ] **Outside.** Leave the dungeon, open the journal's *Maps* tab. → The dungeon is listed with
+  "*N*% charted". The map shows what you found, under the same fog. *Unfold map* spreads it, *Fold
+  map* goes back. The page buttons turn floors in the Deadmines.
+- [ ] **Whole map.** Kill every boss of a dungeon. → A journal entry "Charted *dungeon* completely".
+- [ ] **Older runs.** A character who ran a dungeon with an older Wayscribe logs in. → That
+  dungeon's map already shows the rooms of the bosses killed back then.
+- [ ] **Key binding.** Bind *Open or close the dungeon map* (Key Bindings > AddOns). → Inside a
+  dungeon it opens the map; pressed again it closes.
+- [ ] **German.** On a German client: tab *Karten*, "*N* % kartiert", the Deadmines are
+  "Todesminen". Note whether the map's printed labels ("Goblin Foundry") show in German.
+- [ ] **Hall of Thanes.** Run it. → The map is the hall seen from above (the game's minimap images).
+  Note whether each boss's room cleared where you fought it: Faldrim, Infurnus, Plunder, Durgen.
+- [ ] **Hidden.** Turn off *Show dungeon maps* (Options > AddOns > Wayscribe > Dungeon maps), then
+  pull a boss you haven't reached. → No *Maps* tab, Your Year sits next to Notes; `/ws map` and the
+  key binding print "Dungeon maps are turned off …". Turn it back on. → The tab is back and the
+  boss's room is clear.
+- [ ] **Look.** Note what the fog looks like: too dark, too blocky, does the edge read as unexplored?
+  A screenshot helps.
 
 ## Professions and gathering
 

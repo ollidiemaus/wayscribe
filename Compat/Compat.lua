@@ -226,6 +226,12 @@ function Compat.GetSubZoneName()
     return text(Compat.Call(GetSubZoneText))
 end
 
+-- An area's name (a subzone, by AreaTable ID) in the client's language, or nil: what
+-- GetSubZoneText says while the player is in it.
+function Compat.GetAreaName(areaID)
+    return text(C_Map and Compat.Call(C_Map.GetAreaInfo, areaID))
+end
+
 -- A map's name in the client's language (a zone, a dungeon), or nil.
 function Compat.GetMapName(mapID)
     local info = C_Map and C_Map.GetMapInfo and Compat.Call(C_Map.GetMapInfo, mapID)

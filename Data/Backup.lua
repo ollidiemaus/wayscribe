@@ -308,8 +308,8 @@ local function closeLiveSession(db, made)
 end
 
 -- What changes during play, read when the backup starts: the record counter, the tracker state,
--- the players and the notes. Past days don't change, and later records are left out (journalDays).
-local SNAPSHOT = { meta = true, state = true, players = true, notes = true }
+-- the players, the notes and what the maps found. Past days don't change, and later records are left out (journalDays).
+local SNAPSHOT = { meta = true, state = true, players = true, notes = true, charted = true }
 
 local function snapshot(db)
     local now = { made = Time.Now(), seq = db.meta.seq }
@@ -317,6 +317,7 @@ local function snapshot(db)
     now.state = deepCopy(db.state)
     now.players = deepCopy(db.players)
     now.notes = deepCopy(db.notes)
+    now.charted = deepCopy(db.charted)
     return now
 end
 

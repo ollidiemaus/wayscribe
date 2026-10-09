@@ -12,7 +12,7 @@ function DayView.HasVisible(dayKey, isVisible)
     local day = Store:GetDay(dayKey)
     if not day then return false end
     for _, record in ipairs(day.records) do
-        if isVisible(RecordTypes:CategoryOf(record.type)) then return true end
+        if isVisible(RecordTypes:CategoryOf(record.type)) and RecordTypes:IsShown(record.type) then return true end
     end
     for path, bucket in pairs(day.counters) do
         if RecordTypes.counters[path] and type(bucket) == "table" and next(bucket) ~= nil
@@ -41,7 +41,7 @@ function DayView.Build(dayKey, isVisible)
     local page = { dayKey = dayKey, title = Time.FormatLongDay(dayKey), entries = {} }
     for _, record in ipairs(Store:GetDayRecords(dayKey)) do
         local category = RecordTypes:CategoryOf(record.type)
-        if isVisible(category) then
+        if isVisible(category) and RecordTypes:IsShown(record.type) then
             local text, icon = RecordTypes:Render(record)
             if record.sim then
                 text = L.ENTRY_SIMULATED .. " " .. text

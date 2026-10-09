@@ -132,6 +132,15 @@ describe("settings page", function()
         T.falsy(ns.NotesMap:IsShownOnMap())
     end)
 
+    it("has a dungeon maps section: whether the journal shows them", function()
+        local ns, api = start()
+        local shown = api.settings.Wayscribe_DungeonMaps
+        T.eq(shown.get(), true)
+        shown.set(false)
+        T.eq(ns.accountDB.settings.dungeonMaps, false)
+        T.truthy(ns.Trackers:IsWanted(ns.Trackers:Get("DungeonMaps")), "the tracker stays on")
+    end)
+
     it("has a footsteps section: what the map shows, flights, and deleting trails", function()
         local ns, api = start()
         local mode = api.settings.Wayscribe_FootstepsMode

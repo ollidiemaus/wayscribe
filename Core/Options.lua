@@ -11,6 +11,7 @@ local DEFAULTS = {
     footstepsMode = "today", -- which trails the world map shows: "today", "week", "all" or "off"
     footstepsFlights = true, -- record flight paths too
     notesOnMap = true, -- notes with a place show on the world map
+    dungeonMaps = true, -- the Maps tab, /ws map and the "charted" entries; the rooms are noted either way
 }
 
 local function settings()

@@ -43,7 +43,7 @@ function LoginRecap:Collect(force)
     local records, counters = Store:GetActivity(session.s, session.e or Time.Now())
     local recap = { day = Time.DayKey(session.s), duration = session.e and (session.e - session.s), lines = {} }
     for _, record in ipairs(records) do
-        if not record.sim then
+        if not record.sim and RecordTypes:IsShown(record.type) then
             recap.lines[#recap.lines + 1] = RecordTypes:Render(record)
         end
     end

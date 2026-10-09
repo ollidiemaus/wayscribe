@@ -7,8 +7,10 @@ local L, Compat, Store, Time, RecordTypes, Theme, DayView =
 -- (newest first, grouped by month), the right page shows the selected day, with page controls to
 -- turn to the next older or newer one. The list is a virtualized ScrollBox where the client has
 -- one; otherwise a fixed set of rows follows the selection. A second tab, Notes
--- (UI/NotesView.lua), holds the player's own notes; a third, Your Year (UI/YourYear.lua), draws
--- the yearly recap into the same book and turns its cards with the same page buttons.
+-- (UI/NotesView.lua), holds the player's own notes; a third, Maps (UI/MapsView.lua), the dungeon
+-- maps the character uncovered (unless a setting hides them); a fourth, Your Year
+-- (UI/YourYear.lua), draws the yearly recap into the same book and turns its cards with the same
+-- page buttons.
 local Journal = {}
 ns.Journal = Journal
 
@@ -21,7 +23,7 @@ local ROW_HEIGHT = 24
 local CHIP_HEIGHT = 20
 local CHIP_WIDTH = 96
 local GOLD, GREY = { 1, 0.82, 0 }, { 0.5, 0.5, 0.5 } -- text on the frame's dark top bar
-local TABS = { "journal", "notes", "year" }
+local TABS = { "journal", "notes", "maps", "year" }
 local STRATA = "HIGH"
 local STRATA_ORDER = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6, FULLSCREEN_DIALOG = 7 }
 local TAB_WIDTH = 110 -- without the default UI's tab template
@@ -29,8 +31,8 @@ local TAB_WIDTH = 110 -- without the default UI's tab template
 local ui = {}
 Journal.ui = ui
 -- days: visible day keys, newest first; elements: the list rows (month headings and days);
--- byDay: dayKey -> its element; selected: the day on the right page; tab: "journal", "year" or
--- "notes".
+-- byDay: dayKey -> its element; selected: the day on the right page; tab: "journal", "notes",
+-- "maps" or "year".
 local state = { days = {}, elements = {}, byDay = {}, listDirty = true, tab = "journal" }
 Journal.state = state
 
@@ -311,6 +313,12 @@ local function showNotesPage()
     showPageControls(index and count - index + 1, count, index ~= nil and index < count, index ~= nil and index > 1)
 end
 
+-- The page buttons turn a map's floors.
+local function showMapsPage()
+    local floor, count = ns.MapsView:Refresh(ui.paperWidth, ui.paperHeight)
+    showPageControls(floor, count, floor ~= nil and floor > 1, floor ~= nil and floor < count)
+end
+
 local function showTooltip(button)
     if not GameTooltip then return end
     GameTooltip:SetOwner(button, "ANCHOR_TOP")
@@ -494,6 +502,7 @@ local function createPages(frame)
     createPageControls(ui.rightPaper)
     ns.YourYear:Create(ui.listPaper, ui.rightPaper)
     ns.NotesView:Create(ui.listPaper, ui.rightPaper)
+    ns.MapsView:Create(ui.listPaper, ui.rightPaper)
 end
 
 -- The rims scale with the page, so the paper, the filter and the banner move on every resize.
@@ -528,14 +537,39 @@ end
 ------------------------------------------------------------------------------------------------
 -- Tabs: the default UI's tabs under the frame, or plain buttons there.
 
-local TAB_LABELS = { journal = L.TAB_JOURNAL, year = L.TAB_YOUR_YEAR, notes = L.TAB_NOTES }
+local TAB_LABELS = { journal = L.TAB_JOURNAL, year = L.TAB_YOUR_YEAR, notes = L.TAB_NOTES, maps = L.TAB_MAPS }
 local PAGE_TIPS = {
     journal = { L.PAGE_OLDER, L.PAGE_NEWER },
     year = { L.PAGE_PREVIOUS, L.PAGE_NEXT },
     notes = { L.PAGE_OLDER_NOTE, L.PAGE_NEWER_NOTE },
+    maps = { L.PAGE_FLOOR_UP, L.PAGE_FLOOR_DOWN },
 }
 
+local function mapsShown()
+    return ns.Options:Get("dungeonMaps") == true
+end
+
+-- The tabs sit where Mainline's CharacterFrame puts its own. The Maps tab is there only while the
+-- maps are shown; the tabs after it close the gap.
+local function layoutTabs()
+    local previous
+    for _, tab in ipairs(ui.tabs) do
+        local shown = tab.tabId ~= "maps" or mapsShown()
+        tab:SetShown(shown)
+        if shown then
+            tab:ClearAllPoints()
+            if previous then
+                tab:SetPoint("TOPLEFT", previous, "TOPRIGHT", 1, 0)
+            else
+                tab:SetPoint("TOPLEFT", ui.frame, "BOTTOMLEFT", 11, 2)
+            end
+            previous = tab
+        end
+    end
+end
+
 local function updateTabs()
+    layoutTabs()
     for i, tab in ipairs(ui.tabs) do
         if not Compat.has.panelTabs then
             tab:SetEnabled(tab.tabId ~= state.tab)
@@ -556,12 +590,6 @@ local function createTabs(frame)
         tab:SetText(TAB_LABELS[id])
         if not Compat.has.panelTabs then
             tab:SetSize(TAB_WIDTH, 22)
-        end
-        -- Where Mainline's CharacterFrame puts its tabs.
-        if i == 1 then
-            tab:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 11, 2)
-        else
-            tab:SetPoint("TOPLEFT", ui.tabs[i - 1], "TOPRIGHT", 1, 0)
         end
         tab:SetScript("OnClick", function() Journal:SetTab(id) end)
         ui.tabs[i] = tab
@@ -612,6 +640,10 @@ end
 function Journal:Refresh()
     state.refreshPending = false
     if not ui.frame or not ui.frame:IsShown() then return end
+    if state.tab == "maps" and not mapsShown() then
+        state.tab = "journal" -- the maps were just hidden
+        state.listDirty = true
+    end
     layoutPages()
     updateHeaders()
     updateTabs()
@@ -621,6 +653,11 @@ function Journal:Refresh()
     ui.filterBar:SetShown(onJournal)
     ns.YourYear:SetShown(state.tab == "year")
     ns.NotesView:SetShown(state.tab == "notes")
+    ns.MapsView:SetShown(state.tab == "maps")
+    if state.tab == "maps" then
+        showMapsPage()
+        return
+    end
     if state.tab == "year" then
         showYearPage()
         return
@@ -663,6 +700,9 @@ function Journal:Turn(step)
     elseif state.tab == "notes" then
         if not ns.NotesView:Turn(step) then return end
         showNotesPage()
+    elseif state.tab == "maps" then
+        if not ns.MapsView:Turn(step) then return end
+        showMapsPage()
     else
         local index = indexOf(state.days, state.selected)
         local target = index and state.days[index + step]
@@ -735,6 +775,43 @@ function Journal:OpenNotes(id)
     showWindow()
     inFrontOfMap()
     if ui.frame.Raise then ui.frame:Raise() end
+end
+
+-- Opens the maps at a dungeon (unfolded across both pages, at its current floor), or as they were
+-- left. With the maps hidden, says how to show them.
+function Journal:OpenMaps(instanceID, unfolded)
+    if not mapsShown() then
+        ns.Print(L.MAPS_OFF)
+        return
+    end
+    if not ui.frame then
+        createWindow()
+    end
+    if instanceID then
+        ns.MapsView:Select(instanceID)
+        ns.MapsView.state.unfolded = unfolded == true
+    end
+    state.tab = "maps"
+    showWindow()
+end
+
+-- The map of the dungeon the player is in, unfolded; elsewhere the Maps tab (/ws map).
+function Journal:ShowMap()
+    local instanceID = Compat.GetInstance()
+    if instanceID and ns.Charted.Map(instanceID) then
+        self:OpenMaps(instanceID, true)
+    else
+        self:OpenMaps()
+    end
+end
+
+-- The same, or closed when it is open (key binding).
+function Journal:ToggleMap()
+    if ui.frame and ui.frame:IsShown() and state.tab == "maps" then
+        ui.frame:Hide()
+    else
+        self:ShowMap()
+    end
 end
 
 function Journal:SetTab(tab)

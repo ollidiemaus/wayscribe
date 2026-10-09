@@ -968,6 +968,10 @@ control, so the page reads and writes `ns.Options` / `ns.Trackers` and never own
   confirmation popup).
 - **Notes:** show notes on the world map (`notesOnMap`, default on; the map button's menu has it
   too).
+- **Dungeon maps:** show dungeon maps (`dungeonMaps`, default on). Off, the journal has no Maps
+  tab, `/ws map` and its key binding say how to turn them on, and the "Charted … completely"
+  entries are hidden (a record type's `shown`). The tracker keeps noting rooms, so the maps are
+  complete when they come back; its own toggle under Tracking stops that.
 - **Data:** stats, error log, rebuild indexes, export, back up, restore, and reset (with a
   confirmation popup and a reload; reset deletes the trails too).
 
@@ -1171,6 +1175,8 @@ game is in [ingame-tests.md](ingame-tests.md).
   first mount, zones discovered, epic loot, talent milestones, PvP honor kills, guild join,
   screenshots (`SCREENSHOT_SUCCEEDED` → "took a screenshot here").
 - **Footsteps:** a fog-of-war look on the map from the walked squares (§6.8).
+- **Dungeon maps:** the old dungeons' map art is still in Forever's files; maps in the journal
+  whose fog lifts room by room (plan: [dungeon-maps.md](dungeon-maps.md)).
 
 ---
 

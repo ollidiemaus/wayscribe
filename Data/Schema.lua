@@ -25,7 +25,7 @@ local Schema = {
 }
 ns.Schema = Schema
 
-local CHAR_TABLES = { "meta", "state", "players", "months", "firsts", "notes" }
+local CHAR_TABLES = { "meta", "state", "players", "months", "firsts", "notes", "charted" }
 local ACCOUNT_TABLES = { "settings", "log", "characters" }
 local PATH_TABLES = { "months" }
 
@@ -55,6 +55,7 @@ local function newCharDB(identity)
         months = {},
         firsts = {},
         notes = {},
+        charted = {},
     }
 end
 
