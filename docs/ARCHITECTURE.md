@@ -976,14 +976,19 @@ Without the API the page is skipped and `/ws settings` says so.
 ### 7.8 Minimap button, Addon Compartment, key binding, slash commands
 
 - **Minimap button:** LibDataBroker-1.1 + LibDBIcon-1.0, position and hidden flag in
-  `WayscribeDB.settings.minimap`. Icon: `Media/MinimapIcon.tga` (64×64, source
-  `Media/MinimapIcon.svg`), the main icon redrawn bolder because the button shows it at 17-18 px
-  inside a round border: parchment and quill fill the opening, no compass, frame or grain.
-  `Media/Icon.tga` (source `Media/Icon.svg`) stays the TOC's `IconTexture`, the journal's portrait
-  and the Your Year overview card. Left-click toggles the journal, right-click opens settings.
-  Skipped when the libraries are missing.
-- **Addon Compartment:** the entry comes from the TOC (`AddonCompartmentFunc`), so it works without
-  libraries.
+  `WayscribeDB.settings.minimap`. Left-click toggles the journal, right-click opens settings.
+  Skipped when the libraries are missing. LibDBIcon picks its Classic layout because Forever's
+  `WOW_PROJECT_ID` isn't Mainline's (it is 18), but Forever draws the Mainline ring, so the icon sat
+  up and to the left of the opening. On Forever the button gets the layout of Blizzard's own
+  button in that ring (`WorldMapTrackingPinButtonTemplate`): border 54 px, dark disc 25 px at
+  (3, −4), icon 20 px at (7, −6).
+- **Icons:** `Media/IconSmall.tga` (64×64, source `Media/IconSmall.svg`) is the main icon redrawn
+  bolder for about 20 px: parchment and quill fill the frame, no compass, frame or grain. It is
+  the minimap button's icon and the TOC's `IconTexture`, which the Addon Compartment and the addon
+  list show. `Media/Icon.tga` (128×128, source `Media/Icon.svg`) is the journal's portrait and the
+  Your Year overview card.
+- **Addon Compartment:** the entry comes from the TOC (`AddonCompartmentFunc`, `IconTexture`), so
+  it works without libraries.
 - **Key binding:** `Bindings.xml`: `WAYSCRIBE_TOGGLE` under the AddOns category, unbound by default.
   `BINDING_HEADER_WAYSCRIBE` and `BINDING_NAME_WAYSCRIBE_TOGGLE` are localized.
 - **Slash:** `/wayscribe` or `/ws` (toggle), plus `help`, `year [YYYY]`, `notes`, `mark [title]`,
@@ -1093,7 +1098,7 @@ Trackers/  Session.lua Level.lua Professions.lua Gathering.lua Bosses.lua Dungeo
            QuestChains.lua Footsteps.lua Deaths.lua
 UI/        Theme.lua DayView.lua YourYear.lua NotesView.lua Journal.lua Export.lua FootstepsMap.lua
            NotesMap.lua LoginRecap.lua Settings.lua Minimap.lua
-Media/     Icon.tga (128×128, 32-bit) MinimapIcon.tga (64×64, 32-bit), their .svg sources (not
+Media/     Icon.tga (128×128, 32-bit) IconSmall.tga (64×64, 32-bit), their .svg sources (not
            packaged)
 tests/     run.lua testlib.lua wow_stubs.lua serialize.lua <area>_spec.lua …
 docs/      ARCHITECTURE.md DEVELOPMENT.md ingame-tests.md forever-probe.md

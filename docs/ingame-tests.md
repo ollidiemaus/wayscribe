@@ -92,8 +92,10 @@ Wayscribe draws where you walked as a dark red line on the world map.
   flicker.
 - [ ] **Item names.** → Gathered items show their names, not "item 2770" (they may fill in a moment
   later).
-- [ ] **Minimap icon.** → The minimap button shows the bolder icon: parchment and quill fill the
-  gold ring, the dashed trail is visible, and the quill's tip isn't cut off by the ring.
+- [ ] **Small icon.** → The minimap button shows the bolder icon centered in its gold ring, framed
+  like the round button at the top right of the world map: parchment and quill fill the ring, the
+  dashed trail is visible, no blue corners stick out past the ring. The Addon Compartment and the
+  addon list show the same bolder icon.
 
 ## Your Year
 

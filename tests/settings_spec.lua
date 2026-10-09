@@ -39,6 +39,12 @@ local function installIconLibraries()
     function libs.icon:Register(name, _, db) self.db = db; self.shown[name] = not db.hide end
     function libs.icon:Show(name) self.shown[name] = true end
     function libs.icon:Hide(name) self.shown[name] = false end
+    libs.icon.layout = {}
+    for _, part in ipairs({ "Border", "Background", "Icon" }) do
+        libs.icon["SetButton" .. part] = function(self, name, texture, size, point, x, y)
+            self.layout[part] = { name, texture, size, point, x, y }
+        end
+    end
     _G.LibStub = function(major)
         if major == "LibDataBroker-1.1" then return libs.broker, 6 end
         if major == "LibDBIcon-1.0" then return libs.icon, 56 end
@@ -46,8 +52,8 @@ local function installIconLibraries()
     return libs
 end
 
-local function start()
-    local ns = Stubs.LoadAddon()
+local function start(opts)
+    local ns = Stubs.LoadAddon(opts)
     local api = installSettingsAPI()
     local libs = installIconLibraries()
     Stubs.Login()
@@ -174,6 +180,20 @@ describe("minimap button", function()
         T.eq(libs.name, "Wayscribe")
         T.eq(libs.icon.db, ns.accountDB.settings.minimap)
         T.truthy(libs.icon.shown.Wayscribe)
+    end)
+
+    it("centers its icon in Forever's ring, laid out like Blizzard's world map button", function()
+        local ns, _, libs = start()
+        T.eq(libs.object.icon, ns.Theme.ICON_SMALL)
+        T.same(libs.icon.layout.Border, { "Wayscribe", nil, 54 })
+        T.same(libs.icon.layout.Background, { "Wayscribe", nil, 25, "TOPLEFT", 3, -4 })
+        T.same(libs.icon.layout.Icon, { "Wayscribe", nil, 20, "TOPLEFT", 7, -6 })
+    end)
+
+    it("keeps LibDBIcon's own layout outside Forever", function()
+        local _, _, libs = start({ interface = 120100 })
+        T.truthy(libs.icon.shown.Wayscribe)
+        T.eq(next(libs.icon.layout), nil)
     end)
 
     it("can be hidden from the settings page", function()

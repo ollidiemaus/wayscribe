@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-<!-- Icon.svg redrawn for the minimap button, where it shows at 17-18 px inside a round border:
-     parchment and quill fill the round opening, outlines are thicker, and the details that vanish
-     at that size (compass, frame, grain) are left out. -->
+<!-- Icon.svg redrawn for about 20 px: the minimap button (inside its round border), the Addon
+     Compartment and the addon list. Parchment and quill fill the frame, outlines are thicker, and
+     the details that vanish at that size (compass, frame, grain) are left out. -->
 <defs>
   <radialGradient id="bg" cx="40%" cy="36%" r="75%">
     <stop offset="0" stop-color="#4a82b4"/>

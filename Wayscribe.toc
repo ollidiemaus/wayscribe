@@ -6,7 +6,7 @@
 ## Version: @project-version@
 ## SavedVariables: WayscribeDB
 ## SavedVariablesPerCharacter: WayscribeCharDB, WayscribeFootstepsDB
-## IconTexture: Interface\AddOns\Wayscribe\Media\Icon
+## IconTexture: Interface\AddOns\Wayscribe\Media\IconSmall
 ## AddonCompartmentFunc: Wayscribe_OnAddonCompartmentClick
 ## Category-enUS: Journal
 ## Category-deDE: Tagebuch
