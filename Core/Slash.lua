@@ -36,9 +36,35 @@ end
 commands.stats = function()
     local stats = ns.Store:GetStats()
     ns.Print(L.STATS_LINE:format(stats.records, stats.days, stats.months, stats.sessions, stats.seq))
+    ns.Print(L.STATS_NOTES:format(ns.Notes:Count()))
     local paths = ns.Paths:GetStats()
     ns.Print(L.STATS_PATHS:format(paths.segments, paths.days, paths.bytes / 1024))
     ns.Print(L.STATS_SAVED:format(stats.bytes / 1024, paths.saved / 1024))
+end
+
+-- /ws notes: the journal's notes.
+commands.notes = function()
+    ns.Journal:OpenNotes()
+end
+
+-- /ws mark [title]: a note whose text is the /way line of where the player stands, so a marker
+-- on the world map. Its title is the one given, else the subzone's or the zone's name.
+commands.mark = function(rest)
+    if not ns.Notes:IsWritable() then
+        ns.Print(L.NOTES_READ_ONLY)
+        return
+    end
+    local place = ns.Notes.PlayerPlace()
+    local line = place and ns.Notes.LineAt(place.c, place.x, place.y)
+    if not line then
+        ns.Print(L.NOTES_MARK_NO_POSITION)
+        return
+    end
+    local title = rest ~= "" and rest or place.sub or ns.Compat.GetMapName(ns.Compat.GetPlayerMapID()) or ""
+    local note = ns.Notes:Add({ title = title, text = line })
+    if note then
+        ns.Print(L.NOTES_MARKED:format(ns.NotesView.Title(note)))
+    end
 end
 
 -- /ws year [2026]: Your Year, at the newest year or the one given.

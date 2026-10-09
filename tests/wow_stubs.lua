@@ -74,6 +74,11 @@ local function newFrame(frameType, name, parent, template)
     function frame:GetWidth() return self.width end
     function frame:GetHeight() return self.height end
     function frame:GetName() return self.name end
+    function frame:GetParent() return self.parent end
+    -- Edit boxes: one has the keyboard at a time.
+    function frame:SetFocus() state.focus = self end
+    function frame:ClearFocus() if state.focus == self then state.focus = nil end end
+    function frame:HasFocus() return state.focus == self end
     function frame:SetChecked(checked) self.checked = checked == true end
     function frame:GetChecked() return self.checked == true end
     function frame:SetEnabled(enabled) self.disabled = not enabled end
@@ -192,6 +197,9 @@ local function installUnits(opts)
     _G.UnitOnTaxi = function() return state.onTaxi == true end
     _G.UnitIsDeadOrGhost = function() return state.dead == true end
     _G.InCombatLockdown = function() return state.combat == true end
+    _G.IsAltKeyDown = function() return state.keys.alt == true end
+    _G.IsControlKeyDown = function() return state.keys.ctrl == true end
+    _G.IsShiftKeyDown = function() return state.keys.shift == true end
     _G.IsInRaid = function() return #state.group > 4 end
     _G.GetNumGroupMembers = function() return #state.group > 0 and #state.group + 1 or 0 end
     _G.GetNumSubgroupMembers = function() return #state.group end
@@ -265,7 +273,7 @@ local function installMaps()
                     parent = MAPS[parent] and MAPS[parent].parent
                 end
                 if parent == mapID and (not mapType or map.type == mapType) then
-                    children[#children + 1] = { mapID = childID, mapType = map.type, parentMapID = map.parent }
+                    children[#children + 1] = { mapID = childID, name = map.name, mapType = map.type, parentMapID = map.parent }
                 end
             end
             table.sort(children, function(a, b) return a.mapID < b.mapID end)
@@ -395,6 +403,7 @@ function Stubs.Install(opts)
         questTitles = {},
         cvars = {},
         tickers = {},
+        keys = {},
     }
     Stubs.state = state
     for name in pairs(Stubs.namedFrames) do
@@ -489,6 +498,19 @@ function Stubs.InstallWorldMap()
         if not self.shown then return end
         self.shown = false
         for _, provider in ipairs(self.providers) do provider:OnHide() end
+    end
+    -- Click handlers: the highest priority first; true stops the click there, like the client.
+    map.clickHandlers = {}
+    function map:AddCanvasClickHandler(handler, priority)
+        self.clickHandlers[#self.clickHandlers + 1] = { fn = handler, priority = priority or 0 }
+        table.sort(self.clickHandlers, function(a, b) return a.priority > b.priority end)
+    end
+    -- A click on the canvas at map point (u, v); returns whether a handler took it.
+    function map:ClickCanvas(button, u, v)
+        for _, handler in ipairs(self.clickHandlers) do
+            if handler.fn(self, button, u, v) then return true end
+        end
+        return false
     end
     function map:Zoom(scale)
         self.canvasScale = scale
@@ -589,6 +611,10 @@ function Stubs.SetBestMap(mapID) state.bestMap = mapID end
 function Stubs.SetSubZone(name) state.subZone = name end
 function Stubs.SetDead(dead) state.dead = dead end
 function Stubs.SetCombat(inCombat) state.combat = inCombat end
+-- Modifier keys held down: { alt = true, ctrl = true, shift = true }; no argument = none.
+function Stubs.SetKeys(keys) state.keys = keys or {} end
+-- The edit box with the keyboard, or nil.
+function Stubs.Focus() return state.focus end
 
 -- Group members other than the player: list of { guid, name, realm, class }.
 function Stubs.SetGroup(members) state.group = members end

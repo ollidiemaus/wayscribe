@@ -102,6 +102,7 @@ local function transformFor(mapID)
     end
     return cached or nil
 end
+FootstepsMap.TransformFor = transformFor -- the notes' markers use the same (UI/NotesMap.lua)
 
 ------------------------------------------------------------------------------------------------
 -- Lines
@@ -383,8 +384,8 @@ function FootstepsMap:UpdateButton()
     end
 end
 
--- A menu of the modes where the client has the default UI's menus; otherwise each click shows
--- the next mode.
+-- A menu of the modes, and whether the player's notes show, where the client has the default
+-- UI's menus; otherwise each click shows the next mode.
 function FootstepsMap:OnButtonClick(button)
     if MenuUtil and MenuUtil.CreateContextMenu then
         MenuUtil.CreateContextMenu(button, function(_, root)
@@ -394,6 +395,10 @@ function FootstepsMap:OnButtonClick(button)
                     function(value) self:SetMode(value) end,
                     mode)
             end
+            if root.CreateDivider then root:CreateDivider() end
+            root:CreateCheckbox(L.NOTES_ON_MAP,
+                function() return ns.NotesMap:IsShownOnMap() end,
+                function() ns.NotesMap:SetShownOnMap(not ns.NotesMap:IsShownOnMap()) end)
         end)
         return
     end
@@ -610,6 +615,7 @@ function FootstepsMap:MapForDay(dayKey)
     return mapID
 end
 
+-- Opens the world map at mapID (or as it is), in front of the journal.
 local function openMap(mapID)
     local map = WorldMapFrame
     if not map:IsShown() then
@@ -624,6 +630,7 @@ local function openMap(mapID)
     end
     if map.Raise then map:Raise() end
 end
+FootstepsMap.OpenMap = openMap
 
 -- Opens the world map at the day's trails. Returns whether it did.
 function FootstepsMap:ShowDay(dayKey)

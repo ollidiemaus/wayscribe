@@ -16,6 +16,7 @@ function Store:Attach(db)
     recentKeys = {}
     ns.Index:Build(db)
     ns.Players:Attach(db.players)
+    ns.Notes:Attach(db)
 end
 
 function Store:IsWritable()

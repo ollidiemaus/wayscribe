@@ -6,7 +6,8 @@ Wayscribe writes down your adventures while you play. There's nothing to type an
 up: level ups, dungeon runs with your group, first boss kills, professions, gathering, quest chains,
 deaths and hearthstone journeys are collected day by day, in a book that looks right at home next to
 your spellbook. Your routes show up as footsteps on the world map, and at the end of the year,
-**Your Year** looks back on all of it, card by card.
+**Your Year** looks back on all of it, card by card. And when you want to write something down
+yourself, the book has pages for your own notes, and the map has room for your own markers.
 
 ```text
 Saturday, October 3, 2026
@@ -68,13 +69,31 @@ Every tracker can be turned off in the settings.
 
 ### Your Year
 
-The journal's second tab looks back on your year with a card for each part of it: the year at a
+The journal's third tab looks back on your year with a card for each part of it: the year at a
 glance, levels, dungeons and raids, bosses, your most frequent companions, deaths and the most
 dangerous place, gathering, professions, quests and quest chains, footsteps (with how much of
 Azeroth you walked), and time played.
 
 A year opens on December 1, with a "Your 2026 is ready!" message at your first login. Past years
 open any time.
+
+### Your notes and markers
+
+- The journal's second tab is a notebook: *New note*, a title, and as much text as you like. Every
+  word is saved as you type.
+- **Places on the map, the way guides share them:** every line like `/way Elwynn Forest 49.0 86.4
+  The Kaldorei` in a note is a marker on the world map, on the zone and the continent map. Paste a
+  whole list from a website and every spot shows up, English zone names included on a German
+  client. One note can hold as many places as you like, like all the Hidden Books of a questline.
+- A line without a zone (`/way 49.0 86.4`) takes the zone of the line above it, or the zone you're
+  in, which Wayscribe writes into the line when you leave the note.
+- **Mark a spot yourself:** Alt+click the world map and name it, or type `/ws mark` where you stand
+  (`/ws mark Rare spawn` names it). Either starts a note with that spot's `/way` line.
+- Hover over a marker to read its label and its note; click it to open the note in the journal.
+  Pick one of the eight raid icons for a note's markers.
+- *Show on the map* opens the map at a note's first place. The map button's menu (or the settings)
+  hides your markers when you want a clean map.
+- Your notes belong to the character, and the backup and the text export include them.
 
 ### Login recap
 
@@ -106,6 +125,8 @@ The settings are under Options > AddOns > Wayscribe, or `/ws settings`.
 | `/ws` | Open or close the journal |
 | `/ws settings` | Open the settings |
 | `/ws year` | Open Your Year (`/ws year 2026` for a given year) |
+| `/ws notes` | Open your notes |
+| `/ws mark` | Mark where you stand on the map (`/ws mark Rare spawn` gives it a title) |
 | `/ws recap` | Show the last session again |
 | `/ws export` | The journal as text to copy (`month`, `year` or `all`, the default) |
 | `/ws backup` | A backup of this character's journal and footsteps, to copy and keep |
@@ -127,7 +148,7 @@ The settings are under Options > AddOns > Wayscribe, or `/ws settings`.
   read-only instead of starting over, and tells you what happened and what to do. Nothing is
   overwritten until you decide.
 - **Make a backup now and then** (`/ws backup`). It's one text you can keep anywhere, and it brings
-  back the journal and the footsteps if the game's files are ever lost.
+  back the journal, your notes and the footsteps if the game's files are ever lost.
 
 ## Good to know
 

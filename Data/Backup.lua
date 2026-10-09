@@ -307,13 +307,16 @@ local function closeLiveSession(db, made)
     end
 end
 
--- What changes during play, read when the backup starts: the record counter, the tracker state
--- and the players. Past days don't change, and later records are left out (journalDays).
+-- What changes during play, read when the backup starts: the record counter, the tracker state,
+-- the players and the notes. Past days don't change, and later records are left out (journalDays).
+local SNAPSHOT = { meta = true, state = true, players = true, notes = true }
+
 local function snapshot(db)
     local now = { made = Time.Now(), seq = db.meta.seq }
     now.meta = type(db.meta) == "table" and copy(db.meta, "rollup") or db.meta
     now.state = deepCopy(db.state)
     now.players = deepCopy(db.players)
+    now.notes = deepCopy(db.notes)
     return now
 end
 
@@ -324,7 +327,7 @@ local function writeJournal(w, db, now)
         writeKey(w, name)
         if name == "months" and type(db.months) == "table" then
             writeMonths(w, db.months, journalDays(now.seq), closeLiveSession(db, now.made))
-        elseif now[name] ~= nil and (name == "meta" or name == "state" or name == "players") then
+        elseif now[name] ~= nil and SNAPSHOT[name] then
             writeValue(w, now[name])
         else
             writeValue(w, db[name])
@@ -531,6 +534,14 @@ function Backup:CanMake()
     return nil
 end
 
+local function noteCount(notes)
+    local count = 0
+    for _, note in ipairs(type(notes) == "table" and type(notes.list) == "table" and notes.list or {}) do
+        if type(note) == "table" then count = count + 1 end
+    end
+    return count > 0 and count or nil
+end
+
 local function make(job, db, trailsDB)
     local now = snapshot(db)
     local w = newWriter(job)
@@ -547,6 +558,7 @@ local function make(job, db, trailsDB)
         addon = ns.version, made = now.made, journal = db.schema, trails = trailsDB and trailsDB.schema or nil,
         guid = meta.guid, name = meta.name, realm = meta.realm, class = meta.class, seq = now.seq,
         entries = w.entries, days = w.days, count = trailsDB and w.segments or nil,
+        notes = noteCount(now.notes),
         length = #payload, sum = adler32(payload, 1, job),
     }
     local text = MAGIC .. Backup.Serialize(header) .. payload
@@ -643,7 +655,7 @@ end
 
 local HEADER_FIELDS = {
     length = "number", sum = "number", made = "number", journal = "number",
-    trails = "number?", seq = "number?", entries = "number?", days = "number?", count = "number?",
+    trails = "number?", seq = "number?", entries = "number?", days = "number?", count = "number?", notes = "number?",
     guid = "string?", name = "string?", realm = "string?", class = "string?", addon = "string?",
 }
 
@@ -710,12 +722,13 @@ end
 -- load (the missing-journal guard, renames included); the trails into missing or empty trails, or
 -- along with a journal that had no entries (what was recorded since the login).
 
--- "missing" | "empty" | "entries" | "locked" (read-only for a reason a restore can't fix)
+-- "missing" | "empty" | "entries" | "locked" (read-only for a reason a restore can't fix). The
+-- player's notes count as entries: a restore would lose them.
 local function journalTarget()
     local kind = Schema.safeKind
     if kind == "missing" or kind == "renamed" then return "missing" end
     if ns.safeMode or not Store.db then return "locked" end
-    if Store.db.meta.seq == 0 then return "empty" end
+    if Store.db.meta.seq == 0 and ns.Notes:Count() == 0 then return "empty" end
     return "entries"
 end
 

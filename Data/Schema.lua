@@ -25,7 +25,7 @@ local Schema = {
 }
 ns.Schema = Schema
 
-local CHAR_TABLES = { "meta", "state", "players", "months", "firsts" }
+local CHAR_TABLES = { "meta", "state", "players", "months", "firsts", "notes" }
 local ACCOUNT_TABLES = { "settings", "log", "characters" }
 local PATH_TABLES = { "months" }
 
@@ -54,6 +54,7 @@ local function newCharDB(identity)
         players = {},
         months = {},
         firsts = {},
+        notes = {},
     }
 end
 
@@ -107,7 +108,10 @@ local REASONS = {
     newer = function() return L.SAFE_MODE_NEWER_SCHEMA end,
     failed = function() return L.SAFE_MODE_MIGRATION_FAILED end,
     corrupt = function() return L.SAFE_MODE_CORRUPT end,
-    missing = function(seq) return L.SAFE_MODE_MISSING:format(seq or 0) end,
+    missing = function(seq, notes)
+        if (seq or 0) == 0 and (notes or 0) > 0 then return L.SAFE_MODE_MISSING_NOTES:format(notes) end
+        return L.SAFE_MODE_MISSING:format(seq or 0)
+    end,
     renamed = function(name, realm) return L.SAFE_MODE_RENAMED:format(tostring(name), tostring(realm)) end,
     foreign = function(owner) return L.SAFE_MODE_FOREIGN:format(tostring(owner)) end,
 }
@@ -250,6 +254,10 @@ function Schema:LoadPaths()
     ns.footstepsDB = db
 end
 
+local function counted(value)
+    return type(value) == "number" and value > 0
+end
+
 -- Whether a canary was written under this character's name and realm. Older versions stored a
 -- Forever character's surname as the realm (Players:JoinSurnames).
 local function sameName(canary, me)
@@ -265,12 +273,14 @@ function Schema:VerifyIdentity()
 
     local canary = me.guid and ns.accountDB.characters[me.guid]
     if self.charMissing then
-        if type(canary) == "table" and type(canary.seq) == "number" and canary.seq > 0 then
+        if type(canary) == "table" and (counted(canary.seq) or counted(canary.notes)) then
             if not sameName(canary, me) then
                 local where = tostring(canary.name) .. "-" .. tostring(canary.realm)
                 return self:Fail("renamed", "stored as " .. where, canary.name, canary.realm)
             end
-            return self:Fail("missing", "the account file counted " .. canary.seq .. " entries", canary.seq)
+            local notes = counted(canary.notes) and (" and " .. canary.notes .. " notes") or ""
+            return self:Fail("missing", "the account file counted " .. tostring(canary.seq or 0) .. " entries" .. notes,
+                canary.seq, canary.notes)
         end
         WayscribeCharDB = newCharDB(me)
         ns.charDB = WayscribeCharDB
@@ -335,6 +345,7 @@ function Schema:TouchCanary()
     canary.name = meta.name
     canary.realm = meta.realm
     canary.seq = meta.seq
+    canary.notes = ns.Notes:GetSeq() > 0 and ns.Notes:GetSeq() or nil
     if ns.Paths:IsWritable() then
         canary.paths = ns.Paths.db.seq
     end
@@ -379,7 +390,11 @@ function Schema:SwapIn(journal, trails)
     end
     canary.name = me.name
     canary.realm = me.realm
-    if journal then canary.seq = journal.meta.seq end
+    if journal then
+        canary.seq = journal.meta.seq
+        local notes = type(journal.notes) == "table" and tonumber(journal.notes.seq) or 0
+        canary.notes = notes > 0 and notes or nil
+    end
     if trails then canary.paths = trails.seq end
     canary.savedAt = time()
 end

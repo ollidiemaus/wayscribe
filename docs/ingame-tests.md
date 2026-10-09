@@ -17,7 +17,7 @@ the events, does it look right, is it fast enough.
 
 **Where things are**
 - `/ws` opens the journal: the day list on the left, the selected day on the right, the tabs
-  *Journal* and *Your Year* below.
+  *Journal*, *Notes* and *Your Year* below.
 - The world map has a *Footsteps: Today* button in its top right corner.
 - Settings: Options > AddOns > Wayscribe.
 - `/etrace` is the game's own event trace, for the "does this event fire?" checks.
@@ -62,7 +62,6 @@ and [a journal file that didn't load](#backup).
 
 ## Quests
 
-- [ ] **Turn in a quest.** → The day shows "Quests turned in: 1".
 - [ ] **Finish a known quest chain**, e.g. the druid's bear form or The Defias Brotherhood. →
   "Completed the quest chain: …" with the time.
 - [ ] **How a chain entry reads.** `/ws simulate QUEST_CHAIN_COMPLETED chain=DEFIAS quest=166`. → An
@@ -74,14 +73,10 @@ Wayscribe draws where you walked as a dark red line on the world map.
 
 - [ ] **Flight.** Take a flight path. → A thinner blue line from flight master to flight master, joined
   to the walk before and after. With Settings > *Record flight paths* off, a flight leaves no line.
-- [ ] **Combat.** Fight a few mobs while moving. → The line has no gaps.
-- [ ] **Distance.** → The day page shows "Traveled *x* miles" (and "Flight paths: …" after a flight).
 - [ ] **Size.** After about two hours of play, `/ws stats`. → The "Footsteps: … KB packed" line is
   well under 10 KB. Note the number.
 - [ ] **Speed.** Footsteps on or off (Settings > Tracking) makes no FPS difference with the map closed.
   With several days of trails, set the map button to *All* and open a continent map. → No stutter.
-- [ ] **Map levels.** → The trail shows on the zone and the continent map. The world map (all of
-  Azeroth) shows none, and no error.
 - [ ] **Footsteps settings.** The map dropdown and the flights checkbox work. *Delete all trails*
   asks first (try it only on a test character).
 
@@ -90,62 +85,54 @@ Wayscribe draws where you walked as a dark red line on the world map.
 - [ ] **Hearthstone to another continent** (with a loading screen). → An entry "Hearthstone to …";
   each continent's map shows the hearthstone icon at its end.
 - [ ] **Summon or boat.** → No entry, no icon; the line just breaks.
-- [ ] **Die at a named place**, e.g. Red Cloud Mesa. → "Died in Red Cloud Mesa, Mulgore".
-- [ ] **Release and resurrect.** → No second death entry.
-- [ ] **Yesterday's death.** The next day, set the map button to *Last 7 days*. → Yesterday's skull
-  shows, with the date in its tooltip. *Today* hides it.
 
 ## Journal and windows
 
-- [ ] **Day list.** → Month headings, "Today" and "Yesterday", a soft shadow on the selected day. The
-  scroll bar appears only when there are more days than fit.
-- [ ] **Turning pages.** → The arrows move one day, are disabled at the ends, and play the page sound.
-- [ ] **Filter.** Click *Filter* at the top and untick *Gathering*. → Ore lines disappear, and days
-  with nothing else leave the list. After `/reload` it's still off.
-- [ ] **Resize and move.** Drag the corner and the title bar. → The page art stretches and long
-  entries wrap. After `/reload`, size and position are kept.
 - [ ] **Live.** With the journal open on today, loot ore or level up. → The page updates without
   flicker.
 - [ ] **Item names.** → Gathered items show their names, not "item 2770" (they may fill in a moment
   later).
-- [ ] **Clock.** → Times read `14:05` with the game's 24-hour clock on, `2:05 PM` with it off.
-- [ ] **Login recap.** At the first login of a new day. → A "Last session" window lists your previous
-  session. *Open journal* opens that day; *Don't show at login* works; `/ws recap` shows it again.
-- [ ] **Settings page.** → The toggles, the date format and the Data buttons work. *Reset journal*
-  only on a test character.
-- [ ] **Minimap button.** → Left-click opens the journal, right-click the settings, dragging moves it,
-  and the settings can hide it.
-- [ ] **Addon Compartment and key binding.** → The entry in the addons button at the minimap opens
-  the journal; so does a key set under Options > Keybindings > AddOns > Wayscribe.
-- [ ] **Export button.** Settings > Data > *Export...* → Opens the same window as `/ws export`.
 
 ## Your Year
 
-The journal's second tab: a look back at the year, card by card.
+The journal's third tab: a look back at the year, card by card.
 
 - [ ] **Live.** With `/ws dev` on and the tab open, level up or loot ore. → The cards update.
 - [ ] **The prompt** (optional; needs the computer's clock set to December 1). Log in and close the
   "Last session" window. → A "Your 2026 is ready!" popup and a chat line; *Show* opens the tab. The
   next login doesn't ask again.
 
+## Notes and markers
+
+The journal's second tab holds your own notes; every `/way` line in a note is a marker on the
+world map.
+
+- [ ] **A pasted list.** New note, paste a few lines from a website, in English, e.g.
+  `/way Elwynn Forest 42.1 65.9 Goldshire` and below it `/way 48.0 41.9 Northshire`. → Both are
+  markers in Elwynn Forest (also on a German client). The note says "2 places on the map".
+- [ ] **No zone.** In a zone, write `/way 50 50` in a new note, then click another note. → The line
+  now reads "/way <your zone> 50 50" and the marker is in your zone. A line with a made-up zone
+  (`/way Atlantis 1 1`) is counted as "1 /way line not found".
+- [ ] **Precision.** Compare a marker from `/way` with the map's own coordinates (lower left). →
+  Within about 0.1.
+
 ## Backup
 
-- [ ] **A journal file that didn't load.** On a test character:
+- [ ] **A journal file that didn't load.** On a test character with a note and a marker (see
+  [Notes and markers](#notes-and-markers)):
   1. `/ws backup`, Ctrl+C, and paste the text into a file.
   2. Close the game. Move `Wayscribe.lua` and `Wayscribe.lua.bak` out of
      `WTF/Account/<account>/<realm>/<character>/SavedVariables/` (keep them).
   3. Log in. → A chat warning that the journal didn't load, mentioning `/ws restore`. `/ws log` has
      a line about it; BugSack has **nothing**.
   4. `/ws restore`, paste the backup with Ctrl+V, *Restore...*, confirm. → The interface reloads with
-     the journal and the map trails back.
+     the journal and the map trails back, and the notes too: the *Notes* tab lists them, the marker
+     is on the map with its icon.
   5. Log out. → A new `Wayscribe.lua` is in that `SavedVariables` folder.
-- [ ] **Another character** (optional). On a new character, restore the test character's backup. →
-  The confirmation says it belongs to another character; after the reload the journal is this
-  character's (its name is in the `/ws export` header).
 
 ## Already verified
 
-Done on builds 70235 and 70245 (2026-10-06 and 07); no need to repeat. Details are in
+Done on builds 70235, 70245 and 70291 (2026-10-06 to 09); no need to repeat. Details are in
 [ARCHITECTURE.md §12](ARCHITECTURE.md#12-verify-on-the-forever-beta-run-ws-probe) and
 [forever-probe.md](forever-probe.md).
 
@@ -156,17 +143,27 @@ Done on builds 70235 and 70245 (2026-10-06 and 07); no need to repeat. Details a
 - **Professions:** learning Skinning makes an entry.
 - **Names:** `/ws probe` shows `has.surnames = true`, and your character is saved with first name,
   surname and realm.
-- **Journal:** looks like the spellbook (frame, parchment, headers, page buttons); the filter menu
-  opens; times use the 24-hour clock. The X closes it in combat too.
+- **Journal:** looks like the spellbook (frame, parchment, headers, page buttons); the X closes it
+  in combat too. The day list has month headings, "Today" and "Yesterday", a shadow on the selected
+  day and a scroll bar only when needed; the page arrows turn one day, stop at the ends and play the
+  page sound. The filter hides a category and its empty days, and stays after `/reload`; so do the
+  window's size and position. Times follow the game's 24-hour clock setting both ways.
+- **Windows:** the login recap at the first login of a day, with *Open journal*, *Don't show at
+  login* and `/ws recap`; the settings page (toggles, date format, Data buttons, *Export...*); the
+  minimap button (click, right-click, drag, hide); the Addon Compartment entry and the key binding.
 - **Icon:** the quill-on-a-map icon shows in the addon list, on the minimap button, in the Addon
   Compartment, as the journal's portrait on both tabs and on Your Year's first card.
 - **Footsteps:** the trail lies on the roads you took, on the full and the small map, and grows while
-  the map is open. Standing still leaves no gap; a hearthstone draws no line; a ghost isn't followed;
-  `/reload` keeps the trail (with a small gap). The map's icons sit above the lines, the map button
+  the map is open. Fighting while moving leaves no gap; the day page shows the distance; the trail
+  shows on the zone and the continent map, none on the world map. Standing still leaves no gap; a
+  hearthstone draws no line; a ghost isn't followed; `/reload` keeps the trail (with a small gap). The map's icons sit above the lines, the map button
   sits top right, and *Show on the map* opens the map in front of the journal at the day's zone,
   showing only that day; after closing the map, the button says *Today* again.
 - **Journeys and deaths:** a hearthstone within a zone makes an entry and an icon at both ends. A
-  death outdoors makes an entry and a skull with a tooltip.
+  death outdoors makes an entry ("Died in Red Cloud Mesa, Mulgore") and a skull with a tooltip;
+  releasing and being resurrected makes no second one. Yesterday's skull shows under *Last 7 days*
+  with its date, and *Today* hides it.
+- **Quests:** a turned-in quest shows as "Quests turned in: 1".
 - **Your Year:** rollups are rebuilt silently after updating; `/ws stats` matches the saved file's
   size; the tabs look like the default UI's; all cards and icons show in the preview; the Footsteps
   card measures the share of Azeroth. The text export copies correctly, umlauts included. With
@@ -174,4 +171,12 @@ Done on builds 70235 and 70245 (2026-10-06 and 07); no need to repeat. Details a
 - **Backup:** a very active year (2.47 million characters) pastes back in 2.8 s and is checked in
   1.2 s. A real backup matches `/ws stats`; the Settings buttons open it; it's refused for a journal
   with entries; Reset then restore brings everything back; a journal whose file was moved away is
-  restored without `/ws accept`, map trails included.
+  restored without `/ws accept`, map trails included. Another character's backup becomes this
+  character's journal after a confirmation that says whose it was.
+- **Notes:** the probe on build 70291 says `worldMap.canvasClicks = true`, `worldMap.strata =
+  MEDIUM` and `gameRule.worldMapTrackingPinDisabled = false` (the game's own map pin is on).
+  Writing (umlaut and `|` included), Enter and Escape, saving through `/reload`, dropping blank
+  notes; Alt+click with its popup in front of the map, in combat too, with no blocked message;
+  hovering and clicking a marker, picking its icon, `/ws mark` (and its message in a dungeon),
+  *Show on the map*, hiding the markers, deleting a note, and the backup's count of notes. A note
+  with several `/way` lines shows all of them on the map.
