@@ -1171,6 +1171,8 @@ game is in [ingame-tests.md](ingame-tests.md).
   first mount, zones discovered, epic loot, talent milestones, PvP honor kills, guild join,
   screenshots (`SCREENSHOT_SUCCEEDED` → "took a screenshot here").
 - **Footsteps:** a fog-of-war look on the map from the walked squares (§6.8).
+- **Dungeon maps:** the old dungeons' map art is still in Forever's files; maps in the journal
+  whose fog lifts room by room (plan: [dungeon-maps.md](dungeon-maps.md)).
 
 ---
 
