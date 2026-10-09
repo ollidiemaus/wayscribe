@@ -5,9 +5,10 @@
 Wayscribe writes down your adventures while you play. There's nothing to type and nothing to set
 up: level ups, dungeon runs with your group, first boss kills, professions, gathering, quest chains,
 deaths and hearthstone journeys are collected day by day, in a book that looks right at home next to
-your spellbook. Your routes show up as footsteps on the world map, and at the end of the year,
-**Your Year** looks back on all of it, card by card. And when you want to write something down
-yourself, the book has pages for your own notes, and the map has room for your own markers.
+your spellbook. Your routes show up as footsteps on the world map, and the dungeons you explore
+get maps of their own, uncovered room by room. At the end of the year, **Your Year** looks back on
+all of it, card by card. And when you want to write something down yourself, the book has pages for
+your own notes, and the map has room for your own markers.
 
 ```text
 Saturday, October 3, 2026
@@ -42,6 +43,7 @@ Today · played 2 h 10 min
   you leave early becomes a visit with the bosses you defeated. A `/reload`, a disconnect or a corpse
   run doesn't split it.
 - **Bosses:** every boss you defeat, in dungeons, raids and the open world.
+- **Dungeon maps:** the rooms you reach inside a dungeon, for its map.
 - **Professions:** the professions you learn, skill points per day, and the ranks 75, 150, 225 and
   300.
 - **Gathering:** ore, herbs and skins per day. Only what actually ends up in your bags counts.
@@ -67,9 +69,29 @@ Every tracker can be turned off in the settings.
 - Light on your game: recording checks your position once a second, only outdoors, and two hours
   of play take about 3 KB.
 
+### Dungeon maps: uncovered as you explore
+
+- WoW Forever has no dungeon maps, so Wayscribe keeps its own in the journal's **Maps** tab, under
+  fog of war: only what you have found is drawn.
+- The fog lifts room by room: the entrance when you arrive, a boss's room when you reach the boss.
+  A wipe counts too; you got there.
+- Your maps open any time, outside the dungeon too. The list shows how much of each one you've
+  charted, and each map how many bosses you've found and when you first entered. *Unfold map*
+  spreads it across both pages, and the page buttons turn the floors.
+- Inside a dungeon, `/ws map` (or a key of your own) opens its map right away.
+- Charting a whole map gets a journal entry: "Charted Wailing Caverns completely".
+- Ran a dungeon with an earlier version of Wayscribe? Its map already shows the rooms of the
+  bosses you defeated back then.
+- So far there are maps for Ragefire Chasm, Wailing Caverns, the Deadmines and Forever's Hall of
+  Thanes, which has no drawn map and is shown from above, as the game's minimap sees it. More
+  dungeons follow, raids later.
+- Rather explore without maps? Turn off *Show dungeon maps* in the settings, and the tab and its
+  entries are gone. Wayscribe keeps noting the rooms you reach, so your maps are complete if you
+  ever turn them back on.
+
 ### Your Year
 
-The journal's third tab looks back on your year with a card for each part of it: the year at a
+The journal's last tab looks back on your year with a card for each part of it: the year at a
 glance, levels, dungeons and raids, bosses, your most frequent companions, deaths and the most
 dangerous place, gathering, professions, quests and quest chains, footsteps (with how much of
 Azeroth you walked), and time played.
@@ -114,7 +136,8 @@ Install it, log in and play. Wayscribe records from the moment it's installed. T
 - type `/ws` (or `/wayscribe`),
 - click the minimap button (right-click opens the settings),
 - use the Addon Compartment (the addons button at the minimap), or
-- set a key under Options > Keybindings > AddOns > Wayscribe (unbound by default).
+- set a key under Options > Keybindings > AddOns > Wayscribe (unbound by default; there's one for
+  the dungeon map too).
 
 The settings are under Options > AddOns > Wayscribe, or `/ws settings`.
 
@@ -127,6 +150,7 @@ The settings are under Options > AddOns > Wayscribe, or `/ws settings`.
 | `/ws year` | Open Your Year (`/ws year 2026` for a given year) |
 | `/ws notes` | Open your notes |
 | `/ws mark` | Mark where you stand on the map (`/ws mark Rare spawn` gives it a title) |
+| `/ws map` | Open the map of the dungeon you're in; elsewhere, your dungeon maps |
 | `/ws recap` | Show the last session again |
 | `/ws export` | The journal as text to copy (`month`, `year` or `all`, the default) |
 | `/ws backup` | A backup of this character's journal and footsteps, to copy and keep |
@@ -148,13 +172,17 @@ The settings are under Options > AddOns > Wayscribe, or `/ws settings`.
   read-only instead of starting over, and tells you what happened and what to do. Nothing is
   overwritten until you decide.
 - **Make a backup now and then** (`/ws backup`). It's one text you can keep anywhere, and it brings
-  back the journal, your notes and the footsteps if the game's files are ever lost.
+  back the journal, your notes, your dungeon maps and the footsteps if the game's files are ever
+  lost.
 
 ## Good to know
 
 - Wayscribe is made for **WoW Forever**. Other versions of the game aren't supported.
 - It speaks **English and German**.
 - Deaths say where and when, but not who: on Forever, addons can't read the combat log.
+- Dungeon maps lift room by room, not step by step: inside dungeons the game doesn't tell addons
+  where you are.
+- The journal needs keyboard and mouse: Forever's controller mode can't focus addon windows.
 - What happened before you installed Wayscribe isn't in the journal. A quest chain counts when you
   turn in its last quest with Wayscribe installed.
 
