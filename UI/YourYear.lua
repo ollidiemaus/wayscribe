@@ -2,7 +2,7 @@ local _, ns = ...
 local L, Compat, Store, Time, Theme, YearCards, DayView =
     ns.L, ns.Compat, ns.Store, ns.Time, ns.Theme, ns.YearCards, ns.DayView
 
--- Your Year, the yearly recap (docs/ARCHITECTURE.md §8): the journal's second tab. The left page
+-- Your Year, the yearly recap (docs/ARCHITECTURE.md §8): the journal's third tab. The left page
 -- lists the years, the selected one with its cards; the right page shows one card, and the
 -- journal's page buttons turn through the year like a slideshow. A year opens on December 1 (past
 -- years any time); developer mode previews the current one. At the first login after a year

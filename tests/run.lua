@@ -7,7 +7,7 @@ local SPECS = {
     "codec", "geometry", "time", "compat", "recordtypes", "module", "store", "index", "schema",
     "session", "level", "professions", "gathering", "bosses", "dungeons", "questchains", "footsteps", "deaths",
     "journal", "footstepsmap", "loginrecap", "settings", "lifecycle",
-    "yearcards", "coverage", "youryear", "export", "backup",
+    "yearcards", "coverage", "youryear", "export", "backup", "notes",
 }
 
 for _, name in ipairs(SPECS) do

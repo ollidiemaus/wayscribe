@@ -121,6 +121,13 @@ local function addFootsteps(category, layout)
         L.SETTINGS_FOOTSTEPS_DELETE_TIP)
 end
 
+local function addNotes(category, layout)
+    addHeader(layout, L.SETTINGS_NOTES)
+    addCheckbox(category, "NotesOnMap", L.SETTINGS_NOTES_ON_MAP, L.SETTINGS_NOTES_ON_MAP_TIP, true,
+        function() return ns.NotesMap:IsShownOnMap() end,
+        function(value) ns.NotesMap:SetShownOnMap(value) end)
+end
+
 local function confirmReset()
     confirm(RESET_POPUP, L.RESET_CONFIRM, function()
         if ns.Schema:ResetCharacter() then
@@ -151,6 +158,7 @@ function SettingsPanel:Register()
     addGeneral(category, layout)
     addTracking(category, layout)
     addFootsteps(category, layout)
+    addNotes(category, layout)
     addData(layout)
     Settings.RegisterAddOnCategory(category)
     self.category = category

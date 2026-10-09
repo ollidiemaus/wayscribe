@@ -4,7 +4,8 @@ local _, ns = ...
 --   READY, LOGOUT, SAFE_MODE(reason), RECORD_ADDED(record), COUNTER_CHANGED(path, key, amount),
 --   SETTINGS_CHANGED(key, value), ITEM_NAMES_LOADED, REBUILT,
 --   PATH_ADDED(segment, dayKey), PATH_LIVE(live or nil), PATH_POINT(live), PATH_WIPED (Data/Paths.lua),
---   COVERAGE_READY(year) (Data/Coverage.lua), RECAP_HIDDEN (UI/LoginRecap.lua)
+--   COVERAGE_READY(year) (Data/Coverage.lua), RECAP_HIDDEN (UI/LoginRecap.lua),
+--   NOTES_CHANGED(id) (Data/Notes.lua)
 local Bus = { handlers = {} }
 ns.Bus = Bus
 

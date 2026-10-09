@@ -17,7 +17,7 @@ the events, does it look right, is it fast enough.
 
 **Where things are**
 - `/ws` opens the journal: the day list on the left, the selected day on the right, the tabs
-  *Journal* and *Your Year* below.
+  *Journal*, *Notes* and *Your Year* below.
 - The world map has a *Footsteps: Today* button in its top right corner.
 - Settings: Options > AddOns > Wayscribe.
 - `/etrace` is the game's own event trace, for the "does this event fire?" checks.
@@ -121,23 +121,57 @@ Wayscribe draws where you walked as a dark red line on the world map.
 
 ## Your Year
 
-The journal's second tab: a look back at the year, card by card.
+The journal's third tab: a look back at the year, card by card.
 
 - [ ] **Live.** With `/ws dev` on and the tab open, level up or loot ore. → The cards update.
 - [ ] **The prompt** (optional; needs the computer's clock set to December 1). Log in and close the
   "Last session" window. → A "Your 2026 is ready!" popup and a chat line; *Show* opens the tab. The
   next login doesn't ask again.
 
+## Notes and markers
+
+The journal's second tab holds your own notes; a note with a place is a marker on the world map.
+
+- [ ] **Probe.** `/ws probe`. → Note what `worldMap.canvasClicks`, `worldMap.strata` and
+  `gameRule.worldMapTrackingPinDisabled` say.
+- [ ] **Write a note.** *Notes* tab, *New note*, type a title, Enter, type a few lines of text (with
+  an umlaut and a `|`). → The cursor starts in the title and Enter moves it to the text. The note is
+  in the list at once, with "Today". A long text scrolls and the line you type in stays in view.
+  Escape lets go of the keyboard (your movement keys work again); a second Escape closes the book.
+- [ ] **It stays.** `/reload`. → The note is there, word for word.
+- [ ] **Blank notes go.** *New note*, then click another note without typing. → The empty one is
+  gone.
+- [ ] **Alt+click.** Open the map on a zone, Alt+click a spot. → A popup asks for the title, with
+  the zone's name filled in and selected; type one and press Enter. → A star appears there, also on
+  the continent map. A plain click still zooms in, Ctrl+click is still the game's own pin (if
+  Forever has it).
+- [ ] **In front of the map.** → The popup shows in front of the map, not behind it.
+- [ ] **In combat.** Alt+click the map in combat. → The popup works; no "Wayscribe has been blocked"
+  message, no BugSack entry, now or after the fight.
+- [ ] **Hover and click.** Hover over the marker. → Its title, the start of its text, when and where.
+  Click it. → The journal opens at that note, in front of the map.
+- [ ] **Pick an icon.** In the note, pick another icon under the title. → The marker changes.
+- [ ] **`/ws mark`.** Outdoors, `/ws mark`, then `/ws mark Rare spawn`. → Two notes where you stand,
+  titled with the subzone and with "Rare spawn". In a dungeon: a message that there's no position.
+- [ ] **Show on the map.** In a note with a place, *Show on the map*. → The map opens at the note's
+  zone with its marker a little larger.
+- [ ] **Hide them.** The map button's menu: untick *My notes*. → The markers go; ticking brings them
+  back. Settings > Notes has the same switch.
+- [ ] **Delete.** *Delete* on a note. → It asks first; the marker goes too.
+- [ ] **Backup.** `/ws backup`. → The line under the field counts your notes ("…, 3 notes").
+
 ## Backup
 
-- [ ] **A journal file that didn't load.** On a test character:
+- [ ] **A journal file that didn't load.** On a test character with a note and a marker (see
+  [Notes and markers](#notes-and-markers)):
   1. `/ws backup`, Ctrl+C, and paste the text into a file.
   2. Close the game. Move `Wayscribe.lua` and `Wayscribe.lua.bak` out of
      `WTF/Account/<account>/<realm>/<character>/SavedVariables/` (keep them).
   3. Log in. → A chat warning that the journal didn't load, mentioning `/ws restore`. `/ws log` has
      a line about it; BugSack has **nothing**.
   4. `/ws restore`, paste the backup with Ctrl+V, *Restore...*, confirm. → The interface reloads with
-     the journal and the map trails back.
+     the journal and the map trails back, and the notes too: the *Notes* tab lists them, the marker
+     is on the map with its icon.
   5. Log out. → A new `Wayscribe.lua` is in that `SavedVariables` folder.
 - [ ] **Another character** (optional). On a new character, restore the test character's backup. →
   The confirmation says it belongs to another character; after the reload the journal is this

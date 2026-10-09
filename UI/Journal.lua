@@ -6,9 +6,9 @@ local L, Compat, Store, Time, RecordTypes, Theme, DayView =
 -- frame with a filter menu in its top bar and an open book below. The left page lists the days
 -- (newest first, grouped by month), the right page shows the selected day, with page controls to
 -- turn to the next older or newer one. The list is a virtualized ScrollBox where the client has
--- one; otherwise a fixed set of rows follows the selection. A second tab, Your Year
--- (UI/YourYear.lua), draws the yearly recap into the same book and turns its cards with the same
--- page buttons.
+-- one; otherwise a fixed set of rows follows the selection. A second tab, Notes
+-- (UI/NotesView.lua), holds the player's own notes; a third, Your Year (UI/YourYear.lua), draws
+-- the yearly recap into the same book and turns its cards with the same page buttons.
 local Journal = {}
 ns.Journal = Journal
 
@@ -21,13 +21,16 @@ local ROW_HEIGHT = 24
 local CHIP_HEIGHT = 20
 local CHIP_WIDTH = 96
 local GOLD, GREY = { 1, 0.82, 0 }, { 0.5, 0.5, 0.5 } -- text on the frame's dark top bar
-local TABS = { "journal", "year" }
+local TABS = { "journal", "notes", "year" }
+local STRATA = "HIGH"
+local STRATA_ORDER = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6, FULLSCREEN_DIALOG = 7 }
 local TAB_WIDTH = 110 -- without the default UI's tab template
 
 local ui = {}
 Journal.ui = ui
 -- days: visible day keys, newest first; elements: the list rows (month headings and days);
--- byDay: dayKey -> its element; selected: the day on the right page; tab: "journal" or "year".
+-- byDay: dayKey -> its element; selected: the day on the right page; tab: "journal", "year" or
+-- "notes".
 local state = { days = {}, elements = {}, byDay = {}, listDirty = true, tab = "journal" }
 Journal.state = state
 
@@ -302,6 +305,12 @@ local function showYearPage()
     showPageControls(index, count, index ~= nil and index > 1, index ~= nil and index < count)
 end
 
+-- Like the days: the list is newest first, page 1 is the oldest note.
+local function showNotesPage()
+    local index, count = ns.NotesView:Refresh(ui.paperWidth, ui.paperHeight)
+    showPageControls(index and count - index + 1, count, index ~= nil and index < count, index ~= nil and index > 1)
+end
+
 local function showTooltip(button)
     if not GameTooltip then return end
     GameTooltip:SetOwner(button, "ANCHOR_TOP")
@@ -433,7 +442,7 @@ local function createFrame()
 end
 
 local function setupWindow(frame)
-    frame:SetFrameStrata("HIGH")
+    frame:SetFrameStrata(STRATA)
     frame:SetToplevel(true)
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
@@ -484,6 +493,7 @@ local function createPages(frame)
     DayView:Create(ui.journalRight)
     createPageControls(ui.rightPaper)
     ns.YourYear:Create(ui.listPaper, ui.rightPaper)
+    ns.NotesView:Create(ui.listPaper, ui.rightPaper)
 end
 
 -- The rims scale with the page, so the paper, the filter and the banner move on every resize.
@@ -518,7 +528,12 @@ end
 ------------------------------------------------------------------------------------------------
 -- Tabs: the default UI's tabs under the frame, or plain buttons there.
 
-local TAB_LABELS = { journal = L.TAB_JOURNAL, year = L.TAB_YOUR_YEAR }
+local TAB_LABELS = { journal = L.TAB_JOURNAL, year = L.TAB_YOUR_YEAR, notes = L.TAB_NOTES }
+local PAGE_TIPS = {
+    journal = { L.PAGE_OLDER, L.PAGE_NEWER },
+    year = { L.PAGE_PREVIOUS, L.PAGE_NEXT },
+    notes = { L.PAGE_OLDER_NOTE, L.PAGE_NEWER_NOTE },
+}
 
 local function updateTabs()
     for i, tab in ipairs(ui.tabs) do
@@ -528,9 +543,7 @@ local function updateTabs()
             PanelTemplates_SetTab(ui.frame, i)
         end
     end
-    local onYear = state.tab == "year"
-    ui.older.tooltip = onYear and L.PAGE_PREVIOUS or L.PAGE_OLDER
-    ui.newer.tooltip = onYear and L.PAGE_NEXT or L.PAGE_NEWER
+    ui.older.tooltip, ui.newer.tooltip = PAGE_TIPS[state.tab][1], PAGE_TIPS[state.tab][2]
 end
 
 local function createTabs(frame)
@@ -580,6 +593,10 @@ local function createWindow()
     frame:Hide()
     tinsert(UISpecialFrames, "WayscribeJournalFrame") -- closes with Escape
     frame:SetScript("OnShow", function() Journal:Refresh() end)
+    frame:SetScript("OnHide", function()
+        ns.NotesView:Leave()
+        frame:SetFrameStrata(STRATA)
+    end)
     frame:SetScript("OnSizeChanged", function() Journal:RequestRefresh() end)
 end
 
@@ -598,13 +615,18 @@ function Journal:Refresh()
     layoutPages()
     updateHeaders()
     updateTabs()
-    local onYear = state.tab == "year"
-    ui.journalLeft:SetShown(not onYear)
-    ui.journalRight:SetShown(not onYear)
-    ui.filterBar:SetShown(not onYear)
-    ns.YourYear:SetShown(onYear)
-    if onYear then
+    local onJournal = state.tab == "journal"
+    ui.journalLeft:SetShown(onJournal)
+    ui.journalRight:SetShown(onJournal)
+    ui.filterBar:SetShown(onJournal)
+    ns.YourYear:SetShown(state.tab == "year")
+    ns.NotesView:SetShown(state.tab == "notes")
+    if state.tab == "year" then
         showYearPage()
+        return
+    end
+    if state.tab == "notes" then
+        showNotesPage()
         return
     end
     if state.listDirty then
@@ -638,6 +660,9 @@ function Journal:Turn(step)
     if state.tab == "year" then
         if not ns.YourYear:Turn(-step) then return end
         showYearPage()
+    elseif state.tab == "notes" then
+        if not ns.NotesView:Turn(step) then return end
+        showNotesPage()
     else
         local index = indexOf(state.days, state.selected)
         local target = index and state.days[index + step]
@@ -688,6 +713,30 @@ function Journal:OpenYear(year)
     showWindow()
 end
 
+-- In front of the world map, whichever strata the game rules give it, until the journal closes.
+local function inFrontOfMap()
+    local map = WorldMapFrame
+    if not (type(map) == "table" and map:IsShown()) then return end
+    local strata = Compat.Call(map.GetFrameStrata, map)
+    if (STRATA_ORDER[strata] or 0) > STRATA_ORDER[STRATA] then
+        ui.frame:SetFrameStrata(strata)
+    end
+end
+
+-- Opens the notes at note `id`, or as they were left; from a marker, in front of the map.
+function Journal:OpenNotes(id)
+    if not ui.frame then
+        createWindow()
+    end
+    if id then
+        ns.NotesView:Select(id)
+    end
+    state.tab = "notes"
+    showWindow()
+    inFrontOfMap()
+    if ui.frame.Raise then ui.frame:Raise() end
+end
+
 function Journal:SetTab(tab)
     if state.tab == tab then return end
     state.tab = tab
@@ -736,3 +785,4 @@ ns.Bus:On("PATH_LIVE", Journal, Journal.RequestRefresh)
 ns.Bus:On("PATH_WIPED", Journal, Journal.RequestRefresh)
 -- Your Year's share of Azeroth arrives after its card is first drawn.
 ns.Bus:On("COVERAGE_READY", Journal, Journal.RequestRefresh)
+ns.Bus:On("NOTES_CHANGED", Journal, Journal.RequestRefresh)

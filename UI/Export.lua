@@ -59,6 +59,29 @@ local function pageLines(out, dayKey)
     out[#out + 1] = ""
 end
 
+-- The notes written in the range, oldest first, after the days: the title, when and where, and
+-- the text indented.
+local function noteLines(out, fromDay, toDay)
+    local notes = {}
+    for _, note in ipairs(ns.Notes:GetAll()) do -- newest first
+        local dayKey = ns.Notes.DayOf(note)
+        if (not fromDay or dayKey >= fromDay) and (not toDay or dayKey <= toDay) then
+            table.insert(notes, 1, note)
+        end
+    end
+    if #notes == 0 then return end
+    out[#out + 1] = L.EXPORT_NOTES
+    out[#out + 1] = ""
+    for _, note in ipairs(notes) do
+        out[#out + 1] = ns.NotesView.Title(note)
+        out[#out + 1] = "  " .. ns.NotesView.Subtitle(note)
+        for line in ((note.text or "") .. "\n"):gmatch("(.-)\n") do
+            out[#out + 1] = line ~= "" and ("  " .. line) or ""
+        end
+        out[#out + 1] = ""
+    end
+end
+
 -- The text of a range ("month", "year" or "all") and the number of days in it.
 function Export.BuildText(range)
     local fromDay, toDay = Export.Range(range)
@@ -78,6 +101,7 @@ function Export.BuildText(range)
     for _, dayKey in ipairs(days) do
         pageLines(out, dayKey)
     end
+    noteLines(out, fromDay, toDay)
     return table.concat(out, "\n"), #days
 end
 
@@ -252,14 +276,17 @@ local function kilobytes(bytes)
     return L.BACKUP_SIZE:format((string.format("%.1f", bytes / 1024):gsub("%.", L.DECIMAL_POINT)))
 end
 
--- "1,234 entries on 56 days, 78 trails" from a backup's header.
+-- "1,234 entries on 56 days, 78 trails, 5 notes" from a backup's header.
 local function contents(header, withTrails)
     local entries = YearCards.Plural("BACKUP_ENTRIES", header.entries or 0)
-    local days = YearCards.Plural("CARD_DAYS", header.days or 0)
+    local parts = { L.BACKUP_CONTENTS:format(entries, YearCards.Plural("CARD_DAYS", header.days or 0)) }
     if withTrails and header.count then
-        return L.BACKUP_CONTENTS_TRAILS:format(entries, days, YearCards.Plural("BACKUP_TRAILS", header.count))
+        parts[#parts + 1] = YearCards.Plural("BACKUP_TRAILS", header.count)
     end
-    return L.BACKUP_CONTENTS:format(entries, days)
+    if header.notes then
+        parts[#parts + 1] = YearCards.Plural("BACKUP_NOTES", header.notes)
+    end
+    return table.concat(parts, L.LIST_SEPARATOR)
 end
 
 local function createBackup()

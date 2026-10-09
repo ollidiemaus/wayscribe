@@ -2,7 +2,8 @@
 
 How Wayscribe is built, and why. Wayscribe is an automatic, per-character journal for **WoW
 Forever**: it records what happens while you play, groups it by day, and powers a login recap, the
-**Footsteps** travel map and **Your Year**, a yearly recap. What it does for players is in the
+**Footsteps** travel map and **Your Year**, a yearly recap. Next to what it records, the player keeps
+their own **notes** in it, and a note can mark a place on the world map. What it does for players is in the
 [README](../README.md); how to run the tests and try a build is in [DEVELOPMENT.md](DEVELOPMENT.md).
 
 Code comments cite this document by section (`docs/ARCHITECTURE.md §4.6`), so the section numbers
@@ -68,13 +69,13 @@ flowchart LR
 |---|---|---|
 | **Core** | Namespace, lifecycle, module base, event frames, internal bus, error boundary, logging, time/day keys, geometry (pure math on trails) | — |
 | **Compat** | Capability detection (`Compat.has.*`), thin API shims (position, professions, instance info), `/ws probe` | Core |
-| **Data** | `Store`, `Paths` (Footsteps trails), `Schema` (migrations, safe mode), `RecordTypes`, `Index`, `Players` (interning), `Codec`, `Coverage` (share of Azeroth walked), `YearCards` (Your Year's card registry), `Backup` (the restorable backup string) | Core, Compat |
+| **Data** | `Store`, `Paths` (Footsteps trails), `Notes` (the player's notes), `Schema` (migrations, safe mode), `RecordTypes`, `Index`, `Players` (interning), `Codec`, `Coverage` (share of Azeroth walked), `YearCards` (Your Year's card registry), `Backup` (the restorable backup string) | Core, Compat |
 | **StaticData** | Plain tables: dungeon → final encounter, quest chains, gather and travel spell IDs | — |
 | **Trackers** | Translate game events into facts, holding only the minimal state they need | Core, Compat, Data (write API), StaticData |
-| **UI** | Journal window with Your Year, login recap, settings, minimap, keybind, Footsteps map, export, backup and restore | Core, Data (read API), RecordTypes |
+| **UI** | Journal window with Your Year and Notes, login recap, settings, minimap, keybind, Footsteps map, notes on the map, export, backup and restore | Core, Data (read API, `Notes` to write the player's notes), RecordTypes |
 
 Dependencies point one way only. UI never calls trackers, and trackers never call UI. They talk through
-the Store and the bus.
+the Store and the bus. The one write the UI makes is the player's own notes, through `Notes` (§4.9).
 
 ---
 
@@ -110,7 +111,8 @@ the Store and the bus.
   `RECORD_ADDED`, `COUNTER_CHANGED`, `SETTINGS_CHANGED`, `ITEM_NAMES_LOADED`, `REBUILT` (after
   `/ws rebuild`, so trackers can derive what older facts imply, §6.7), the Footsteps messages
   `PATH_ADDED`, `PATH_LIVE`, `PATH_POINT` and `PATH_WIPED` (§6.8), `COVERAGE_READY` (a background
-  measurement finished, §6.8) and `RECAP_HIDDEN` (Your Year's prompt waits for the login recap, §8).
+  measurement finished, §6.8), `RECAP_HIDDEN` (Your Year's prompt waits for the login recap, §8) and
+  `NOTES_CHANGED` (a note was added, changed or deleted, §4.9).
 - UI refresh is **coalesced**: a pending flag plus one `C_Timer.After(0, ...)`, so 20 loot events
   produce one redraw.
 - Noisy events (`SKILL_LINES_CHANGED` and friends) are **debounced** (`Module:Debounce`): one snapshot,
@@ -154,7 +156,7 @@ The data layer is the most important part of the addon and gets the most tests.
 | SV | Scope | Contents | Why separate |
 |---|---|---|---|
 | `WayscribeDB` | Account | Settings, minimap position, error log, per-character canaries (§4.6) | Small. Shared across characters. A separate file, so it can vouch for the character files. |
-| `WayscribeCharDB` | Character | Journal records, counters, sessions, indexes, tracker state | The core data. |
+| `WayscribeCharDB` | Character | Journal records, counters, sessions, indexes, tracker state, the player's notes | The core data. |
 | `WayscribeFootstepsDB` | Character | Footsteps trails (string-packed), written only through `Paths` | The largest and fastest-growing data. Isolating it means it can be wiped, pruned or moved to load-on-demand without touching the journal. It has its own schema version and read-only guard (§4.6). It lives in the same file as the journal (one `Wayscribe.lua` per character), so a file that fails to load takes both. |
 
 ### 4.2 `WayscribeCharDB` layout
@@ -217,6 +219,16 @@ WayscribeCharDB = {
     },
 
     firsts = { ["DUNGEON:389"] = 1201, ["PROF:186"] = 1103 },   -- first-occurrence index
+
+    -- The player's own notes (§4.9); a note with c, x, y is a marker on the world map.
+    notes = {
+        seq = 2,                        -- last issued note id (monotonic)
+        list = {
+            { id = 1, created = 1759490000, edited = 1759490200, title = "Buy linen", text = "…" },
+            { id = 2, created = 1759493000, edited = 1759493000, title = "Peacebloom", text = "",
+              c = 1, x = -1967, y = -25, map = 1412, icon = 3 },
+        },
+    },
 }
 ```
 
@@ -326,10 +338,10 @@ ADDON_LOADED
 - If `meta.guid` doesn't match `UnitGUID("player")` (for example, a WTF folder copied to another
   character), the journal is shown read-only until the player confirms with `/ws accept`.
 - **Missing-DB guard.** The account-wide `WayscribeDB.characters[guid]` keeps a tiny canary per
-  character: name, realm, last `seq`, last save time. It's written to a different SV file than the
-  journal.
-  - If the character DB loads as `nil` or empty but the canary shows records, the journal file
-    failed to load (or was moved). The addon goes into safe mode, records nothing, and warns the
+  character: name, realm, last `seq`, the notes' `seq` (§4.9), last save time. It's written to a
+  different SV file than the journal.
+  - If the character DB loads as `nil` or empty but the canary shows records or notes, the journal
+    file failed to load (or was moved). The addon goes into safe mode, records nothing, and warns the
     player right away. An addon can't stop the client from rewriting the file at logout, but the
     file on disk is still intact during this session. The warning says to copy
     `WTF/…/SavedVariables/Wayscribe.lua` (or its `.bak`) somewhere safe **before logging out**, or
@@ -381,8 +393,9 @@ the clipboard like the export, and pasted back to restore them.
 
 **What goes in.** Only what can't be recomputed (principle 1):
 - the journal: every field of `WayscribeCharDB` but `firsts`, and of `meta` but `rollup`; every
-  month's days (records and counters) and sessions, `players` and `state` (tracker snapshots and
-  bookkeeping). Fields a later version adds go in too, since the walk is generic;
+  month's days (records and counters) and sessions, `players`, `state` (tracker snapshots and
+  bookkeeping) and the player's `notes` (§4.9). Fields a later version adds go in too, since the
+  walk is generic;
 - the trails, optional (they are the bulk): every day's segments as stored, their packed `p`
   strings unchanged, and the trail `seq`.
 
@@ -390,7 +403,7 @@ Rollups, `firsts` and the day index are caches, so they stay out and are rebuilt
 (`Index:Rebuild`, §4.5). Account settings stay out: they aren't the character's story.
 
 **A snapshot.** The backup is the journal as it was when it started, however many frames it takes:
-`meta`, `state` and `players` are copied first, and a record with a higher id than that `seq`
+`meta`, `state`, `players` and `notes` are copied first, and a record with a higher id than that `seq`
 (added today since, or back-filled into an older day) is left out, so ids, `seq` and the tracker
 state always agree. Past days don't change, so nothing else needs copying. The session being
 played ends with the backup, in the backup only: restored elsewhere, it must not run on until the
@@ -407,7 +420,7 @@ small serializer (`Data/Backup.lua`):
   chat or a text editor treats specially: no `|` (the client's escape character), no quotes, no
   line breaks. Whitespace an editor adds (wrapped lines) is ignored when reading.
 - Header: addon version, the time it was made, the journal's and trails' schema versions, guid,
-  name, realm and class, `seq`, the number of entries, days and trails, and the payload's length
+  name, realm and class, `seq`, the number of entries, days, trails and notes, and the payload's length
   and Adler-32 (arithmetic only, like the codec). A short paste is caught by the length ("17,000
   of 2,500,000 characters arrived"), a changed one by the checksum, before anything is decoded.
 - Pure Lua, no WoW API, round-tripped in plain Lua 5.1 and 5.5 by the tests: every byte value,
@@ -452,8 +465,8 @@ up; the message points at the file instead.
   window then says what it found (white) and what a restore would do: green when it can, red
   with the reason when it can't, so a disabled *Restore...* button always has its reason next to
   it. Nothing has changed yet.
-- **The journal** goes only into one with **no entries** (`seq` 0: a new character, a fresh
-  install, after Reset) or one the missing-journal guard stopped (*missing* or *renamed*, §4.6).
+- **The journal** goes only into one with **no entries and no notes** (`seq` 0 and an empty
+  notebook: a new character, a fresh install, after Reset) or one the missing-journal guard stopped (*missing* or *renamed*, §4.6).
   Counters, sessions and trails recorded so far next to a journal without entries are replaced,
   and the confirmation says how many days and trails that is. A journal with entries is refused;
   Settings > Data > Reset empties it first, a deliberate step with its own confirmation. A journal
@@ -484,6 +497,47 @@ backup, the paste and the check took.
 
 **Where.** `Data/Backup.lua` (format, serializer, jobs, checks, plan and restore), the swap and the
 shared checks in `Data/Schema.lua`, the windows in `UI/Export.lua` next to the text export.
+
+### 4.9 Notes
+
+The player's own notes: a notebook in the journal (§7.9), and markers on the world map. **A marker is
+a note with a place**: one kind of thing, one list, one editor.
+
+**Not facts.** Everything else in the journal is a fact the addon derives and never changes
+(principle 1). Notes are the player's words: they can be edited and deleted, and nothing is derived
+from them. So they are not records (records are immutable, counted in rollups and firsts) but a
+table of their own, `WayscribeCharDB.notes` (§4.2), with its own write path, `Data/Notes.lua`
+(principle 2):
+
+```lua
+Notes:Add({ title, text, c?, x?, y?, map?, icon? })  -- -> note; Alt+click, /ws mark, New note
+Notes:Update(id, { title?, text?, icon? })           -- every keystroke; `edited` only on a change
+Notes:Delete(id)
+Notes:Get(id) / Notes:GetAll() / Notes:GetPlaced(continent) / Notes:Count()
+```
+
+- **Per character**, in the journal's file: like the journal, a character's notes are its own, and
+  `/ws backup` carries them. An alt doesn't see its main's markers.
+- **Ids** come from `notes.seq` and are never reused. `created` orders the list (newest first), so
+  a note doesn't move while it is written; `edited` is shown.
+- **A place** is the same as a death's or a journey's (§6.8, §6.9): the continent and whole world
+  yards, so it shows on the zone and the continent map, plus the map it was placed on (for its name
+  and to open the map there) and its marker `icon`, one of the eight raid target icons (star to
+  skull: in every client, and made to mark things).
+- **Validation.** Title and text must be strings; they are cut to 240 and 32,000 bytes on a UTF-8
+  boundary (the editors stop at 60 and 8,000 letters). A position passes `Compat.Safe`; a secret
+  one is no place. Writes need a writable journal, like the Store's.
+- **A blank note is dropped**: one with no title, no text and no place, when the player leaves it
+  (another note, another tab, the journal closed). *New note* can then add at once, without a
+  separate "save".
+- **No schema change.** `notes` is an optional table: `checkAndFill` (§4.6) adds it to older
+  journals, and an older Wayscribe that doesn't know it writes it back untouched.
+- **Guarded and backed up.** The canary counts the notes' `seq` too, so a journal that held only
+  notes is still guarded when its file doesn't load (§4.6). The backup copies them with `meta` and
+  `state` (§4.8), and a journal with notes isn't "empty": a restore never replaces them. Reset
+  deletes them with the journal.
+- **Read where useful.** The text export lists the notes written in its range after the days
+  (§7.4), and `/ws stats` counts them.
 
 ---
 
@@ -829,20 +883,22 @@ All UI listens to bus messages. None of it polls.
   Footsteps trails shows *Show on the map* at the bottom (§6.8).
 - **Paging and filters.** Page 1 is the oldest day. A reader on the newest day follows a new day as
   it starts. Category filters are saved in `settings.journalHidden`.
-- **Two tabs** under the frame (the default UI's `PanelTabButtonTemplate`, anchored like Mainline's
-  CharacterFrame; plain buttons without it): **Journal** and **Your Year** (§8), which draws into
-  the same book. The filter belongs to the journal tab; the page buttons turn days there and cards
-  on Your Year. Opening at a day (login recap, `/ws`) shows the journal tab; reopening keeps the tab.
+- **Three tabs** under the frame (the default UI's `PanelTabButtonTemplate`, anchored like Mainline's
+  CharacterFrame; plain buttons without it): **Journal**, **Notes** (§7.9) and **Your Year** (§8),
+  which draw into the same book. The filter belongs to the journal tab; the page buttons turn days
+  there, cards on Your Year and notes on Notes. Opening at a day (login recap, `/ws`) shows the
+  journal tab; reopening keeps the tab.
 
 ### 7.2 World map
 
 Footsteps trails and death and journey markers on `WorldMapFrame` through a MapCanvas data provider,
-plus a "Footsteps: Today" button that picks the filter (§6.8, §6.9). Without the data provider API,
-nothing is added and the journal hides its map link.
+plus a "Footsteps: Today" button that picks the filter (§6.8, §6.9), and whether the player's notes
+show. The notes' markers have a provider of their own (§7.9). Without the data provider API, nothing
+is added and the journal hides its map links.
 
 ### 7.3 Your Year
 
-The journal's second tab (`UI/YourYear.lua`, §8). Left page: "Your Year" above the years with
+The journal's third tab (`UI/YourYear.lua`, §8). Left page: "Your Year" above the years with
 entries, newest first ("Your 2026"); the shown year lists its cards. Right page: the card's title,
 "Your 2026", its icon with a big number (`Game40Font` where the client has it) and a caption, then
 a few lines. A year that hasn't opened yet shows when it opens.
@@ -853,7 +909,7 @@ a few lines. A year that hasn't opened yet shows when it opens.
 selected and focused, so Ctrl+C copies it (addons can't write files). This month / This year /
 Everything (default). Every day reads like its page (long date, played time, entries with times in
 one column, counter lines, sessions), oldest first, with every category whatever the journal's
-filter. A reading copy: it can't be imported. Works on a read-only journal too.
+filter. The notes written in the range follow under "Notes": the title, when and where, the text. A reading copy: it can't be imported. Works on a read-only journal too.
 `/ws export [month|year|all]` and a button under Settings > Data.
 
 ### 7.5 Backup and restore
@@ -883,6 +939,8 @@ control, so the page reads and writes `ns.Options` / `ns.Trackers` and never own
 - **Tracking:** one toggle per tracker, generated from the registry; Footsteps is one of them.
 - **Footsteps:** what the world map shows, record flight paths, delete all trails (with a
   confirmation popup).
+- **Notes:** show notes on the world map (`notesOnMap`, default on; the map button's menu has it
+  too).
 - **Data:** stats, error log, rebuild indexes, export, back up, restore, and reset (with a
   confirmation popup and a reload; reset deletes the trails too).
 
@@ -898,15 +956,57 @@ Without the API the page is skipped and `/ws settings` says so.
   libraries.
 - **Key binding:** `Bindings.xml`: `WAYSCRIBE_TOGGLE` under the AddOns category, unbound by default.
   `BINDING_HEADER_WAYSCRIBE` and `BINDING_NAME_WAYSCRIBE_TOGGLE` are localized.
-- **Slash:** `/wayscribe` or `/ws` (toggle), plus `help`, `year [YYYY]`, `export [month|year|all]`,
+- **Slash:** `/wayscribe` or `/ws` (toggle), plus `help`, `year [YYYY]`, `notes`, `mark [title]`,
+  `export [month|year|all]`,
   `backup`, `restore`, `settings`, `recap`, `stats`, `log`, `rebuild`, `accept`, and the developer
   commands `probe`, `dev`, `simulate <TYPE> …` and `backup sample [days]`.
+
+### 7.9 Notes
+
+The player's notes (§4.9): the journal's second tab, and markers on the world map.
+
+**The tab** (`UI/NotesView.lua`), drawn into the book like Your Year:
+- **Left page:** "Scoopz's notes", a *New note* button, and the notes, newest first: the title
+  ("Untitled" without one), the day written ("Today", "Yesterday", the short date) and, for a note
+  with a place, its marker icon. A ScrollBox where the client has one, else the rows that fit.
+- **Right page:** the open note, written straight onto the paper with the spellbook's fonts and ink:
+  the title in the header's place (an edit box with "Untitled" as a hint), the divider, "Written
+  Friday, October 9, 2026 · edited 2:05 PM · Mulgore", for a note with a place the eight marker
+  icons to pick from, then the text (a multi-line edit box that scrolls and keeps the cursor in
+  view; a click under the text writes on). *Show on the map* (for a note with a place) and *Delete*
+  (asks first, unless the note is blank) sit level with the page controls.
+- **Saving** is every keystroke (`Notes:Update` is a table write). The redraw that follows never
+  sets the text of the note being written again, so the cursor doesn't jump. Enter in the title
+  goes on to the text; Escape lets go of the keyboard, a second Escape closes the journal. Leaving
+  a note, the tab or the journal lets go of the keyboard and drops a blank note.
+- **Read-only journal:** the notes can be read, not edited; *New note* and *Delete* are disabled.
+
+**The map** (`UI/NotesMap.lua`), a MapCanvas data provider of its own:
+- Every note placed on the shown map's continent gets its icon at its place, at the pin level of
+  the default map's own waypoint (`PIN_FRAME_LEVEL_WAYPOINT_LOCATION`), 18 pixels at every zoom. The
+  same world → map transform as Footsteps (§6.8). Mouseover: the title, the start of the text,
+  when and where, and "Click to open it in the journal".
+- **Alt+click** on a zone or continent map starts a note there: the map's own click handlers
+  (`AddCanvasClickHandler`; Forever calls them through `securecallfunction`, so an addon's handler
+  can't taint the map) take the click before it zooms in, the point becomes a world position, and
+  a popup asks for the title, the zone's name to begin with. Ctrl+click is the default map's own
+  pin; other modifiers and buttons are left alone.
+- **`/ws mark [title]`** marks where the player stands, titled with the given text, else the
+  subzone's name (no API names a subzone later), else the zone's. Inside instances there is no
+  position, and it says so.
+- **Show on the map** opens the map at the note's place (its own map, else the most detailed one
+  there), refused in combat like Footsteps' day link, and shows that marker larger until the map
+  closes, even with the notes hidden.
+- A click on a marker opens the note in the journal, in front of the map whatever strata the game
+  rules give the map (the journal goes back to `HIGH` when it closes).
+- **Not on the minimap.** That needs its own placement math (rotation, zoom, indoors) or a library
+  (HereBeDragons-Pins); left for later.
 
 ---
 
 ## 8. Your Year (yearly recap)
 
-The yearly recap, shown as the journal's second tab: "Your Year" / "Dein Jahr", each year
+The yearly recap, shown as the journal's third tab: "Your Year" / "Dein Jahr", each year
 "Your 2026" / "Dein 2026". In the code `YourYear` (UI) and `YearCards` (data).
 
 - **Cards from rollups.** `YearCards:Build(year)` hands `Store:GetYearSummary(year)` to each card:
@@ -929,7 +1029,7 @@ The yearly recap, shown as the journal's second tab: "Your Year" / "Dein Jahr", 
   curated chains by name) · *Footsteps* (distance over land, flight paths, journeys by hearthstone,
   % of Azeroth walked and the most walked zone) · *Time played* (total, sessions, most active
   month and day, longest session).
-- **Shown in the journal**, as its second tab (§7.1): years on the left, the card on the right, the
+- **Shown in the journal**, as its third tab (§7.1): years on the left, the card on the right, the
   page buttons turn cards like a slideshow ("Page 3/11").
 - **Opens on December 1.** Past years open any time; the current year from December 1. Developer
   mode (`/ws dev`) previews it early, marked "preview".
@@ -949,13 +1049,13 @@ embeds.xml                 -- libs in Libs/ (fetched by the packager via .pkgmet
 Locales/   enUS.lua deDE.lua
 Core/      Init.lua Log.lua Time.lua Geometry.lua Bus.lua Options.lua Module.lua Trackers.lua Slash.lua Lifecycle.lua
 Compat/    Compat.lua Probe.lua
-Data/      Codec.lua RecordTypes.lua Players.lua Index.lua Store.lua Paths.lua Coverage.lua YearCards.lua Schema.lua
-           Backup.lua
+Data/      Codec.lua RecordTypes.lua Players.lua Notes.lua Index.lua Store.lua Paths.lua Coverage.lua YearCards.lua
+           Schema.lua Backup.lua
 StaticData/ Dungeons.lua Gathering.lua QuestChains.lua Travel.lua
 Trackers/  Session.lua Level.lua Professions.lua Gathering.lua Bosses.lua Dungeons.lua
            QuestChains.lua Footsteps.lua Deaths.lua
-UI/        Theme.lua DayView.lua YourYear.lua Journal.lua Export.lua FootstepsMap.lua
-           LoginRecap.lua Settings.lua Minimap.lua
+UI/        Theme.lua DayView.lua YourYear.lua NotesView.lua Journal.lua Export.lua FootstepsMap.lua
+           NotesMap.lua LoginRecap.lua Settings.lua Minimap.lua
 Media/     Icon.tga (128×128, 32-bit) Icon.svg (its source, not packaged)
 tests/     run.lua testlib.lua wow_stubs.lua serialize.lua <area>_spec.lua …
 docs/      ARCHITECTURE.md DEVELOPMENT.md ingame-tests.md forever-probe.md
@@ -1018,6 +1118,7 @@ game is in [ingame-tests.md](ingame-tests.md).
 | **0.4 Footsteps** | Trails on the world map, the day → map link, deaths and journeys as markers. | 2 h of play under 10 KB packed (unit test: 3.2 KB); no measurable frame-time cost (in game). |
 | **0.5 Your Year** | Year cards, December prompt, % of Azeroth walked. Text export. | The recap renders from rollups alone (unit test). |
 | **0.6 Backup** | A restorable backup string, and restoring it into an empty or missing journal (§4.8). | A simulated year survives backup, wipe and restore (unit test); a missing journal restored in game. |
+| **0.7 Notes** | The player's own notes: a Notes tab in the journal, and markers on the world map (Alt+click, `/ws mark`), carried by the backup (§4.9, §7.9). | Notes survive relog, backup and restore, and a missing journal with only notes is guarded (unit tests); Alt+click places a note in game, with no taint error. |
 
 **Next:**
 - **First public release:** CurseForge and GitHub Releases are set up; pushing the first tag
@@ -1052,6 +1153,7 @@ actually *fires* for Vanilla content still needs a gameplay test; those are in
 | 11 | Is `PanelTabButtonTemplate` there for the journal's tabs? | ✅ `has.panelTabs`; the tabs show under the journal like the default UI's. | — | Plain buttons under the frame. |
 | 12 | Can a backup of megabytes be pasted back into an addon? | ✅ `OnChar` fires for every pasted character, also past the field's limit. The client inserts a paste character by character, about 2.6 ns per character the field already holds: a field without a limit grows with the square (55.6 s for 200 KB). Holding 32 bytes, 2,474,487 characters arrive in 2.8 s. A multi-line box can't draw 2.4 MB of text. | — | Split the backup by year (months are independent partitions). |
 | 13 | Can a controller reach and use the journal? | ❌ Build 70245 (2026-10-08). Forever's controller mode only focuses windows its frame manager (`GamepadMode.FrameControlsManager`) knows, from `ShowUIPanel` or `FrameShown`; otherwise the focus button says "There is no interface window to focus". An addon can't read the controller itself (`Frame:EnableGamePadButton` is protected). A test build that called `FrameShown` for the login recap could be navigated, but every focus change raised "Wayscribe has been blocked from an action only available to the Blizzard UI": the manager and SmartNavigation then run tainted and call protected functions (`SmartNavigation:ShowCursor`/`HideCursor` call `SetGamePadCursorControl`). Closing the recap with the controller froze the client. Withdrawn (`git stash`: "controller support via FrameControlsManager"). | Recheck when Blizzard opens the manager to addons. | Keyboard and mouse only. |
+| 14 | Can an addon take Alt+clicks on the world map and name a note in a popup? | Source of build 70291: `MapCanvasMixin:AddCanvasClickHandler` exists and calls handlers through `securecallfunction`; the map's strata and its own pin come from game rules (`WorldMapFrameStrata`, `WorldMapTrackingPinDisabled`). `/ws probe` prints `worldMap.canvasClicks`, `worldMap.strata` and `gameRule.worldMapTrackingPinDisabled`. | Alt+click in and out of combat: the popup shows in front of the map, no "blocked" error; a plain click still zooms in. | `/ws mark` and New note still work; no Alt+click. |
 
 Other findings:
 - wago.tools lists build 70235 as product `wow_cn_beta`, so its DB2 tables (`DungeonEncounter`, `Map`,
@@ -1184,6 +1286,22 @@ The choices that shaped the addon, by topic. Each says what was decided and why.
   made-up year into a real character is refused.
 - **Guard findings are warnings, not errors** (§3.4). In the missing-journal test, BugSack showed
   the guard's own log entry; a journal that didn't load is the player's situation, not a bug.
+
+### Notes
+
+- **A marker is a note with a place** (the player's choice): one list, one editor, and every marker
+  can carry as much text as a note. The map's popup only names a new one.
+- **Per character**, in the journal's file, so the backup carries them and the guard protects them.
+  Account-wide markers (herb spots for an alt) would need the account file and a backup of their
+  own.
+- **Not records.** Notes change and disappear; records don't. A table of their own keeps rollups,
+  firsts and Your Year free of them, and needs no schema change.
+- **A Notes tab**, not a note on each day page: a notebook for reminders, routes and plans, which
+  rarely belong to one day. Each note still knows the day it was written.
+- **Alt+click**: Ctrl+click is the default map's own pin, HandyNotes uses Alt+right-click.
+- **Raid target icons** for markers: in every client since Vanilla, recognizable at 18 pixels.
+- **No minimap markers and no waypoint yet**: the minimap needs its own math or a library, and
+  Forever's ruleset may turn the default map's pin off (`WorldMapTrackingPinDisabled`).
 
 ### Landscape (for positioning)
 

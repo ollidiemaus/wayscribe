@@ -158,6 +158,18 @@ local function addCoverage(add)
     end
 end
 
+-- 0.7 Notes: Alt+click on the map, the map's strata (a game rule can change it), whether this
+-- ruleset turns off the default map's own pin, and the popup that names a new note.
+local function addNotes(add)
+    local map = WorldMapFrame
+    add("worldMap.canvasClicks", type(map) == "table" and type(map.AddCanvasClickHandler) == "function")
+    add("worldMap.strata", type(map) == "table" and Compat.Call(map.GetFrameStrata, map) or nil)
+    local rule = type(Enum) == "table" and type(Enum.GameRule) == "table" and Enum.GameRule.WorldMapTrackingPinDisabled
+    local active = rule and C_GameRules and Compat.Call(C_GameRules.IsGameRuleActive, rule)
+    add("gameRule.worldMapTrackingPinDisabled", active)
+    add("staticPopup", type(StaticPopup_Show) == "function")
+end
+
 local function collect()
     local lines = {}
     local function add(key, value)
@@ -210,6 +222,7 @@ local function collect()
     addQuestLines(add)
     addFootsteps(add, mapID)
     addCoverage(add)
+    addNotes(add)
     return lines
 end
 
