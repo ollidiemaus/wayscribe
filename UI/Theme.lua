@@ -10,6 +10,9 @@ ns.Theme = Theme
 
 -- Wayscribe's icon (source: Media/Icon.svg); the TOC's IconTexture names the same file.
 Theme.ICON = "Interface\\AddOns\\" .. addonName .. "\\Media\\Icon"
+-- The same picture redrawn bolder for the minimap button, which shows it at 17-18 px inside a
+-- round border (source: Media/MinimapIcon.svg).
+Theme.MINIMAP_ICON = "Interface\\AddOns\\" .. addonName .. "\\Media\\MinimapIcon"
 
 -- SPELLBOOK_FONT_COLOR on client 1.60.1.70235 (GlobalColor.db2), used when the global is missing.
 local SPELLBOOK_INK = { 0.18, 0.106, 0.059 }

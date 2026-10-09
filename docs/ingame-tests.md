@@ -92,6 +92,8 @@ Wayscribe draws where you walked as a dark red line on the world map.
   flicker.
 - [ ] **Item names.** → Gathered items show their names, not "item 2770" (they may fill in a moment
   later).
+- [ ] **Minimap icon.** → The minimap button shows the bolder icon: parchment and quill fill the
+  gold ring, the dashed trail is visible, and the quill's tip isn't cut off by the ring.
 
 ## Your Year
 

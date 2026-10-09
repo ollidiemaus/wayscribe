@@ -28,7 +28,7 @@ function Minimap:Register()
     if self.icon or not (broker and icon) then return end
     local launcher = broker:NewDataObject(addonName, {
         type = "launcher",
-        icon = ns.Theme.ICON,
+        icon = ns.Theme.MINIMAP_ICON,
         label = L.ADDON_TITLE,
         OnClick = function(_, button) onClick(button) end,
         OnTooltipShow = showTooltip,
