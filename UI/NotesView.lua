@@ -4,9 +4,10 @@ local L, Compat, Store, Time, Theme, DayView, Notes =
 
 -- The journal's second tab: the player's own notes (docs/ARCHITECTURE.md §7.9). The left page lists
 -- them, newest first, under a New note button; the right page is the open note, written straight
--- onto the paper: its title, when (and where) it was written, and its text. Every keystroke is
--- saved; a note left without title, text or place is dropped. A note with a place is also a
--- marker on the world map (UI/NotesMap.lua), whose icon is picked here.
+-- onto the paper: its title, when it was written and how many places it has, and its text. Every
+-- keystroke is saved; a note left without title and text is dropped. Each /way line of the text
+-- is a marker on the world map (UI/NotesMap.lua), with the icon picked here; leaving a note writes
+-- the player's zone into the lines that took it.
 local NotesView = {}
 ns.NotesView = NotesView
 
@@ -38,7 +39,8 @@ function NotesView.Title(note)
     return note.title ~= nil and note.title ~= "" and note.title or L.NOTES_UNTITLED
 end
 
--- "Written Friday, October 9, 2026 · edited 2:05 PM · Mulgore"
+-- "Written Friday, October 9, 2026 · edited 2:05 PM · 3 places on the map · 1 /way line not
+-- found"
 function NotesView.Subtitle(note)
     local created, edited = tonumber(note.created) or 0, tonumber(note.edited) or 0
     local parts = { L.NOTES_WRITTEN:format(Time.FormatLongDay(Time.DayKey(created))) }
@@ -50,8 +52,9 @@ function NotesView.Subtitle(note)
             parts[#parts + 1] = L.NOTES_EDITED_ON:format(Time.FormatDay(editedDay))
         end
     end
-    local zone = Notes.HasPlace(note) and Notes.ZoneName(note)
-    if zone then parts[#parts + 1] = zone end
+    local places, unplaced = Notes.PlacesOf(note)
+    if #places > 0 then parts[#parts + 1] = ns.YearCards.Plural("NOTES_PLACES", #places) end
+    if unplaced > 0 then parts[#parts + 1] = ns.YearCards.Plural("NOTES_UNPLACED", unplaced) end
     return table.concat(parts, " · ")
 end
 
@@ -79,9 +82,19 @@ local function clearFocus()
     end
 end
 
+-- Leaving a note: /way lines that took the player's zone get it written in, and the editor shows
+-- that (it isn't being written then, so the cursor can't jump).
+local function fillZones(id)
+    if not (id and Notes:FillZones(id)) then return end
+    if state.shownId == id and ui.body then
+        ui.body:SetText(Notes:Get(id).text)
+    end
+end
+
 function NotesView:Select(id)
     if state.selected ~= id then
         clearFocus()
+        fillZones(state.selected)
         dropIfBlank(state.selected)
     end
     state.selected = id
@@ -90,6 +103,7 @@ end
 -- Leaving the tab or closing the journal: the editors let go of the keyboard.
 function NotesView:Leave()
     clearFocus()
+    fillZones(state.selected)
     dropIfBlank(state.selected)
 end
 
@@ -169,7 +183,7 @@ local function initRow(row, element)
     row.noteId = note.id
     row.label:SetText(NotesView.Title(note))
     row.detail:SetText(listDate(note))
-    row.icon:SetShown(Notes.HasPlace(note))
+    row.icon:SetShown(#Notes.PlacesOf(note) > 0)
     row.icon:SetTexture(Notes.IconTexture(note.icon))
     row.selected:SetShown(note.id == state.selected)
 end
@@ -351,6 +365,7 @@ local function createBody(page)
         if userInput then save("text", self:GetText()) end
     end)
     body:SetScript("OnCursorChanged", followCursor)
+    body:SetScript("OnEditFocusLost", function() fillZones(state.shownId) end)
     scroll:SetScrollChild(body)
     -- A click anywhere under the text writes on.
     scroll:EnableMouse(true)
@@ -419,7 +434,7 @@ local function setWritable(writable)
 end
 
 local function showIcons(note)
-    local placed = Notes.HasPlace(note)
+    local placed = #Notes.PlacesOf(note) > 0
     ui.iconLabel:SetShown(placed)
     for _, button in ipairs(ui.icons) do
         button:SetShown(placed)
@@ -450,7 +465,7 @@ local function showNote(note, paperWidth)
     ui.body:SetWidth(math.max(DayView.TextWidth(paperWidth or 0), 1))
     ui.subtitle:SetText(NotesView.Subtitle(note))
     showIcons(note)
-    local onMap = Notes.HasPlace(note) and ns.NotesMap:CanShow()
+    local onMap = #Notes.PlacesOf(note) > 0 and ns.NotesMap:CanShow()
     ui.mapButton:SetShown(onMap)
     ui.deleteButton:ClearAllPoints()
     if onMap then
@@ -521,3 +536,6 @@ function NotesView:Refresh(paperWidth, paperHeight)
     showNote(state.selected and Notes:Get(state.selected), paperWidth)
     return indexOf(state.selected), #state.notes
 end
+
+-- A /reload or logout with the journal open doesn't hide it first.
+ns.Bus:On("LOGOUT", NotesView, NotesView.Leave)

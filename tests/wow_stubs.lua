@@ -273,7 +273,7 @@ local function installMaps()
                     parent = MAPS[parent] and MAPS[parent].parent
                 end
                 if parent == mapID and (not mapType or map.type == mapType) then
-                    children[#children + 1] = { mapID = childID, mapType = map.type, parentMapID = map.parent }
+                    children[#children + 1] = { mapID = childID, name = map.name, mapType = map.type, parentMapID = map.parent }
                 end
             end
             table.sort(children, function(a, b) return a.mapID < b.mapID end)

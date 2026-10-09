@@ -1,15 +1,15 @@
 local _, ns = ...
 local L, Compat, Geometry, Notes = ns.L, ns.Compat, ns.Geometry, ns.Notes
 
--- Notes with a place, as markers on the world map (docs/ARCHITECTURE.md §7.9). A MapCanvas data
+-- The notes' places as markers on the world map (docs/ARCHITECTURE.md §7.9). A MapCanvas data
 -- provider of its own, next to Footsteps':
---   * every note placed on the shown map's continent gets its icon there, at Blizzard's own
---     map pin level, sized for the screen at every zoom; mouseover shows its title, the start
---     of its text, when and where; a click opens it in the journal;
+--   * every /way line of a note on the shown map's continent is a marker with the note's icon,
+--     at Blizzard's own map pin level, sized for the screen at every zoom; mouseover shows the
+--     line's label and the note; a click opens the note in the journal;
 --   * Alt+click on the map starts a note at that spot: a popup asks for its title (the zone's
---     name to begin with), the rest is written in the journal;
---   * the journal's Show on the map opens the map at a note's place and shows that marker even
---     while the others are hidden.
+--     name to begin with), and the note's text starts with the spot's /way line;
+--   * the journal's Show on the map opens the map at a note's first place and shows the note's
+--     markers even while the others are hidden.
 local NotesMap = {}
 ns.NotesMap = NotesMap
 
@@ -63,17 +63,25 @@ local function hideTooltip()
     if GameTooltip then GameTooltip:Hide() end
 end
 
+-- The line's label (else the note's title), the note, the start of its text without the /way
+-- lines, and where: "Mulgore 49.0, 86.4".
 local function showTooltip(marker)
-    local note = Notes:Get(marker.noteId)
-    if not (note and GameTooltip) then return end
+    local note, place = Notes:Get(marker.noteId), marker.place
+    if not (note and place and GameTooltip) then return end
     GameTooltip:SetOwner(marker, "ANCHOR_RIGHT")
-    GameTooltip:SetText(ns.NotesView.Title(note))
-    local text = note.text or ""
+    local title = ns.NotesView.Title(note)
+    if place.label ~= "" then
+        GameTooltip:SetText(place.label)
+        GameTooltip:AddLine(title, 1, 0.82, 0, true)
+    else
+        GameTooltip:SetText(title)
+    end
+    local text = Notes.TextWithoutWays(note.text)
     if text ~= "" then
         local preview = Notes.Cut(text, PREVIEW_BYTES)
         GameTooltip:AddLine(preview ~= text and preview .. "..." or text, 1, 1, 1, true)
     end
-    GameTooltip:AddLine(ns.NotesView.Subtitle(note), 0.7, 0.7, 0.7, true)
+    GameTooltip:AddLine(L.NOTES_PLACE:format(Compat.GetMapName(place.map) or "?", place.u, place.v), 0.7, 0.7, 0.7)
     GameTooltip:AddLine(L.NOTES_MARKER_HINT, 0.25, 1, 0.25, true)
     GameTooltip:Show()
 end
@@ -88,8 +96,8 @@ local function markerSize(marker)
     return marker.noteId == view.focus and size * FOCUS_SCALE or size
 end
 
-local function placeMarker(note)
-    local u, v = Geometry.ToMap(view.transform, note.x, note.y)
+local function placeMarker(note, place)
+    local u, v = Geometry.ToMap(view.transform, place.x, place.y)
     if u < 0 or u > 1 or v < 0 or v > 1 then return end
     view.used = view.used + 1
     local marker = view.frames[view.used]
@@ -103,7 +111,7 @@ local function placeMarker(note)
         marker:SetScript("OnClick", onMarkerClick)
         view.frames[view.used] = marker
     end
-    marker.noteId = note.id
+    marker.noteId, marker.place = note.id, place
     marker.icon:SetTexture(Notes.IconTexture(note.icon))
     marker:ClearAllPoints()
     marker:SetPoint("CENTER", view.frame, "TOPLEFT", u * view.width, -v * view.height)
@@ -125,8 +133,8 @@ function NotesMap:Redraw()
     view.width, view.height = canvas:GetWidth(), canvas:GetHeight()
     view.scale = Compat.Call(map.GetCanvasScale, map) or 1
     local all = self:IsShownOnMap()
-    for _, note in ipairs(Notes:GetPlaced(transform.continent)) do
-        if all or note.id == view.focus then placeMarker(note) end
+    for _, placed in ipairs(Notes:GetPlaced(transform.continent)) do
+        if all or placed.note.id == view.focus then placeMarker(placed.note, placed.place) end
     end
 end
 
@@ -153,10 +161,10 @@ local function editBoxOf(dialog)
     return dialog.editBox or dialog.EditBox
 end
 
--- Adds the note the popup named. Returns it.
+-- Adds the note the popup named, its text the spot's /way line. Returns it.
 function NotesMap:AddAt(place, title)
     title = type(title) == "string" and title:match("^%s*(.-)%s*$") or ""
-    return Notes:Add({ title = title, c = place.c, x = place.x, y = place.y, map = place.map })
+    return Notes:Add({ title = title, text = Notes.LineAt(place.c, place.x, place.y) })
 end
 
 -- "A new note at Mulgore": the title, to begin with the zone's name. Without the default popups
@@ -219,7 +227,7 @@ function NotesMap:OnCanvasClick(button, u, v)
     elseif not Notes:IsWritable() then
         ns.Print(L.NOTES_READ_ONLY)
     else
-        self:AskTitle(Notes.PlaceAt(continent, x, y))
+        self:AskTitle({ c = continent, x = x, y = y, map = Compat.GetMapAtWorldPos(continent, x, y) })
     end
     return true
 end
@@ -231,20 +239,12 @@ function NotesMap:CanShow()
     return self.provider ~= nil
 end
 
--- The note's own map when it still holds the place, else the most detailed one there.
-local function mapFor(note)
-    local transform = type(note.map) == "number" and ns.FootstepsMap.TransformFor(note.map)
-    if transform and transform.continent == note.c then
-        local u, v = Geometry.ToMap(transform, note.x, note.y)
-        if u >= 0 and u <= 1 and v >= 0 and v <= 1 then return note.map end
-    end
-    return Compat.GetMapAtWorldPos(note.c, note.x, note.y)
-end
-
--- Opens the world map at a note's place. Returns whether it did.
+-- Opens the world map at a note's first place, on the map its /way line names. Returns whether
+-- it did.
 function NotesMap:ShowNote(id)
     local note = id and Notes:Get(id)
-    if not (note and Notes.HasPlace(note)) then return false end
+    local first = note and Notes.PlacesOf(note)[1]
+    if not first then return false end
     if not self.provider then
         ns.Print(L.FOOTSTEPS_NO_MAP)
         return false
@@ -254,7 +254,7 @@ function NotesMap:ShowNote(id)
         return false
     end
     view.focus = note.id
-    ns.FootstepsMap.OpenMap(mapFor(note))
+    ns.FootstepsMap.OpenMap(first.map)
     self:Redraw()
     return true
 end

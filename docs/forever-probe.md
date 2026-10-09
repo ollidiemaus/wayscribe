@@ -318,3 +318,24 @@ Notes:
   realm "Classic Beta PvE" (from `GetRealmName`); before the fix they said "Scoopz" on realm
   "Scoopz".
 - Every other probe line is the same as on build 70235.
+
+## Client 1.60.1, build 70291, Wayscribe 0.7 (2026-10-09)
+
+Scoopz in Bloodhoof, Mulgore, with the 0.7 copy (`/ws probe`; the lines new in 0.7):
+
+```text
+client = 1.60.1 (build 70291)
+worldMap.canvasClicks = true
+worldMap.strata = MEDIUM
+gameRule.worldMapTrackingPinDisabled = false
+staticPopup = true
+```
+
+Notes:
+- The map takes click handlers (`AddCanvasClickHandler`), so Alt+click starts a note (§12 #14).
+  In game the popup showed in front of the map, also in combat, with no "blocked" message.
+- The map's strata is `MEDIUM`, below the journal's `HIGH`: a marker's click brings the journal up
+  in front of the map without changing anything.
+- Forever's ruleset leaves the default map's own pin on (`WorldMapTrackingPinDisabled` is false), so
+  Ctrl+click still sets the game's pin, and a note could later offer "Set as waypoint".
+- Every other probe line is the same as on build 70245.

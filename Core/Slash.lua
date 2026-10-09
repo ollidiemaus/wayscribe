@@ -47,20 +47,21 @@ commands.notes = function()
     ns.Journal:OpenNotes()
 end
 
--- /ws mark [title]: a note where the player stands, so a marker on the world map. Its title is the
--- one given, else the subzone's or the zone's name.
+-- /ws mark [title]: a note whose text is the /way line of where the player stands, so a marker
+-- on the world map. Its title is the one given, else the subzone's or the zone's name.
 commands.mark = function(rest)
     if not ns.Notes:IsWritable() then
         ns.Print(L.NOTES_READ_ONLY)
         return
     end
     local place = ns.Notes.PlayerPlace()
-    if not place then
+    local line = place and ns.Notes.LineAt(place.c, place.x, place.y)
+    if not line then
         ns.Print(L.NOTES_MARK_NO_POSITION)
         return
     end
-    local title = rest ~= "" and rest or place.sub or (place.map and ns.Compat.GetMapName(place.map)) or ""
-    local note = ns.Notes:Add({ title = title, c = place.c, x = place.x, y = place.y, map = place.map })
+    local title = rest ~= "" and rest or place.sub or ns.Compat.GetMapName(ns.Compat.GetPlayerMapID()) or ""
+    local note = ns.Notes:Add({ title = title, text = line })
     if note then
         ns.Print(L.NOTES_MARKED:format(ns.NotesView.Title(note)))
     end

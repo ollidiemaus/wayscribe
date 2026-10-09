@@ -70,7 +70,7 @@ flowchart LR
 | **Core** | Namespace, lifecycle, module base, event frames, internal bus, error boundary, logging, time/day keys, geometry (pure math on trails) | — |
 | **Compat** | Capability detection (`Compat.has.*`), thin API shims (position, professions, instance info), `/ws probe` | Core |
 | **Data** | `Store`, `Paths` (Footsteps trails), `Notes` (the player's notes), `Schema` (migrations, safe mode), `RecordTypes`, `Index`, `Players` (interning), `Codec`, `Coverage` (share of Azeroth walked), `YearCards` (Your Year's card registry), `Backup` (the restorable backup string) | Core, Compat |
-| **StaticData** | Plain tables: dungeon → final encounter, quest chains, gather and travel spell IDs | — |
+| **StaticData** | Plain tables: dungeon → final encounter, quest chains, gather and travel spell IDs, English map names | — |
 | **Trackers** | Translate game events into facts, holding only the minimal state they need | Core, Compat, Data (write API), StaticData |
 | **UI** | Journal window with Your Year and Notes, login recap, settings, minimap, keybind, Footsteps map, notes on the map, export, backup and restore | Core, Data (read API, `Notes` to write the player's notes), RecordTypes |
 
@@ -220,13 +220,13 @@ WayscribeCharDB = {
 
     firsts = { ["DUNGEON:389"] = 1201, ["PROF:186"] = 1103 },   -- first-occurrence index
 
-    -- The player's own notes (§4.9); a note with c, x, y is a marker on the world map.
+    -- The player's own notes (§4.9); each /way line of a text is a marker on the world map.
     notes = {
         seq = 2,                        -- last issued note id (monotonic)
         list = {
             { id = 1, created = 1759490000, edited = 1759490200, title = "Buy linen", text = "…" },
-            { id = 2, created = 1759493000, edited = 1759493000, title = "Peacebloom", text = "",
-              c = 1, x = -1967, y = -25, map = 1412, icon = 3 },
+            { id = 2, created = 1759493000, edited = 1759493100, title = "Hidden Books", icon = 3,
+              text = "/way Elwynn Forest 49.0 86.4 The Kaldorei\n/way 52.3 41.0 Upstairs" },
         },
     },
 }
@@ -500,8 +500,9 @@ shared checks in `Data/Schema.lua`, the windows in `UI/Export.lua` next to the t
 
 ### 4.9 Notes
 
-The player's own notes: a notebook in the journal (§7.9), and markers on the world map. **A marker is
-a note with a place**: one kind of thing, one list, one editor.
+The player's own notes: a notebook in the journal (§7.9), and markers on the world map. **A note's
+places are the `/way` lines of its text**: one kind of thing, one list, one editor, and a note can
+hold as many places as it has lines (the Hidden Books of a questline, a herb route).
 
 **Not facts.** Everything else in the journal is a fact the addon derives and never changes
 (principle 1). Notes are the player's words: they can be edited and deleted, and nothing is derived
@@ -510,26 +511,52 @@ table of their own, `WayscribeCharDB.notes` (§4.2), with its own write path, `D
 (principle 2):
 
 ```lua
-Notes:Add({ title, text, c?, x?, y?, map?, icon? })  -- -> note; Alt+click, /ws mark, New note
-Notes:Update(id, { title?, text?, icon? })           -- every keystroke; `edited` only on a change
+Notes:Add({ title, text, icon? })          -- -> note; New note, Alt+click, /ws mark
+Notes:Update(id, { title?, text?, icon? }) -- every keystroke; `edited` only on a change
 Notes:Delete(id)
-Notes:Get(id) / Notes:GetAll() / Notes:GetPlaced(continent) / Notes:Count()
+Notes:FillZones(id)                        -- leaving a note: the player's zone into lines that took it
+Notes:Get(id) / Notes:GetAll() / Notes:Count()
+Notes.PlacesOf(note) / Notes:GetPlaced(continent)   -- the /way lines, read
 ```
 
 - **Per character**, in the journal's file: like the journal, a character's notes are its own, and
   `/ws backup` carries them. An alt doesn't see its main's markers.
 - **Ids** come from `notes.seq` and are never reused. `created` orders the list (newest first), so
   a note doesn't move while it is written; `edited` is shown.
-- **A place** is the same as a death's or a journey's (§6.8, §6.9): the continent and whole world
-  yards, so it shows on the zone and the continent map, plus the map it was placed on (for its name
-  and to open the map there) and its marker `icon`, one of the eight raid target icons (star to
+- **`/way` lines** are the notation websites share waypoints in (TomTom's):
+  `/way [zone | #uiMapID] x y [label]`, one per line, `x` and `y` in percent of the zone's map
+  (`49.0`, `49,0` or `49`, separated by a space or a comma). "/way" may follow a list number or a
+  heading on its line ("3. Elwynn: /way 49.0 86.4"). The words after the coordinates are the
+  marker's label.
+- **Zones** are found by name in the client's language (every map under the world root, from
+  `C_Map.GetMapChildrenInfo`, zones before continents) or in **English**
+  (`StaticData/Zones.lua`, from build 70235's `UiMap.db2`: 56 zones, cities, continents and
+  Forever's own Mount Hyjal, Zephras Isle, Riverglades and Shen'dralas), so a line copied from a
+  website works on a German client too. Case doesn't matter. `#1429` names a map by its id.
+- **A line without a zone** is in the zone of the `/way` line above it that names one (a pasted
+  list names its zone once); a line below an unknown zone stays unknown. With no zone above, it is
+  where the player is, like TomTom, and **leaving the note writes that zone into the line**
+  (`FillZones`, also at logout): "/way 49.0 86.4" becomes "/way Mulgore 49.0 86.4", so the note
+  says where, and stays right when the player moves on. Lines are written with the zone's name in
+  the client's language, or `#uiMapID` when the name doesn't lead back to the map.
+- **Places are read, not stored**: `Notes.PlacesOf(note)` parses the text (cached per text and per
+  zone the player is in) into the continent and world yards of each line, through the map's own
+  world position (`C_Map.GetWorldPosFromMapPos`), so they show on the zone and the continent map
+  like deaths and journeys (§6.8, §6.9). A line that finds no place (unknown zone, no zone inside an
+  instance) is counted, and the note says so.
+- **Writing a place** (Alt+click, `/ws mark`): `Notes.LineAt(continent, x, y)` names the most
+  detailed map there and writes "/way Mulgore 30.0 60.0" (one decimal: 0.1% of a zone is about 5
+  yards).
+- **Icon.** All of a note's markers share its `icon`, one of the eight raid target icons (star to
   skull: in every client, and made to mark things).
 - **Validation.** Title and text must be strings; they are cut to 240 and 32,000 bytes on a UTF-8
-  boundary (the editors stop at 60 and 8,000 letters). A position passes `Compat.Safe`; a secret
-  one is no place. Writes need a writable journal, like the Store's.
-- **A blank note is dropped**: one with no title, no text and no place, when the player leaves it
-  (another note, another tab, the journal closed). *New note* can then add at once, without a
-  separate "save".
+  boundary (the editors stop at 60 and 8,000 letters). Writes need a writable journal, like the
+  Store's.
+- **A blank note is dropped**: one with no title and no text, when the player leaves it (another
+  note, another tab, the journal closed). *New note* can then add at once, without a separate
+  "save".
+- **The first test builds** stored one place per note (`c`, `x`, `y`, `map`); at login it becomes a
+  `/way` line at the end of the text.
 - **No schema change.** `notes` is an optional table: `checkAndFill` (§4.6) adds it to older
   journals, and an older Wayscribe that doesn't know it writes it back untouched.
 - **Guarded and backed up.** The canary counts the notes' `seq` too, so a journal that held only
@@ -963,42 +990,49 @@ Without the API the page is skipped and `/ws settings` says so.
 
 ### 7.9 Notes
 
-The player's notes (§4.9): the journal's second tab, and markers on the world map.
+The player's notes (§4.9): the journal's second tab, and their `/way` lines as markers on the
+world map.
 
 **The tab** (`UI/NotesView.lua`), drawn into the book like Your Year:
 - **Left page:** "Scoopz's notes", a *New note* button, and the notes, newest first: the title
   ("Untitled" without one), the day written ("Today", "Yesterday", the short date) and, for a note
-  with a place, its marker icon. A ScrollBox where the client has one, else the rows that fit.
+  with places, its marker icon. A ScrollBox where the client has one, else the rows that fit.
 - **Right page:** the open note, written straight onto the paper with the spellbook's fonts and ink:
   the title in the header's place (an edit box with "Untitled" as a hint), the divider, "Written
-  Friday, October 9, 2026 · edited 2:05 PM · Mulgore", for a note with a place the eight marker
-  icons to pick from, then the text (a multi-line edit box that scrolls and keeps the cursor in
-  view; a click under the text writes on). *Show on the map* (for a note with a place) and *Delete*
-  (asks first, unless the note is blank) sit level with the page controls.
+  Friday, October 9, 2026 · edited 2:05 PM · 3 places on the map · 1 /way line not found", for a
+  note with places the eight marker icons to pick from, then the text (a multi-line edit box that
+  scrolls and keeps the cursor in view; a click under the text writes on; the empty box hints at
+  `/way`). *Show on the map* (for a note with places) and *Delete* (asks first, unless the note is
+  blank) sit level with the page controls.
 - **Saving** is every keystroke (`Notes:Update` is a table write). The redraw that follows never
   sets the text of the note being written again, so the cursor doesn't jump. Enter in the title
   goes on to the text; Escape lets go of the keyboard, a second Escape closes the journal. Leaving
-  a note, the tab or the journal lets go of the keyboard and drops a blank note.
+  a note (another note, the tab, the journal, the text letting go of the keyboard, a logout) writes
+  the player's zone into the `/way` lines that took it, then shows the text with it, and drops a
+  blank note.
 - **Read-only journal:** the notes can be read, not edited; *New note* and *Delete* are disabled.
 
 **The map** (`UI/NotesMap.lua`), a MapCanvas data provider of its own:
-- Every note placed on the shown map's continent gets its icon at its place, at the pin level of
-  the default map's own waypoint (`PIN_FRAME_LEVEL_WAYPOINT_LOCATION`), 18 pixels at every zoom. The
-  same world → map transform as Footsteps (§6.8). Mouseover: the title, the start of the text,
-  when and where, and "Click to open it in the journal".
-- **Alt+click** on a zone or continent map starts a note there: the map's own click handlers
+- Every `/way` line on the shown map's continent is a marker with its note's icon, at the pin level
+  of the default map's own waypoint (`PIN_FRAME_LEVEL_WAYPOINT_LOCATION`), 18 pixels at every zoom.
+  The same world → map transform as Footsteps (§6.8). Mouseover: the line's label (else the note's
+  title) and the note's title, the start of the note without its `/way` lines, the zone and
+  coordinates, and "Click to open the note in the journal".
+- **Alt+click** on a zone or continent map starts a new note there: the map's own click handlers
   (`AddCanvasClickHandler`; Forever calls them through `securecallfunction`, so an addon's handler
-  can't taint the map) take the click before it zooms in, the point becomes a world position, and
-  a popup asks for the title, the zone's name to begin with. Ctrl+click is the default map's own
-  pin; other modifiers and buttons are left alone.
-- **`/ws mark [title]`** marks where the player stands, titled with the given text, else the
-  subzone's name (no API names a subzone later), else the zone's. Inside instances there is no
-  position, and it says so.
-- **Show on the map** opens the map at the note's place (its own map, else the most detailed one
-  there), refused in combat like Footsteps' day link, and shows that marker larger until the map
-  closes, even with the notes hidden.
+  can't taint the map) take the click before it zooms in, the point becomes a world position, a
+  popup asks for the title (the zone's name to begin with), and the note's text is the spot's
+  `/way` line. Ctrl+click is the default map's own pin; other modifiers and buttons are left alone.
+- **`/ws mark [title]`** starts a note whose text is the `/way` line of where the player stands,
+  titled with the given text, else the subzone's name (no API names a subzone later), else the
+  zone's. Inside instances there is no position, and it says so.
+- **Show on the map** opens the map at the note's first place, on the map its line names, refused in
+  combat like Footsteps' day link, and shows the note's markers larger until the map closes, even
+  with the notes hidden.
 - A click on a marker opens the note in the journal, in front of the map whatever strata the game
   rules give the map (the journal goes back to `HIGH` when it closes).
+- **`/way` only in notes.** TomTom and others own `/way` in chat; Wayscribe's chat command is
+  `/ws mark`.
 - **Not on the minimap.** That needs its own placement math (rotation, zoom, indoors) or a library
   (HereBeDragons-Pins); left for later.
 
@@ -1051,7 +1085,7 @@ Core/      Init.lua Log.lua Time.lua Geometry.lua Bus.lua Options.lua Module.lua
 Compat/    Compat.lua Probe.lua
 Data/      Codec.lua RecordTypes.lua Players.lua Notes.lua Index.lua Store.lua Paths.lua Coverage.lua YearCards.lua
            Schema.lua Backup.lua
-StaticData/ Dungeons.lua Gathering.lua QuestChains.lua Travel.lua
+StaticData/ Dungeons.lua Gathering.lua QuestChains.lua Travel.lua Zones.lua
 Trackers/  Session.lua Level.lua Professions.lua Gathering.lua Bosses.lua Dungeons.lua
            QuestChains.lua Footsteps.lua Deaths.lua
 UI/        Theme.lua DayView.lua YourYear.lua NotesView.lua Journal.lua Export.lua FootstepsMap.lua
@@ -1118,7 +1152,7 @@ game is in [ingame-tests.md](ingame-tests.md).
 | **0.4 Footsteps** | Trails on the world map, the day → map link, deaths and journeys as markers. | 2 h of play under 10 KB packed (unit test: 3.2 KB); no measurable frame-time cost (in game). |
 | **0.5 Your Year** | Year cards, December prompt, % of Azeroth walked. Text export. | The recap renders from rollups alone (unit test). |
 | **0.6 Backup** | A restorable backup string, and restoring it into an empty or missing journal (§4.8). | A simulated year survives backup, wipe and restore (unit test); a missing journal restored in game. |
-| **0.7 Notes** | The player's own notes: a Notes tab in the journal, and markers on the world map (Alt+click, `/ws mark`), carried by the backup (§4.9, §7.9). | Notes survive relog, backup and restore, and a missing journal with only notes is guarded (unit tests); Alt+click places a note in game, with no taint error. |
+| **0.7 Notes** | The player's own notes: a Notes tab in the journal, whose `/way` lines are markers on the world map (Alt+click, `/ws mark`), carried by the backup (§4.9, §7.9). | Notes survive relog, backup and restore, and a missing journal with only notes is guarded (unit tests); Alt+click places a note in game, with no taint error. |
 
 **Next:**
 - **First public release:** CurseForge and GitHub Releases are set up; pushing the first tag
@@ -1153,7 +1187,7 @@ actually *fires* for Vanilla content still needs a gameplay test; those are in
 | 11 | Is `PanelTabButtonTemplate` there for the journal's tabs? | ✅ `has.panelTabs`; the tabs show under the journal like the default UI's. | — | Plain buttons under the frame. |
 | 12 | Can a backup of megabytes be pasted back into an addon? | ✅ `OnChar` fires for every pasted character, also past the field's limit. The client inserts a paste character by character, about 2.6 ns per character the field already holds: a field without a limit grows with the square (55.6 s for 200 KB). Holding 32 bytes, 2,474,487 characters arrive in 2.8 s. A multi-line box can't draw 2.4 MB of text. | — | Split the backup by year (months are independent partitions). |
 | 13 | Can a controller reach and use the journal? | ❌ Build 70245 (2026-10-08). Forever's controller mode only focuses windows its frame manager (`GamepadMode.FrameControlsManager`) knows, from `ShowUIPanel` or `FrameShown`; otherwise the focus button says "There is no interface window to focus". An addon can't read the controller itself (`Frame:EnableGamePadButton` is protected). A test build that called `FrameShown` for the login recap could be navigated, but every focus change raised "Wayscribe has been blocked from an action only available to the Blizzard UI": the manager and SmartNavigation then run tainted and call protected functions (`SmartNavigation:ShowCursor`/`HideCursor` call `SetGamePadCursorControl`). Closing the recap with the controller froze the client. Withdrawn (`git stash`: "controller support via FrameControlsManager"). | Recheck when Blizzard opens the manager to addons. | Keyboard and mouse only. |
-| 14 | Can an addon take Alt+clicks on the world map and name a note in a popup? | Source of build 70291: `MapCanvasMixin:AddCanvasClickHandler` exists and calls handlers through `securecallfunction`; the map's strata and its own pin come from game rules (`WorldMapFrameStrata`, `WorldMapTrackingPinDisabled`). `/ws probe` prints `worldMap.canvasClicks`, `worldMap.strata` and `gameRule.worldMapTrackingPinDisabled`. | Alt+click in and out of combat: the popup shows in front of the map, no "blocked" error; a plain click still zooms in. | `/ws mark` and New note still work; no Alt+click. |
+| 14 | Can an addon take Alt+clicks on the world map and name a note in a popup? | Source of build 70291: `MapCanvasMixin:AddCanvasClickHandler` exists and calls handlers through `securecallfunction`; the map's strata and its own pin come from game rules (`WorldMapFrameStrata`, `WorldMapTrackingPinDisabled`). ✅ Build 70291 (2026-10-09): `worldMap.canvasClicks = true`, `worldMap.strata = MEDIUM`, `gameRule.worldMapTrackingPinDisabled = false` (the game's own pin is on). In game, Alt+click in and out of combat shows the popup in front of the map with no "blocked" message, and a plain click still zooms in. | — | `/ws mark` and New note still work; no Alt+click. |
 
 Other findings:
 - wago.tools lists build 70235 as product `wow_cn_beta`, so its DB2 tables (`DungeonEncounter`, `Map`,
@@ -1289,19 +1323,28 @@ The choices that shaped the addon, by topic. Each says what was decided and why.
 
 ### Notes
 
-- **A marker is a note with a place** (the player's choice): one list, one editor, and every marker
-  can carry as much text as a note. The map's popup only names a new one.
+- **A note's places are its `/way` lines** (the player's choice): one list, one editor, as many
+  places per note as lines, in the notation guides already use, so a list copied from a website
+  becomes markers as it is. Deleting a line deletes its marker; there's nothing else to keep in
+  step. The cost: one icon per note, and a place moves by editing its numbers.
+- **A line without a zone** takes the zone named above it, else where the player is (the player's
+  choice), and that zone is written into the line when the note is left: the text always says where
+  its places are. English zone names come from a static table, since guides are mostly in English
+  and the client only knows its own language's names.
+- **Alt+click always starts a new note** (the player's choice); more places are added as lines.
+- **`/way` only inside notes** (the player's choice): in chat it belongs to TomTom and others.
 - **Per character**, in the journal's file, so the backup carries them and the guard protects them.
   Account-wide markers (herb spots for an alt) would need the account file and a backup of their
   own.
 - **Not records.** Notes change and disappear; records don't. A table of their own keeps rollups,
   firsts and Your Year free of them, and needs no schema change.
-- **A Notes tab**, not a note on each day page: a notebook for reminders, routes and plans, which
+- **A Notes tab** (between Journal and Your Year), not a note on each day page: a notebook for reminders, routes and plans, which
   rarely belong to one day. Each note still knows the day it was written.
 - **Alt+click**: Ctrl+click is the default map's own pin, HandyNotes uses Alt+right-click.
 - **Raid target icons** for markers: in every client since Vanilla, recognizable at 18 pixels.
-- **No minimap markers and no waypoint yet**: the minimap needs its own math or a library, and
-  Forever's ruleset may turn the default map's pin off (`WorldMapTrackingPinDisabled`).
+- **No minimap markers and no waypoint yet**: the minimap needs its own math or a library. The
+  default map's pin is on in Forever (build 70291, §12 #14), so a note could offer "Set as waypoint"
+  later; the ruleset can still turn it off (`WorldMapTrackingPinDisabled`), so it would be checked.
 
 ### Landscape (for positioning)
 

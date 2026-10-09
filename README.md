@@ -81,13 +81,18 @@ open any time.
 
 - The journal's second tab is a notebook: *New note*, a title, and as much text as you like. Every
   word is saved as you type.
-- **Mark places on the map:** Alt+click the world map, name the spot, and a marker appears there,
-  on the zone and the continent map. Or type `/ws mark` to mark where you stand (`/ws mark Rare
-  spawn` names it).
-- A marker is a note with a place: hover over it to read it, click it to open it in the journal and
-  write more. Pick one of the eight raid icons for it.
-- *Show on the map* opens the map at a note's place. The map button's menu (or the settings) hides
-  your markers when you want a clean map.
+- **Places on the map, the way guides share them:** every line like `/way Elwynn Forest 49.0 86.4
+  The Kaldorei` in a note is a marker on the world map, on the zone and the continent map. Paste a
+  whole list from a website and every spot shows up, English zone names included on a German
+  client. One note can hold as many places as you like, like all the Hidden Books of a questline.
+- A line without a zone (`/way 49.0 86.4`) takes the zone of the line above it, or the zone you're
+  in, which Wayscribe writes into the line when you leave the note.
+- **Mark a spot yourself:** Alt+click the world map and name it, or type `/ws mark` where you stand
+  (`/ws mark Rare spawn` names it). Either starts a note with that spot's `/way` line.
+- Hover over a marker to read its label and its note; click it to open the note in the journal.
+  Pick one of the eight raid icons for a note's markers.
+- *Show on the map* opens the map at a note's first place. The map button's menu (or the settings)
+  hides your markers when you want a clean map.
 - Your notes belong to the character, and the backup and the text export include them.
 
 ### Login recap

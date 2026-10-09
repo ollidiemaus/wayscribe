@@ -238,6 +238,56 @@ function Compat.GetParentMap(mapID)
 end
 
 local ZONE_MAP_TYPE = 3 -- Enum.UIMapType.Zone
+local AZEROTH = 947      -- the top of Forever's maps (UiMap.db2 of build 70235)
+
+-- The top of the player's chain of maps (the world), or nil before the player's map is known.
+local function worldRoot()
+    local root = Compat.GetPlayerMapID()
+    for _ = 1, MAX_MAP_DEPTH do
+        local parent = root and Compat.GetParentMap(root)
+        if not parent then break end
+        root = parent
+    end
+    return root
+end
+
+-- A point of the world on a map: u, v from 0 to 1 (outside that range: off the map); or nil.
+function Compat.GetMapPosFromWorldPos(mapID, continentID, x, y)
+    if not (Compat.has.mapWorldPos and type(CreateVector2D) == "function") then return nil end
+    local _, position = Compat.Call(C_Map.GetMapPosFromWorldPos, continentID, CreateVector2D(x, y), mapID)
+    local u = type(position) == "table" and Compat.Safe(position.x, "number")
+    local v = type(position) == "table" and Compat.Safe(position.y, "number")
+    if not (u and v) then return nil end
+    return u, v
+end
+
+-- Zones first, then continents, then other maps with a place in the world (Enum.UIMapType); no
+-- worlds and dungeons.
+local NAME_PREFERENCE = { [3] = 1, [2] = 2, [6] = 3, [5] = 4 }
+
+-- Every map of the player's world by its name in the client's language, lowercased:
+-- { [name] = uiMapID } (the notes' /way lines, docs/ARCHITECTURE.md §4.9). nil without the API.
+function Compat.GetMapNames()
+    if not Compat.has.mapChildren then return nil end
+    local children = Compat.Call(C_Map.GetMapChildrenInfo, worldRoot() or AZEROTH, nil, true)
+    if type(children) ~= "table" or #children == 0 then
+        children = Compat.Call(C_Map.GetMapChildrenInfo, AZEROTH, nil, true) -- the player stands on no map
+    end
+    if type(children) ~= "table" then return nil end
+    local names, ranks = {}, {}
+    for _, info in ipairs(children) do
+        local mapID = type(info) == "table" and Compat.Safe(info.mapID, "number")
+        local rank = mapID and NAME_PREFERENCE[Compat.Safe(info.mapType, "number")]
+        local name = rank and (text(Compat.Safe(info.name, "string")) or Compat.GetMapName(mapID))
+        if name then
+            local key = name:lower()
+            if not ranks[key] or rank < ranks[key] then
+                names[key], ranks[key] = mapID, rank
+            end
+        end
+    end
+    return names
+end
 
 -- Every zone map of the world the player is in, as { map, c, minX, maxX, minY, maxY } in world
 -- yards: what "% of Azeroth walked" is measured against (docs/ARCHITECTURE.md §6.8). The zones
@@ -245,12 +295,7 @@ local ZONE_MAP_TYPE = 3 -- Enum.UIMapType.Zone
 -- player's map is known.
 function Compat.GetZoneRects()
     if not Compat.has.mapChildren then return nil end
-    local root = Compat.GetPlayerMapID()
-    for _ = 1, MAX_MAP_DEPTH do
-        local parent = root and Compat.GetParentMap(root)
-        if not parent then break end
-        root = parent
-    end
+    local root = worldRoot()
     if not root then return nil end
     local zoneType = type(Enum) == "table" and type(Enum.UIMapType) == "table" and Enum.UIMapType.Zone or ZONE_MAP_TYPE
     local children = Compat.Call(C_Map.GetMapChildrenInfo, root, zoneType, true)
