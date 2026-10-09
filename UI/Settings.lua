@@ -128,6 +128,13 @@ local function addNotes(category, layout)
         function(value) ns.NotesMap:SetShownOnMap(value) end)
 end
 
+local function addMaps(category, layout)
+    addHeader(layout, L.SETTINGS_MAPS)
+    addCheckbox(category, "DungeonMaps", L.SETTINGS_MAPS_SHOWN, L.SETTINGS_MAPS_SHOWN_TIP, true,
+        function() return ns.Options:Get("dungeonMaps") end,
+        function(value) ns.Options:Set("dungeonMaps", value) end)
+end
+
 local function confirmReset()
     confirm(RESET_POPUP, L.RESET_CONFIRM, function()
         if ns.Schema:ResetCharacter() then
@@ -159,6 +166,7 @@ function SettingsPanel:Register()
     addTracking(category, layout)
     addFootsteps(category, layout)
     addNotes(category, layout)
+    addMaps(category, layout)
     addData(layout)
     Settings.RegisterAddOnCategory(category)
     self.category = category

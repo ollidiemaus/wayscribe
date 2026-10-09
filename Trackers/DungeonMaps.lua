@@ -5,7 +5,8 @@ local L, Compat, Store, Charted = ns.L, ns.Compat, ns.Store, ns.Charted
 -- its fog lifts. The game gives addons no position inside instances, so these are the signals:
 -- arriving ("enter"), a boss engaged or killed (its encounterID: reaching a boss is enough, a wipe
 -- counts), and a subzone entered ("area:<areaID>"). Data/Charted.lua keeps them. When the last
--- section of a map lifts, the journal says so: "Charted Wailing Caverns completely".
+-- section of a map lifts, the journal says so: "Charted Wailing Caverns completely". With the maps
+-- hidden (a setting), all this goes on, so the maps are complete when they are shown again.
 local INSTANCE_EVENTS = { "ENCOUNTER_START", "ENCOUNTER_END", "BOSS_KILL", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS" }
 
 local function mapName(instanceID)
@@ -18,6 +19,7 @@ ns.RecordTypes:Register("DUNGEON_CHARTED", {
     category = "adventure",
     fields = { instanceID = "number" },
     firstKey = function(data) return "CHARTED:" .. data.instanceID end,
+    shown = function() return ns.Options:Get("dungeonMaps") end,
     render = function(data)
         return L.DUNGEON_CHARTED:format(mapName(data.instanceID))
     end,

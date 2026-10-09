@@ -12,6 +12,8 @@ local _, ns = ...
 --   markers   function(data, record) -> { { c, x, y, icon, title }, ... }: places on the world
 --             map (continent and world yards), drawn by the Footsteps map
 --   upcast    { [fromVersion] = function(data) -> data in version fromVersion + 1 }
+--   shown     function() -> boolean, false while a setting hides the type from the journal and
+--             the recap; its records stay
 local RecordTypes = { defs = {}, counters = {} }
 ns.RecordTypes = RecordTypes
 
@@ -168,6 +170,12 @@ end
 function RecordTypes:CategoryOf(typeName)
     local def = self.defs[typeName]
     return def and def.category or "misc"
+end
+
+-- Whether entries of this type show now (see `shown` above).
+function RecordTypes:IsShown(typeName)
+    local def = self.defs[typeName]
+    return not (def and def.shown) or def.shown() ~= false
 end
 
 function RecordTypes:CounterCategory(path)

@@ -233,6 +233,72 @@ describe("the Maps tab", function()
     end)
 end)
 
+describe("with the maps hidden", function()
+    local function entries(ns)
+        local texts = {}
+        for _, entry in ipairs(ns.DayView.Build(ns.Time.DayKey(Stubs.Now()), function() return true end).entries) do
+            texts[#texts + 1] = entry.text
+        end
+        return table.concat(texts, "\n")
+    end
+
+    local function chartAll(ns)
+        ns.Options:Set("dungeonMaps", false)
+        enter(RFC)
+        for _, id in ipairs(RFC_BOSSES) do kill(id) end
+    end
+
+    it("still charts in the background, and shows it all when they are back", function()
+        local ns = start()
+        chartAll(ns)
+        T.eq(ns.Charted:Progress(RFC), 1, "every room noted")
+        T.eq(#ns.Store:GetRecordsOfType("DUNGEON_CHARTED"), 1, "the entry is written")
+        T.falsy(entries(ns):find("Charted Ragefire Chasm completely", 1, true), "but not shown")
+        T.truthy(entries(ns):find("Defeated Boss", 1, true), "the kills are")
+        ns.Options:Set("dungeonMaps", true)
+        T.truthy(entries(ns):find("Charted Ragefire Chasm completely", 1, true))
+    end)
+
+    it("leave the entry out of the login recap", function()
+        local ns = start()
+        chartAll(ns)
+        Stubs.Advance(600)
+        ns = Stubs.Relog({ now = Stubs.Now() + 3600 })
+        local recap = ns.LoginRecap:Collect(true)
+        T.truthy(recap and #recap.lines > 0, "the run is recapped")
+        for _, line in ipairs(recap.lines) do
+            T.falsy(line:find("Charted", 1, true), line)
+        end
+    end)
+
+    it("have no Maps tab, and /ws map says how to show them", function()
+        local ns = start()
+        ns.Options:Set("dungeonMaps", false)
+        enter(RFC)
+        ns.Slash:Handle("map")
+        T.falsy(ns.Journal.ui.frame and ns.Journal.ui.frame:IsShown(), "no journal")
+        T.truthy(Stubs.Printed()[#Stubs.Printed()]:find("Dungeon maps are turned off", 1, true))
+        ns.Journal:Open()
+        T.falsy(_G.WayscribeJournalFrameTab3:IsShown())
+        T.eq(_G.WayscribeJournalFrameTab4.lastPoint[2], _G.WayscribeJournalFrameTab2, "Your Year next to Notes")
+        ns.Options:Set("dungeonMaps", true)
+        Stubs.Advance(0) -- the refresh on the next frame
+        T.truthy(_G.WayscribeJournalFrameTab3:IsShown())
+        T.eq(_G.WayscribeJournalFrameTab4.lastPoint[2], _G.WayscribeJournalFrameTab3)
+    end)
+
+    it("turn an open Maps tab to the journal", function()
+        local ns = start()
+        ns.Journal:OpenMaps()
+        T.eq(ns.Journal.state.tab, "maps")
+        ns.Options:Set("dungeonMaps", false)
+        Stubs.Advance(0)
+        T.eq(ns.Journal.state.tab, "journal")
+        T.truthy(ns.Journal.ui.journalLeft:IsShown())
+        T.falsy(ns.MapsView.ui.map.frame:IsShown())
+    end)
+end)
+
 describe("the backup", function()
     it("carries what the maps found", function()
         local ns = start()

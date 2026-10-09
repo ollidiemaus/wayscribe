@@ -968,6 +968,10 @@ control, so the page reads and writes `ns.Options` / `ns.Trackers` and never own
   confirmation popup).
 - **Notes:** show notes on the world map (`notesOnMap`, default on; the map button's menu has it
   too).
+- **Dungeon maps:** show dungeon maps (`dungeonMaps`, default on). Off, the journal has no Maps
+  tab, `/ws map` and its key binding say how to turn them on, and the "Charted … completely"
+  entries are hidden (a record type's `shown`). The tracker keeps noting rooms, so the maps are
+  complete when they come back; its own toggle under Tracking stops that.
 - **Data:** stats, error log, rebuild indexes, export, back up, restore, and reset (with a
   confirmation popup and a reload; reset deletes the trails too).
 

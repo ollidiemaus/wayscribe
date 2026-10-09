@@ -73,6 +73,10 @@ So far only Ragefire Chasm, Wailing Caverns, the Deadmines and the Hall of Thane
   "Todesminen". Note whether the map's printed labels ("Goblin Foundry") show in German.
 - [ ] **Hall of Thanes.** Run it. → The map is the hall seen from above (the game's minimap images).
   Note whether each boss's room cleared where you fought it: Faldrim, Infurnus, Plunder, Durgen.
+- [ ] **Hidden.** Turn off *Show dungeon maps* (Options > AddOns > Wayscribe > Dungeon maps), then
+  pull a boss you haven't reached. → No *Maps* tab, Your Year sits next to Notes; `/ws map` and the
+  key binding print "Dungeon maps are turned off …". Turn it back on. → The tab is back and the
+  boss's room is clear.
 - [ ] **Look.** Note what the fog looks like: too dark, too blocky, does the edge read as unexplored?
   A screenshot helps.
 

@@ -225,3 +225,6 @@ instead, Forever gives positions after all, and the fog could follow your steps.
 3. **Reaching a boss reveals its room.** `ENCOUNTER_START` counts, a wipe included.
 4. **Dungeons first.** Raids come in a later release.
 5. **Forever's new instances are in 0.8 too**, as good as their minimap images allow.
+6. **The maps can be hidden** for players who want the game without them: *Show dungeon maps* in
+   the settings. The tracking goes on in the background, so turning the maps back on shows
+   everything found meanwhile.
