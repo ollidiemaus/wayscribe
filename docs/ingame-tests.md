@@ -168,7 +168,7 @@ world map.
 ## Already verified
 
 Done on builds 70235, 70245 and 70291 (2026-10-06 to 09); no need to repeat. Details are in
-[ARCHITECTURE.md §12](ARCHITECTURE.md#12-verify-on-the-forever-beta-run-ws-probe) and
+[ARCHITECTURE.md §12](architecture/12-forever-beta.md) and
 [forever-probe.md](forever-probe.md).
 
 - **Probe:** all needed APIs, events, gather and travel spell names, and the libraries are there. A

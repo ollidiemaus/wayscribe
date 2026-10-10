@@ -1,7 +1,7 @@
 # Forever probe results
 
 Output of `/ws probe`, copied from `WayscribeDB.probe` in the account SavedVariables file.
-The interpretation is in [ARCHITECTURE.md §12](ARCHITECTURE.md#12-verify-on-the-forever-beta-run-ws-probe).
+The interpretation is in [ARCHITECTURE.md §12](architecture/12-forever-beta.md).
 
 ## Client 1.60.1, build 70235 (2026-10-06)
 

@@ -4,7 +4,7 @@ Notes for working on the addon. What it does for players is in the [README](../R
 
 | Document | What's in it |
 |---|---|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | How the addon is built and why: layers, data layout, trackers, UI, decisions |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | How the addon is built and why: principles, layers and an index of the sections in [architecture/](architecture/) (data layout, trackers, UI, decisions) |
 | [ingame-tests.md](ingame-tests.md) | The checks that need the real Forever client, and which are still open |
 | [forever-probe.md](forever-probe.md) | Raw `/ws probe` output from the Forever beta |
 
