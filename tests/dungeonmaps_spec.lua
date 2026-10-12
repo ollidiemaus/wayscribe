@@ -280,7 +280,7 @@ describe("with the maps hidden", function()
         T.truthy(Stubs.Printed()[#Stubs.Printed()]:find("Dungeon maps are turned off", 1, true))
         ns.Journal:Open()
         T.falsy(_G.WayscribeJournalFrameTab3:IsShown())
-        T.eq(_G.WayscribeJournalFrameTab4.lastPoint[2], _G.WayscribeJournalFrameTab2, "Your Year next to Notes")
+        T.eq(_G.WayscribeJournalFrameTab4.lastPoint[2], _G.WayscribeJournalFrameTab2, "Duels next to Notes")
         ns.Options:Set("dungeonMaps", true)
         Stubs.Advance(0) -- the refresh on the next frame
         T.truthy(_G.WayscribeJournalFrameTab3:IsShown())

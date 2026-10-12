@@ -33,7 +33,7 @@ Today · played 2 h 10 min
 - The day list on the left, grouped by month; the selected day on the right. Turn the pages like a
   book.
 - Firsts are marked: your first kill of a boss, your first clear of a dungeon.
-- Filters for Progress, Adventure, Quests, Gathering and Travel.
+- Filters for Progress, Adventure, Quests, Gathering, Travel and PvP.
 - Full dates in English or German, times in your game's 12- or 24-hour clock.
 
 ### What it records
@@ -51,6 +51,7 @@ Today · played 2 h 10 min
   quests and storylines like The Defias Brotherhood or the redemption of Tirion Fordring. Chains
   added in a later version are filled in for the day you finished them.
 - **Deaths:** where and when.
+- **Duels:** who you dueled, their class and level, and who won, or who fled.
 - **Journeys:** hearthstone, Astral Recall, mage teleports and transporters, from where to where.
 - **Distance:** how far you walked, rode and flew each day.
 
@@ -89,11 +90,18 @@ Every tracker can be turned off in the settings.
   entries are gone. Wayscribe keeps noting the rooms you reach, so your maps are complete if you
   ever turn them back on.
 
+### Duels
+
+- Every duel you finish is in the journal: "Won a duel against Kangal Mooran (Warrior, level 6)".
+- The journal's **Duels** tab adds them up: your record, how you fare against each class, and
+  every opponent with your duels against them.
+- Your Year gets a Duels card: your rival, your nemesis, and your easiest and toughest class.
+
 ### Your Year
 
 The journal's last tab looks back on your year with a card for each part of it: the year at a
 glance, levels, dungeons and raids, bosses, your most frequent companions, deaths and the most
-dangerous place, gathering, professions, quests and quest chains, footsteps (with how much of
+dangerous place, duels, gathering, professions, quests and quest chains, footsteps (with how much of
 Azeroth you walked), and time played.
 
 A year opens on December 1, with a "Your 2026 is ready!" message at your first login. Past years
@@ -151,6 +159,7 @@ The settings are under Options > AddOns > Wayscribe, or `/ws settings`.
 | `/ws notes` | Open your notes |
 | `/ws mark` | Mark where you stand on the map (`/ws mark Rare spawn` gives it a title) |
 | `/ws map` | Open the map of the dungeon you're in; elsewhere, your dungeon maps |
+| `/ws duels` | Open your duels |
 | `/ws recap` | Show the last session again |
 | `/ws export` | The journal as text to copy (`month`, `year` or `all`, the default) |
 | `/ws backup` | A backup of this character's journal and footsteps, to copy and keep |

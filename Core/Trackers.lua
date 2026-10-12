@@ -60,4 +60,6 @@ function Trackers:SetWanted(id, wanted)
     else
         tracker:Disable()
     end
+    -- The journal shows some tabs only while their tracker is on.
+    ns.Bus:Fire("SETTINGS_CHANGED", "tracker:" .. id, wanted == true)
 end

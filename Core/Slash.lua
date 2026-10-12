@@ -52,6 +52,11 @@ commands.map = function()
     ns.Journal:ShowMap()
 end
 
+-- /ws duels: the journal's Duels tab.
+commands.duels = function()
+    ns.Journal:OpenDuels()
+end
+
 -- /ws mark [title]: a note whose text is the /way line of where the player stands, so a marker
 -- on the world map. Its title is the one given, else the subzone's or the zone's name.
 commands.mark = function(rest)

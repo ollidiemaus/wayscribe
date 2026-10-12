@@ -8,9 +8,9 @@ local L, Compat, Store, Time, RecordTypes, Theme, DayView =
 -- turn to the next older or newer one. The list is a virtualized ScrollBox where the client has
 -- one; otherwise a fixed set of rows follows the selection. A second tab, Notes
 -- (UI/NotesView.lua), holds the player's own notes; a third, Maps (UI/MapsView.lua), the dungeon
--- maps the character uncovered (unless a setting hides them); a fourth, Your Year
--- (UI/YourYear.lua), draws the yearly recap into the same book and turns its cards with the same
--- page buttons.
+-- maps the character uncovered (unless a setting hides them); a fourth, Duels (UI/DuelsView.lua),
+-- the duels added up (while the Duels tracker is on); a fifth, Your Year (UI/YourYear.lua), draws
+-- the yearly recap into the same book and turns its cards with the same page buttons.
 local Journal = {}
 ns.Journal = Journal
 
@@ -23,7 +23,7 @@ local ROW_HEIGHT = 24
 local CHIP_HEIGHT = 20
 local CHIP_WIDTH = 96
 local GOLD, GREY = { 1, 0.82, 0 }, { 0.5, 0.5, 0.5 } -- text on the frame's dark top bar
-local TABS = { "journal", "notes", "maps", "year" }
+local TABS = { "journal", "notes", "maps", "duels", "year" }
 local STRATA = "HIGH"
 local STRATA_ORDER = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6, FULLSCREEN_DIALOG = 7 }
 local TAB_WIDTH = 110 -- without the default UI's tab template
@@ -32,7 +32,7 @@ local ui = {}
 Journal.ui = ui
 -- days: visible day keys, newest first; elements: the list rows (month headings and days);
 -- byDay: dayKey -> its element; selected: the day on the right page; tab: "journal", "notes",
--- "maps" or "year".
+-- "maps", "duels" or "year".
 local state = { days = {}, elements = {}, byDay = {}, listDirty = true, tab = "journal" }
 Journal.state = state
 
@@ -319,6 +319,12 @@ local function showMapsPage()
     showPageControls(floor, count, floor ~= nil and floor > 1, floor ~= nil and floor < count)
 end
 
+-- The page buttons step through the opponents.
+local function showDuelsPage()
+    local index, count = ns.DuelsView:Refresh(ui.paperWidth, ui.paperHeight)
+    showPageControls(index, count, index ~= nil and index > 1, index ~= nil and index < count)
+end
+
 local function showTooltip(button)
     if not GameTooltip then return end
     GameTooltip:SetOwner(button, "ANCHOR_TOP")
@@ -503,6 +509,7 @@ local function createPages(frame)
     ns.YourYear:Create(ui.listPaper, ui.rightPaper)
     ns.NotesView:Create(ui.listPaper, ui.rightPaper)
     ns.MapsView:Create(ui.listPaper, ui.rightPaper)
+    ns.DuelsView:Create(ui.listPaper, ui.rightPaper)
 end
 
 -- The rims scale with the page, so the paper, the filter and the banner move on every resize.
@@ -537,24 +544,38 @@ end
 ------------------------------------------------------------------------------------------------
 -- Tabs: the default UI's tabs under the frame, or plain buttons there.
 
-local TAB_LABELS = { journal = L.TAB_JOURNAL, year = L.TAB_YOUR_YEAR, notes = L.TAB_NOTES, maps = L.TAB_MAPS }
+local TAB_LABELS = {
+    journal = L.TAB_JOURNAL, year = L.TAB_YOUR_YEAR, notes = L.TAB_NOTES, maps = L.TAB_MAPS, duels = L.TAB_DUELS,
+}
 local PAGE_TIPS = {
     journal = { L.PAGE_OLDER, L.PAGE_NEWER },
     year = { L.PAGE_PREVIOUS, L.PAGE_NEXT },
     notes = { L.PAGE_OLDER_NOTE, L.PAGE_NEWER_NOTE },
     maps = { L.PAGE_FLOOR_UP, L.PAGE_FLOOR_DOWN },
+    duels = { L.PAGE_DUELS_UP, L.PAGE_DUELS_DOWN },
 }
 
 local function mapsShown()
     return ns.Options:Get("dungeonMaps") == true
 end
 
--- The tabs sit where Mainline's CharacterFrame puts its own. The Maps tab is there only while the
--- maps are shown; the tabs after it close the gap.
+local function duelsShown()
+    local tracker = ns.Trackers:Get("Duels")
+    return tracker ~= nil and ns.Trackers:IsWanted(tracker)
+end
+
+-- Whether the tab is there: Maps while the maps are shown, Duels while duels are noted.
+local function tabShown(id)
+    if id == "maps" then return mapsShown() end
+    if id == "duels" then return duelsShown() end
+    return true
+end
+
+-- The tabs sit where Mainline's CharacterFrame puts its own. A hidden tab leaves no gap.
 local function layoutTabs()
     local previous
     for _, tab in ipairs(ui.tabs) do
-        local shown = tab.tabId ~= "maps" or mapsShown()
+        local shown = tabShown(tab.tabId)
         tab:SetShown(shown)
         if shown then
             tab:ClearAllPoints()
@@ -640,8 +661,8 @@ end
 function Journal:Refresh()
     state.refreshPending = false
     if not ui.frame or not ui.frame:IsShown() then return end
-    if state.tab == "maps" and not mapsShown() then
-        state.tab = "journal" -- the maps were just hidden
+    if not tabShown(state.tab) then
+        state.tab = "journal" -- the maps or the duels were just hidden
         state.listDirty = true
     end
     layoutPages()
@@ -654,8 +675,13 @@ function Journal:Refresh()
     ns.YourYear:SetShown(state.tab == "year")
     ns.NotesView:SetShown(state.tab == "notes")
     ns.MapsView:SetShown(state.tab == "maps")
+    ns.DuelsView:SetShown(state.tab == "duels")
     if state.tab == "maps" then
         showMapsPage()
+        return
+    end
+    if state.tab == "duels" then
+        showDuelsPage()
         return
     end
     if state.tab == "year" then
@@ -703,6 +729,9 @@ function Journal:Turn(step)
     elseif state.tab == "maps" then
         if not ns.MapsView:Turn(step) then return end
         showMapsPage()
+    elseif state.tab == "duels" then
+        if not ns.DuelsView:Turn(step) then return end
+        showDuelsPage()
     else
         local index = indexOf(state.days, state.selected)
         local target = index and state.days[index + step]
@@ -792,6 +821,20 @@ function Journal:OpenMaps(instanceID, unfolded)
         ns.MapsView.state.unfolded = unfolded == true
     end
     state.tab = "maps"
+    showWindow()
+end
+
+-- Opens the duels at all of them (/ws duels). With the Duels tracker off, says how to turn it on.
+function Journal:OpenDuels()
+    if not duelsShown() then
+        ns.Print(L.DUELS_OFF)
+        return
+    end
+    if not ui.frame then
+        createWindow()
+    end
+    ns.DuelsView:Select(nil)
+    state.tab = "duels"
     showWindow()
 end
 

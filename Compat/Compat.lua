@@ -154,6 +154,93 @@ function Compat.GetPlayerIdentity()
     return info
 end
 
+-- unitInfo plus the unit's level (nil when unknown, e.g. "??" for a much higher level).
+function Compat.GetUnitIdentity(unit)
+    local info = unitInfo(unit)
+    local level = Compat.Call(UnitLevel, unit)
+    info.level = type(level) == "number" and level > 0 and level or nil
+    return info
+end
+
+-- Where the client may know a player who isn't in the group: target, mouseover, focus, soft
+-- targets, nameplates.
+local NEARBY_UNITS = { "target", "mouseover", "focus", "softenemy", "softfriend", "softinteract" }
+for i = 1, 40 do NEARBY_UNITS[#NEARBY_UNITS + 1] = "nameplate" .. i end
+
+-- The identity of a nearby player called `name` (as GetUnitIdentity names them, or by the first
+-- name alone), or nil.
+function Compat.FindNearbyPlayer(name)
+    name = text(Compat.Safe(name))
+    if not name then return nil end
+    for _, unit in ipairs(NEARBY_UNITS) do
+        if Compat.Call(UnitIsPlayer, unit) == true then
+            local info = Compat.GetUnitIdentity(unit)
+            if info.guid and (info.name == name or text(Compat.Call(UnitName, unit)) == name) then
+                return info
+            end
+        end
+    end
+    return nil
+end
+
+-- "Warrior" for "WARRIOR", in the client's language; nil when unknown.
+function Compat.GetClassName(classFile)
+    local names = LOCALIZED_CLASS_NAMES_MALE
+    return type(names) == "table" and text(classFile and names[classFile]) or nil
+end
+
+-- r, g, b of a class's color, or nil.
+function Compat.GetClassColor(classFile)
+    local colors = RAID_CLASS_COLORS
+    local color = type(colors) == "table" and classFile and colors[classFile]
+    if type(color) ~= "table" or type(color.r) ~= "number" then return nil end
+    return color.r, color.g, color.b
+end
+
+-- "%1$s has defeated %2$s in a duel" -> "^(.+) has defeated (.+) in a duel$" and { 1, 2 }: a Lua
+-- pattern for lines made from a format string. Captures come back in text order; `order` says
+-- which argument each one is (German puts "fled from" the other way round). %s and %d only.
+local MAGIC = "[%^%$%(%)%%%.%[%]%*%+%-%?]"
+function Compat.FormatToPattern(format)
+    local parts, order = { "^" }, {}
+    local position = 1
+    while true do
+        local first, last, index, kind = format:find("%%(%d*)%$?([sd])", position)
+        if not first then break end
+        parts[#parts + 1] = format:sub(position, first - 1):gsub(MAGIC, "%%%0")
+        order[#order + 1] = tonumber(index) or #order + 1
+        parts[#parts + 1] = kind == "d" and "(%-?%d+)" or "(.+)"
+        position = last + 1
+    end
+    parts[#parts + 1] = format:sub(position):gsub(MAGIC, "%%%0")
+    parts[#parts + 1] = "$"
+    return table.concat(parts), order
+end
+
+local parsers = {}
+
+-- The arguments a line made from the client's global string `key` was formatted with, by their
+-- position in the format; nil when `line` isn't one. The client's own strings make this work in
+-- every language.
+function Compat.ParseGlobalString(key, line)
+    line = Compat.Safe(line, "string")
+    if not line then return nil end
+    local parser = parsers[key]
+    if parser == nil then
+        local format = Compat.Safe(_G[key], "string")
+        parser = format and { Compat.FormatToPattern(format) } or false
+        parsers[key] = parser
+    end
+    if not parser then return nil end
+    local captures = { line:match(parser[1]) }
+    if #captures == 0 then return nil end
+    local values = {}
+    for i, index in ipairs(parser[2]) do
+        values[index] = captures[i]
+    end
+    return values
+end
+
 function Compat.GetPlayerLevel()
     local level = Compat.Call(UnitLevel, "player")
     return type(level) == "number" and level > 0 and level or nil

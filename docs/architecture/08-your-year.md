@@ -20,12 +20,14 @@ The yearly recap, shown as the journal's third tab: "Your Year" / "Dein Jahr", e
   entries) · *Levels* (+N, from → to, the day the highest was reached) · *Dungeons and raids* (runs
   completed, how many different, most often, its first clear, visits without the final boss) ·
   *Bosses* (defeated, how many for the first time) · *Companions* (how many, top 3 with runs
-  together) · *Deaths* (how many, the most dangerous zone) · *Gathering* (nodes, items, top item) ·
+  together) · *Deaths* (how many, the most dangerous zone) · *Duels* (won and lost, the most
+  frequent opponent, the nemesis, the easiest and toughest class) · *Gathering* (nodes, items, top
+  item) ·
   *Professions* (skill points, learned, highest ranks, gains per profession) · *Quests* (turned in,
   curated chains by name) · *Footsteps* (distance over land, flight paths, journeys by hearthstone,
   % of Azeroth walked and the most walked zone) · *Time played* (total, sessions, most active
   month and day, longest session).
-- **Shown in the journal**, as its third tab (§7.1): years on the left, the card on the right, the
+- **Shown in the journal**, as its last tab (§7.1): years on the left, the card on the right, the
   page buttons turn cards like a slideshow ("Page 3/11").
 - **Opens on December 1.** Past years open any time; the current year from December 1. Developer
   mode (`/ws dev`) previews it early, marked "preview".

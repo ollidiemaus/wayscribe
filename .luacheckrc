@@ -39,8 +39,9 @@ read_globals = {
     "GetBuildInfo", "GetLocale", "GetRealmName", "WOW_PROJECT_ID",
     "UnitGUID", "UnitFullName", "UnitName", "UnitClass", "UnitLevel", "UnitPosition", "UnitOnTaxi", "UnitIsDeadOrGhost",
     "IsInRaid", "GetNumGroupMembers", "GetNumSubgroupMembers", "GetTime",
-    -- Duels (Compat/DuelTrace.lua)
+    -- Duels and other players
     "StartDuel", "UnitExists", "GetUnitName", "UnitRace", "UnitCanAttack", "UnitHealth", "UnitHealthMax",
+    "UnitIsPlayer", "LOCALIZED_CLASS_NAMES_MALE", "RAID_CLASS_COLORS",
     "GetInstanceInfo", "GetProfessions", "GetProfessionInfo", "GetNumSkillLines", "GetSkillLineInfo",
     "GetSpellInfo", "GetSpellTexture", "GetSubZoneText", "GetAddOnMetadata", "GetCVar",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "GetLootSourceInfo",

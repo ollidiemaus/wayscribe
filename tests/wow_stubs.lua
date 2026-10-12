@@ -152,17 +152,18 @@ function Stubs.Texts(frame)
     return texts
 end
 
-local function unitGuid(unit)
-    if unit == "player" then return state.player.guid end
-    local index = tonumber(unit:match("^party(%d)$") or unit:match("^raid(%d+)$"))
-    local member = index and state.group[index]
-    return member and member.guid
-end
-
+-- Players other than the group: Stubs.SetUnit("target", { guid, name, surname, class, level }).
 local function unitMember(unit)
+    if type(unit) ~= "string" then return nil end
     if unit == "player" then return state.player end
+    if state.units[unit] then return state.units[unit] end
     local index = tonumber(unit:match("^party(%d)$") or unit:match("^raid(%d+)$"))
     return index and state.group[index]
+end
+
+local function unitGuid(unit)
+    local member = unitMember(unit)
+    return member and member.guid
 end
 
 -- Unit names: name and realm (UnitName leaves out the player's realm). With opts.surname the names
@@ -194,7 +195,13 @@ local function installUnits(opts)
         local member = unitMember(unit)
         if member then return member.class, member.class end
     end
-    _G.UnitLevel = function() return state.level end
+    _G.UnitLevel = function(unit)
+        local member = unitMember(unit)
+        if member and member ~= state.player then return member.level or 0 end
+        return state.level
+    end
+    _G.UnitIsPlayer = function(unit) return unitMember(unit) ~= nil end
+    _G.UnitExists = function(unit) return unitMember(unit) ~= nil end
     -- UnitPosition: x, y, z, instance (the continent); nil when no position is set.
     _G.UnitPosition = function(unit)
         local position = unit == "player" and state.position
@@ -412,6 +419,7 @@ function Stubs.Install(opts)
         cvars = {},
         tickers = {},
         keys = {},
+        units = {},
     }
     Stubs.state = state
     for name in pairs(Stubs.namedFrames) do
@@ -437,6 +445,9 @@ function Stubs.Install(opts)
     _G.StartDuel = function() end
     _G.DUEL_WINNER_KNOCKOUT = "%1$s has defeated %2$s in a duel"
     _G.DUEL_WINNER_RETREAT = "%2$s has fled from %1$s in a duel"
+    _G.DUEL_COUNTDOWN = "Duel starting: %d"
+    _G.LOCALIZED_CLASS_NAMES_MALE = { WARRIOR = "Warrior", MAGE = "Mage", ROGUE = "Rogue", PRIEST = "Priest" }
+    _G.RAID_CLASS_COLORS = { WARRIOR = { r = 0.78, g = 0.61, b = 0.43 }, MAGE = { r = 0.25, g = 0.78, b = 0.92 } }
     _G.GetLocale = function() return opts.locale or "enUS" end
     _G.GetBuildInfo = function() return "1.60.1", "70009", "Oct 1 2026", opts.interface or 16001 end
     _G.WOW_PROJECT_ID, _G.WOW_PROJECT_MAINLINE = 1, 1
@@ -641,6 +652,7 @@ function Stubs.Focus() return state.focus end
 
 -- Group members other than the player: list of { guid, name, realm, class }.
 function Stubs.SetGroup(members) state.group = members end
+function Stubs.SetUnit(unit, member) state.units[unit] = member end
 
 -- Learned professions: list of { skillLine, name, rank, max } (slots prof1, prof2).
 function Stubs.SetProfessions(list) state.professions = list end

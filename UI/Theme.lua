@@ -60,6 +60,7 @@ local CATEGORIES = {
     quests = { order = 3, color = { 0.62, 0.42, 0.04 } },
     gathering = { order = 4, color = { 0.20, 0.42, 0.16 } },
     travel = { order = 5, color = { 0.12, 0.38, 0.42 } },
+    pvp = { order = 6, color = { 0.42, 0.20, 0.50 } },
 }
 local OTHER = { order = 99, color = Theme.INK_FADED }
 

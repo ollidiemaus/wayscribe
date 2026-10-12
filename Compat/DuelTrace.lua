@@ -108,37 +108,12 @@ local function matchName(name, unit)
     return labels[1] and table.concat(labels, "/") or nil
 end
 
--- "%1$s has defeated %2$s in a duel" -> "^(.+) has defeated (.+) in a duel$" and { 1, 2 }. Captures
--- come back in text order; `order` says which %n$s each one is (German puts them the other way round).
-local MAGIC = "[%^%$%(%)%%%.%[%]%*%+%-%?]"
-function DuelTrace.FormatToPattern(format)
-    local parts, order = { "^" }, {}
-    local position = 1
-    while true do
-        local first, last, index = format:find("%%(%d*)%$?s", position)
-        if not first then break end
-        parts[#parts + 1] = format:sub(position, first - 1):gsub(MAGIC, "%%%0")
-        order[#order + 1] = tonumber(index) or #order + 1
-        parts[#parts + 1] = "(.+)"
-        position = last + 1
-    end
-    parts[#parts + 1] = format:sub(position):gsub(MAGIC, "%%%0")
-    parts[#parts + 1] = "$"
-    return table.concat(parts), order
-end
-
 -- The result string `text` matches, with the winner and the loser; nil for any other line.
 local function matchResult(text)
     for _, key in ipairs(RESULT_STRINGS) do
-        local format = Compat.Safe(_G[key], "string")
-        if format then
-            local pattern, order = DuelTrace.FormatToPattern(format)
-            local captures = { text:match(pattern) }
-            if #captures > 0 then
-                local byIndex = {}
-                for i, index in ipairs(order) do byIndex[index] = captures[i] end
-                return key, byIndex[1], byIndex[2]
-            end
+        local values = Compat.ParseGlobalString(key, text)
+        if values then
+            return key, values[1], values[2]
         end
     end
 end

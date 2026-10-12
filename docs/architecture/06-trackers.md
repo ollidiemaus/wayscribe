@@ -157,3 +157,30 @@ second entry, and it falls back to `UnitLevel` when the event argument is secret
   Today / Last 7 days / All / picked day as the trails), through the record type's `markers`
   (§6.8).
 - The month rollup counts deaths (per type) and deaths per map, for Your Year's most dangerous place.
+
+## 6.10 Duels
+`Trackers/Duels.lua`. Found out in game with the duel log (`/ws duellog`, §12 row 15).
+- **Records** `DUEL {p?, name?, cls?, lv?, ml?, won, fled?, death?, dur?, map?, sub?}` in the
+  journal (new category *pvp*). It is rendered "Won a duel against Kangal Mooran (Warrior, level 6)",
+  "Fled from a duel against …" or "Lost a duel to the death against …". `p` is the opponent in
+  `Players` (by GUID). `name` is used only when they were never seen as a unit. `cls` and `lv` are
+  as seen at that duel, `ml` is the player's level, and `dur` is the seconds since the countdown
+  ended.
+- **The challenge names the opponent.** When the player challenges, there is no event:
+  `StartDuel(unit, true[, toTheDeath])` is post-hooked (the unit menu, `/duel Name`, the
+  duel-to-the-death dialog), and the unit's identity is read there. When the player is
+  challenged, `DUEL_REQUESTED(name)` / `DUEL_TO_THE_DEATH_REQUESTED(name)` gives only the name. It
+  is looked up among nearby units (`Compat.FindNearbyPlayer`: target, mouseover, focus, the soft
+  targets, nameplates) and looked up again when the duel ends, if still missing.
+- **The result is a chat line.** `DUEL_FINISHED` has no payload. The system chat line that follows
+  it in the same frame names the winner first in both global strings ("%1$s has defeated %2$s in a
+  duel", "%2$s has fled from %1$s in a duel"). It is parsed through the client's own strings
+  (`Compat.ParseGlobalString`), so every language works. Names are "First Surname", like
+  `GetUnitName`. A line about two other players is someone else's duel.
+- **System chat is listened to only while a duel is pending**: from the challenge until 3 s after
+  `DUEL_FINISHED`, or 30 min without one. A declined or expired challenge ends without a result
+  line and leaves no entry. The countdown line (`DUEL_COUNTDOWN`) sets the duel's start.
+- **The month rollup** counts wins, and duels and wins per class and per opponent, for Your Year's
+  card: the result, the most frequent opponent, the nemesis (most losses), and the easiest and
+  toughest class (at least 3 duels against it). The journal's **Duels** tab (§7.1) counts from the
+  records themselves, for all time.
