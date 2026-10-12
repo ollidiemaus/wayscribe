@@ -24,7 +24,7 @@ globals = {
 -- WoW API the addon reads. Keep this list explicit: an unexpected global is usually a typo.
 read_globals = {
     -- Lua extensions in the WoW client
-    "date", "time", "tinsert", "issecretvalue", "geterrorhandler", "debugprofilestop",
+    "date", "time", "tinsert", "issecretvalue", "geterrorhandler", "debugprofilestop", "hooksecurefunc",
     -- Frames and UI
     "CreateFrame", "UIParent", "UISpecialFrames", "DEFAULT_CHAT_FRAME",
     "CreateScrollBoxListLinearView", "CreateDataProvider", "ScrollUtil", "ScrollBoxConstants",
@@ -38,7 +38,9 @@ read_globals = {
     -- Client and player info
     "GetBuildInfo", "GetLocale", "GetRealmName", "WOW_PROJECT_ID",
     "UnitGUID", "UnitFullName", "UnitName", "UnitClass", "UnitLevel", "UnitPosition", "UnitOnTaxi", "UnitIsDeadOrGhost",
-    "IsInRaid", "GetNumGroupMembers", "GetNumSubgroupMembers",
+    "IsInRaid", "GetNumGroupMembers", "GetNumSubgroupMembers", "GetTime",
+    -- Duels (Compat/DuelTrace.lua)
+    "StartDuel", "UnitExists", "GetUnitName", "UnitRace", "UnitCanAttack", "UnitHealth", "UnitHealthMax",
     "GetInstanceInfo", "GetProfessions", "GetProfessionInfo", "GetNumSkillLines", "GetSkillLineInfo",
     "GetSpellInfo", "GetSpellTexture", "GetSubZoneText", "GetAddOnMetadata", "GetCVar",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "GetLootSourceInfo",

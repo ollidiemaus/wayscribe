@@ -112,6 +112,23 @@ commands.log = function()
     end
 end
 
+-- The duel trace (Compat/DuelTrace.lua, developer mode): its last lines, or `clear` to start over.
+commands.duellog = function(rest)
+    if rest:lower() == "clear" then
+        ns.accountDB.duelTrace = nil
+        ns.Print(L.DUEL_LOG_CLEARED)
+        return
+    end
+    local lines = ns.accountDB.duelTrace or {}
+    if #lines == 0 then
+        ns.Print(ns.devMode and L.DUEL_LOG_EMPTY or L.DUEL_LOG_NEEDS_DEV)
+        return
+    end
+    for i = math.max(1, #lines - 19), #lines do
+        ns.Print(lines[i])
+    end
+end
+
 commands.rebuild = function()
     local total = ns.Store:Rebuild()
     if total then
