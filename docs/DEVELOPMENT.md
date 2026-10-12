@@ -55,6 +55,7 @@ it in.
 |---|---|
 | `/ws dev` | Toggle developer mode: errors also go to BugSack; enables `simulate` and `backup sample`; previews this year's Your Year before December |
 | `/ws probe` | Which game APIs this client offers and what they return right now. Saved to `WayscribeDB.probe`; paste it into [forever-probe.md](forever-probe.md) |
+| `/ws duellog` | The duel log's last 20 lines; `clear` empties it. In developer mode every duel event is printed with its raw values (secret ones as `<secret>`) and kept in `WayscribeDB.duelTrace` (200 lines), to learn what a duel tracker can use |
 | `/ws simulate LEVEL_UP level=12` | Add a test entry through the real write path (any record type, `key=value` fields) |
 | `/ws simulate clear` | Remove all simulated entries |
 | `/ws backup sample [days]` | The backup of a made-up year (365 days by default), to time the clipboard with; it can be checked but not restored |
@@ -66,7 +67,7 @@ it in.
 
 | File | Holds |
 |---|---|
-| `WTF/Account/<account>/SavedVariables/Wayscribe.lua` | `WayscribeDB`: settings, error log, the last probe, one canary per character |
+| `WTF/Account/<account>/SavedVariables/Wayscribe.lua` | `WayscribeDB`: settings, error log, the last probe, the duel log, one canary per character |
 | `WTF/Account/<account>/<realm>/<character>/SavedVariables/Wayscribe.lua` | `WayscribeCharDB` (the journal) and `WayscribeFootstepsDB` (the trails) |
 
 The client writes these files only on logout and `/reload`. Trails are packed strings; to decode

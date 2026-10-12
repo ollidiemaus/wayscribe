@@ -31,6 +31,7 @@ Core\Trackers.lua
 
 Compat\Compat.lua
 Compat\Probe.lua
+Compat\DuelTrace.lua
 
 Data\Codec.lua
 Data\RecordTypes.lua

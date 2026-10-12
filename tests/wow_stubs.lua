@@ -183,6 +183,12 @@ local function installUnits(opts)
     _G.UnitGUID = unitGuid
     _G.UnitFullName = function(unit) return unitNames(unit, true) end
     _G.UnitName = function(unit) return unitNames(unit, false) end
+    -- On Forever "First Surname"; elsewhere just the name, enough for the specs.
+    _G.GetUnitName = function(unit)
+        local name, second = unitNames(unit, false)
+        if name and state.player.surname and second then return name .. " " .. second end
+        return name
+    end
     _G.GetRealmName = function() return state.player.realm end
     _G.UnitClass = function(unit)
         local member = unitMember(unit)
@@ -419,7 +425,18 @@ function Stubs.Install(opts)
         return state.now
     end
     _G.date = os.date
+    _G.GetTime = function() return state.now end
     _G.issecretvalue = function(value) return value == Stubs.SECRET end
+    _G.hooksecurefunc = function(name, hook)
+        local original = _G[name]
+        _G[name] = function(...)
+            original(...)
+            hook(...)
+        end
+    end
+    _G.StartDuel = function() end
+    _G.DUEL_WINNER_KNOCKOUT = "%1$s has defeated %2$s in a duel"
+    _G.DUEL_WINNER_RETREAT = "%2$s has fled from %1$s in a duel"
     _G.GetLocale = function() return opts.locale or "enUS" end
     _G.GetBuildInfo = function() return "1.60.1", "70009", "Oct 1 2026", opts.interface or 16001 end
     _G.WOW_PROJECT_ID, _G.WOW_PROJECT_MAINLINE = 1, 1

@@ -165,6 +165,18 @@ world map.
      is on the map with its icon.
   5. Log out. → A new `Wayscribe.lua` is in that `SavedVariables` folder.
 
+## Duels
+
+Research for a duel tracker: nothing is recorded in the journal yet. With developer mode on
+(`/ws dev`), Wayscribe logs every duel event to the chat (lines starting with "duel") and keeps the
+log for the next `/reload`.
+
+- [ ] **One duel each way.** Challenge someone (right-click their portrait > *Duel*) and fight until
+  one of you gives up. Then accept a duel someone else starts, and run out of bounds until you
+  flee. `/reload` afterwards. → Chat lines starting with "duel" during both; `/ws log` stays empty.
+- [ ] **A challenge from someone you don't have targeted.** Clear your target (Esc) before the
+  challenge comes in. → A "duel" line saying whether they were found, then `/reload`.
+
 ## Already verified
 
 Done on builds 70235, 70245 and 70291 (2026-10-06 to 09); no need to repeat. Details are in
