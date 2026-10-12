@@ -41,7 +41,12 @@ function LoginRecap:Collect(force)
     if not session then return nil end
     -- A session without an end crashed; everything until now belongs to it or to this login.
     local records, counters = Store:GetActivity(session.s, session.e or Time.Now())
-    local recap = { day = Time.DayKey(session.s), duration = session.e and (session.e - session.s), lines = {} }
+    -- The date is the session's last day, the duration all play of that day up to the session's end
+    -- (earlier sessions that day included, the part of a session from before midnight not).
+    local stop = session.e or session.s
+    local day = Time.DayKey(stop)
+    local played = Store:GetPlayByDay(Time.DayStart(day), stop)[day]
+    local recap = { day = day, duration = played and played > 0 and played or nil, lines = {} }
     for _, record in ipairs(records) do
         if not record.sim and RecordTypes:IsShown(record.type) then
             recap.lines[#recap.lines + 1] = RecordTypes:Render(record)
