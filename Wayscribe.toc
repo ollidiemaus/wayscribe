@@ -8,8 +8,17 @@
 ## SavedVariablesPerCharacter: WayscribeCharDB, WayscribeFootstepsDB
 ## IconTexture: Interface\AddOns\Wayscribe\Media\IconSmall
 ## AddonCompartmentFunc: Wayscribe_OnAddonCompartmentClick
-## Category-enUS: Journal
-## Category-deDE: Tagebuch
+## Category: Roleplay
+## Category-deDE: Rollenspiel
+## Category-esES: Juego de rol
+## Category-esMX: Juego de rol
+## Category-frFR: Jeu de rôle
+## Category-itIT: Gioco di Ruolo
+## Category-koKR: 역할 수행
+## Category-ptBR: Interpretação de Papel
+## Category-ruRU: Ролевая игра
+## Category-zhCN: 角色扮演
+## Category-zhTW: 角色扮演
 ## X-Curse-Project-ID: 1731716
 
 # Load order follows the layers in docs/ARCHITECTURE.md:
