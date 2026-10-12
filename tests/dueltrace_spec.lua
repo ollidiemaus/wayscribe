@@ -30,20 +30,6 @@ local function find(ns, prefix)
 end
 
 describe("duel trace", function()
-    it("turns a chat format into a pattern, in either argument order", function()
-        local DuelTrace = start().DuelTrace
-        local pattern, order = DuelTrace.FormatToPattern("%1$s has defeated %2$s in a duel")
-        T.eq(pattern, "^(.+) has defeated (.+) in a duel$")
-        T.same(order, { 1, 2 })
-        pattern, order = DuelTrace.FormatToPattern("%2$s ist vor %1$s aus einem Duell geflüchtet.")
-        T.eq(pattern, "^(.+) ist vor (.+) aus einem Duell geflüchtet%.$")
-        T.same(order, { 2, 1 })
-        T.eq(("Bo Stone ist vor Tester aus einem Duell geflüchtet."):match(pattern), "Bo Stone")
-        pattern, order = DuelTrace.FormatToPattern("%s (100%) %s")
-        T.eq(pattern, "^(.+) %(100%%%) (.+)$")
-        T.same(order, { 1, 2 })
-    end)
-
     it("logs a duel from the challenge to the winner's line, and which name is the player's", function()
         local ns = start(true)
         Stubs.Fire("DUEL_REQUESTED", "Bo")

@@ -167,15 +167,26 @@ world map.
 
 ## Duels
 
-Research for a duel tracker: nothing is recorded in the journal yet. With developer mode on
-(`/ws dev`), Wayscribe logs every duel event to the chat (lines starting with "duel") and keeps the
-log for the next `/reload`.
+The Duels tracker (0.9, §6.10). Developer mode (`/ws dev`) also logs every duel event to the chat
+(lines starting with "duel"), so if an entry is wrong, `/ws duellog` shows what the game sent.
 
-- [ ] **One duel each way.** Challenge someone (right-click their portrait > *Duel*) and fight until
-  one of you gives up. Then accept a duel someone else starts, and run out of bounds until you
-  flee. `/reload` afterwards. → Chat lines starting with "duel" during both; `/ws log` stays empty.
-- [ ] **A challenge from someone you don't have targeted.** Clear your target (Esc) before the
-  challenge comes in. → A "duel" line saying whether they were found, then `/reload`.
+- [ ] **A duel you start.** Right-click a player's portrait > *Duel*, and fight until one of you
+  gives up. → Today's page: "Won a duel against Name Surname (Class, level N)" (or "Lost …"), in
+  the PvP color; `/ws log` stays empty.
+- [ ] **A duel someone else starts**, with them not targeted (Esc before the challenge). → The
+  entry still has their class and level when their nameplate was on screen; otherwise just their
+  name.
+- [ ] **A flight.** Run out of the duel area until the duel ends. → "Fled from a duel against …"
+  (and for them "… who fled", if they log it too).
+- [ ] **A declined challenge.** Challenge someone who declines or lets it run out. → No entry.
+- [ ] **Duel to the death**, if Forever offers it (`/makgora`). → "… a duel to the death …".
+- [ ] **The Duels tab** between Maps and Your Year (`/ws duels`). → *All duels* with the
+  won–lost record, by class and the latest duels; each opponent with a class icon (or a colored
+  square), the page buttons step through them, and a new duel shows up while the tab is open.
+  Turning the tracker off in the settings hides the tab.
+- [ ] **The Your Year card** (developer mode previews the year, `/ws year`). → *Duels* after
+  *Deaths*: won and lost; with more duels the most frequent opponent, the nemesis and the
+  easiest and toughest class.
 
 ## Already verified
 

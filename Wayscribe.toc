@@ -63,6 +63,7 @@ Trackers\DungeonMaps.lua
 Trackers\QuestChains.lua
 Trackers\Footsteps.lua
 Trackers\Deaths.lua
+Trackers\Duels.lua
 
 UI\Theme.lua
 UI\DayView.lua
@@ -70,6 +71,7 @@ UI\YourYear.lua
 UI\NotesView.lua
 UI\DungeonMap.lua
 UI\MapsView.lua
+UI\DuelsView.lua
 UI\Journal.lua
 UI\Export.lua
 UI\FootstepsMap.lua

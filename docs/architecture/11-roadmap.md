@@ -14,6 +14,7 @@ game is in [ingame-tests.md](../ingame-tests.md).
 | **0.5 Your Year** | Year cards, December prompt, % of Azeroth walked. Text export. | The recap renders from rollups alone (unit test). |
 | **0.6 Backup** | A restorable backup string, and restoring it into an empty or missing journal (§4.8). | A simulated year survives backup, wipe and restore (unit test); a missing journal restored in game. |
 | **0.7 Notes** | The player's own notes: a Notes tab in the journal, whose `/way` lines are markers on the world map (Alt+click, `/ws mark`), carried by the backup (§4.9, §7.9). | Notes survive relog, backup and restore, and a missing journal with only notes is guarded (unit tests); Alt+click places a note in game, with no taint error. |
+| **0.9 Duels** | Duels in the journal, a Duels tab (all duels, by class, each opponent) and a Your Year card, from the challenge (`StartDuel` hook, `DUEL_REQUESTED`) and the client's result line (§6.10). | Win, loss, flight, a declined challenge and German lines (unit tests); duels in game (open, [ingame-tests.md](../ingame-tests.md#duels)). |
 
 **Next:**
 - **First public release:** CurseForge and GitHub Releases are set up; pushing the first tag
