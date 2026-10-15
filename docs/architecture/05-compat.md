@@ -34,7 +34,7 @@ Compat.GetExploredTextureCounts() -- -> { [zoneMapID] = { textures, hover } } of
 Compat.GetMoney()                -- -> copper, or nil when missing, erroring or secret; the raw value second (trace)
 Compat.GetFactionStandings()     -- -> { [factionID] = { name, reaction } } of the reputation list, or nil; raw row count second
 Compat.GetFactionStanding(id)    -- -> name, reaction of one faction read by ID (collapsed headers), or nil
-Compat.GetLegacyChallenges()     -- -> { [id] = { name, done, day, account, byMe } }, or nil; raw category list second
+Compat.GetLegacyChallenges()     -- -> { [id] = { name, done, day, account, byMe } }, or nil; raw category list second; true third when every row was read
 Compat.GetLegacyChallengeName(id) -- -> one challenge's name read by ID, or nil
 Compat.GetTaxiNodes()            -- -> { { id, name, current } } known at the open taxi map, or nil; { source, map, nodes } second
 Compat.GetMounts()               -- -> { [mountID] = { name, collected } } of the mount journal, or nil; raw ID list second

@@ -310,10 +310,11 @@ function Compat.GetFactionStanding(factionID)
 end
 
 -- The Legacy Challenges (Forever's achievements): { [id] = { name, done, day, account, byMe } }, or
--- nil when the categories can't be read; the raw category list second, for the launch trace. `day`
--- is the completion's day key (the game gives the year from 2000), `account` the account-wide flag,
--- under which every character of the account reads the challenge as its own. A challenge that can't
--- be read is left out.
+-- nil when the categories can't be read; the raw category list second, for the launch trace; third,
+-- true when every category and challenge could be read, so an ID missing from the list isn't a
+-- challenge. `day` is the completion's day key (the game gives the year from 2000), `account` the
+-- account-wide flag, under which every character of the account reads the challenge as its own. A
+-- challenge that can't be read is left out.
 local ACCOUNT_WIDE = 0x20000 -- ACHIEVEMENT_FLAGS_ACCOUNT
 function Compat.GetLegacyChallenges()
     if type(GetCategoryList) ~= "function" or type(GetCategoryNumAchievements) ~= "function"
@@ -322,9 +323,10 @@ function Compat.GetLegacyChallenges()
     end
     local categories, raw = Compat.CallWithRaw(GetCategoryList, "table")
     if not categories then return nil, raw end
-    local challenges = {}
+    local challenges, complete = {}, true
     for _, category in ipairs(categories) do
         local count = Compat.Safe(category, "number") and Compat.Call(GetCategoryNumAchievements, category)
+        if type(count) ~= "number" then complete = false end
         for index = 1, type(count) == "number" and count or 0 do
             local id, name, _, done, month, day, year, _, flags, _, _, _, byMe =
                 Compat.Call(GetAchievementInfo, category, index)
@@ -336,10 +338,12 @@ function Compat.GetLegacyChallenges()
                 challenges[id] = { name = type(name) == "string" and name or nil, done = done == true, day = dayKey,
                     account = type(flags) == "number" and math.floor(flags / ACCOUNT_WIDE) % 2 == 1,
                     byMe = byMe }
+            else
+                complete = false
             end
         end
     end
-    return challenges, raw
+    return challenges, raw, complete
 end
 
 -- One challenge's name, read by ID; nil when it can't be read.

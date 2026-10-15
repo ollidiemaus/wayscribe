@@ -109,6 +109,28 @@ describe("legacy challenges", function()
             "*Completed a Legacy Challenge: Hero of Mulgore" })
     end)
 
+    it("make no entry for an earned ID that isn't among the challenges", function()
+        local ns = start()
+        Stubs.Fire("ACHIEVEMENT_EARNED", 5000) -- not in any category: a guild achievement, say
+        Stubs.Advance(1)
+        T.same(entries(ns), { "~*Completed a Legacy Challenge: Into the Barrens" })
+        earn(MULGORE)
+        T.same(entries(ns), { "~*Completed a Legacy Challenge: Into the Barrens",
+            "*Completed a Legacy Challenge: Hero of Mulgore" }, "nothing was kept for the next look")
+    end)
+
+    it("record an earned challenge whose row can't be read, with its name read by ID", function()
+        local ns = start()
+        local read = _G.GetAchievementInfo
+        _G.GetAchievementInfo = function(categoryOrID, index)
+            if index and read(categoryOrID, index) == MULGORE then return nil end
+            return read(categoryOrID, index)
+        end
+        earn(MULGORE)
+        T.same(entries(ns), { "~*Completed a Legacy Challenge: Into the Barrens",
+            "*Completed a Legacy Challenge: Hero of Mulgore" })
+    end)
+
     it("make no entry for a challenge another character of the account earned", function()
         start()
         Stubs.Fire("PLAYER_LOGOUT")

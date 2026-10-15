@@ -106,7 +106,7 @@ end
 -- character earned; returns how the look ended and the new ones, for the trace, then true once the
 -- look is saved. A failed write keeps nothing of the look, so the next one starts from the same
 -- snapshot.
-local function compare(challenges, earned)
+local function compare(challenges, complete, earned)
     if not Store:IsWritable() then return "read-only", {} end
     local saved = Store:CopyState("legacy")
     local first = type(saved) ~= "table" or type(saved.done) ~= "table"
@@ -114,9 +114,11 @@ local function compare(challenges, earned)
     local silent = first and Compat.GetPlayerLevel() == 1
     local new, written, outcome = {}, 0, nil
     for _, id in ipairs(sortedKeys(challenges, earned)) do
-        local challenge = challenges[id] or { done = true } -- earned, but its row can't be read
-        local isNew = challenge.done and not known[id]
-        if isNew or earned[id] then
+        -- Earned but not listed: its row couldn't be read, or, when every row could, it isn't a
+        -- challenge (a guild achievement, say) and makes no entry.
+        local challenge = challenges[id] or not complete and { done = true }
+        local isNew = challenge and challenge.done and not known[id]
+        if isNew or challenge and earned[id] then
             local mine = earned[id] or not (challenge.account or challenge.byMe == false)
             if isNew then
                 new[#new + 1] = id .. (mine and "" or challenge.account and ":account" or ":other")
@@ -144,7 +146,7 @@ end
 
 function Legacy:Look()
     local asked, earned = self:TakeAsked(), self.earned or {}
-    local challenges, raw = Compat.GetLegacyChallenges()
+    local challenges, raw, complete = Compat.GetLegacyChallenges()
     local total, completed = 0, 0
     for _, challenge in pairs(challenges or {}) do
         total = total + 1
@@ -156,7 +158,7 @@ function Legacy:Look()
     local outcome, new = "no challenges", nil
     if total > 0 then
         local saved
-        outcome, new, saved = compare(challenges, earned)
+        outcome, new, saved = compare(challenges, complete, earned)
         -- A look that wasn't saved (read-only, or a failed write) keeps them for the next one.
         if saved then self.earned = nil end
     end
