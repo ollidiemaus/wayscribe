@@ -11,13 +11,11 @@ local L, Compat, Store, Trace, YearCards = ns.L, ns.Compat, ns.Store, ns.Trace, 
 local ICON = "Interface\\Icons\\Achievement_Reputation_01"
 local FRIENDLY, HOSTILE, HONORED, EXALTED = 5, 2, 6, 8
 -- Forever's progress tracks are factions too (PvP Rank Points, Legacy Track), but not standings.
-local NOT_STANDINGS = { [2800] = true, [2802] = true }
+local NOT_STANDINGS = { [Compat.PVP_RANK_FACTION] = true, [Compat.LEGACY_TRACK_FACTION] = true }
 
 -- The client's name for a standing, the female form for a female character.
 local function standingLabel(reaction)
-    local key = "FACTION_STANDING_LABEL" .. reaction
-    local label = Compat.Call(UnitSex, "player") == 3 and Compat.Safe(_G[key .. "_FEMALE"], "string")
-    return label or Compat.Safe(_G[key], "string") or L["STANDING_" .. reaction]
+    return Compat.GetGlobalStringForPlayer("FACTION_STANDING_LABEL" .. reaction) or L["STANDING_" .. reaction]
 end
 
 local function factionName(data)

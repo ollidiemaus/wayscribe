@@ -18,7 +18,7 @@ local EVENTS = {
     "PLAYER_MONEY", "UPDATE_FACTION", "PLAYER_EQUIPMENT_CHANGED", "ACHIEVEMENT_EARNED", "TAXIMAP_OPENED",
     "UI_INFO_MESSAGE", "PLAYER_GUILD_UPDATE", "HEARTHSTONE_BOUND", "CONFIRM_BINDER", "NEW_MOUNT_ADDED",
     "COMPANION_LEARNED", "NEW_PET_ADDED", "NEW_TOY_ADDED", "PLAYER_PVP_RANK_CHANGED",
-    "MAJOR_FACTION_RENOWN_LEVEL_CHANGED", "PLAYER_CONTROL_GAINED",
+    "MAJOR_FACTION_RENOWN_LEVEL_CHANGED",
 }
 
 local LIBRARIES = { "LibStub", "CallbackHandler-1.0", "LibDataBroker-1.1", "LibDBIcon-1.0" }
@@ -265,7 +265,7 @@ local function addReputation(add)
         local byID = id and call("C_Reputation.GetFactionDataByID", id)
         add("rep.sampleByID", type(byID) == "table" and Compat.Safe(byID.reaction) or nil)
     end
-    for _, factionID in ipairs({ 2800, 2802 }) do
+    for _, factionID in ipairs({ Compat.PVP_RANK_FACTION, Compat.LEGACY_TRACK_FACTION }) do
         local data = call("C_Reputation.GetFactionDataByID", factionID)
         add("rep." .. factionID, type(data) == "table" and (describe(Compat.Safe(data.name)) .. ", reaction "
             .. describe(Compat.Safe(data.reaction))) or nil)
@@ -289,7 +289,7 @@ end
 -- (the game may count them per account), with one completed challenge and its date.
 local function addLegacyChallenges(add)
     add("legacy.panelDisabled", gameRule("AchievementsPanelDisabled"))
-    add("legacy.track", probeValue("C_MajorFactions.GetCurrentRenownLevel", 2802))
+    add("legacy.track", probeValue("C_MajorFactions.GetCurrentRenownLevel", Compat.LEGACY_TRACK_FACTION))
     local categories = call("GetCategoryList")
     if type(categories) ~= "table" then
         add("legacy.categories", probeValue("GetCategoryList"))
@@ -374,9 +374,9 @@ local function addLaunchTrackers(add, mapID)
     add("guild.name", probeValue("GetGuildInfo", "player"))
     add("home.bind", probeValue("GetBindLocation"))
     addCollections(add)
-    local rank = call("C_MajorFactions.GetMajorFactionProgressionInfo", 2800)
+    local rank = call("C_MajorFactions.GetMajorFactionProgressionInfo", Compat.PVP_RANK_FACTION)
     add("pvpRank.level", type(rank) == "table" and Compat.Safe(rank.renownLevel)
-        or probeValue("C_MajorFactions.GetMajorFactionProgressionInfo", 2800))
+        or probeValue("C_MajorFactions.GetMajorFactionProgressionInfo", Compat.PVP_RANK_FACTION))
     add("pvpRank.season", probeValue("GetCurrentArenaSeason"))
 end
 

@@ -57,13 +57,13 @@ local function compare(nodes, continent)
         if not known[nodeKey(node)] then new[#new + 1] = node end
     end
     local first = not seen[continent]
-    local record = new
+    local toWrite = new
     if first then
-        record = (#nodes == 1 and nodes[1].current) and nodes or {}
-        new = record -- the rest was known before
+        toWrite = (#nodes == 1 and nodes[1].current) and nodes or {}
+        new = toWrite -- the rest was known before
     end
     local written = 0
-    for _, node in ipairs(record) do
+    for _, node in ipairs(toWrite) do
         if not Store:GetFirst("FLIGHT:" .. nodeKey(node)) then
             local entry, reason = Store:Append("FLIGHT_PATH", { node = node.id, name = node.name })
             if not entry then return "not written: " .. tostring(reason), new end

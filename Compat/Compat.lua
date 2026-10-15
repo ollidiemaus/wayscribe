@@ -230,6 +230,13 @@ function Compat.FormatToPattern(format)
     return table.concat(parts), order
 end
 
+-- The client's global string `key` in the player's form: the female one (key_FEMALE) for a female
+-- character when the client has it, else `key`'s. nil when the client has neither.
+function Compat.GetGlobalStringForPlayer(key)
+    local female = Compat.Call(UnitSex, "player") == 3 and Compat.Safe(_G[key .. "_FEMALE"], "string")
+    return female or Compat.Safe(_G[key], "string")
+end
+
 local parsers = {}
 
 -- The arguments a line made from the client's global string `key` was formatted with, by their
@@ -426,9 +433,13 @@ function Compat.GetMounts()
     return mounts, raw
 end
 
--- The PvP rank: the renown level of the PvP rank faction (2800) and the current arena season, each
--- nil when it can't be read; their raw values third and fourth, for the launch trace.
+-- Forever's progress tracks, renown factions that aren't reputations: PvP rank points and the
+-- Legacy Track.
 Compat.PVP_RANK_FACTION = 2800
+Compat.LEGACY_TRACK_FACTION = 2802
+
+-- The PvP rank: the renown level of the PvP rank faction and the current arena season, each nil when
+-- it can't be read; their raw values third and fourth, for the launch trace.
 function Compat.GetPvPRank()
     local factions = type(C_MajorFactions) == "table" and C_MajorFactions
     local info, rawRank = Compat.CallWithRaw(factions and factions.GetMajorFactionProgressionInfo, "table",
@@ -450,9 +461,7 @@ function Compat.GetPvPRankTitle(rank)
     local ranks = type(Enum) == "table" and type(Enum.PvPRanks) == "table" and Enum.PvPRanks
     local first = ranks and Compat.Safe(ranks.Rank_1, "number") or 5
     local faction = Compat.Call(UnitFactionGroup, "player") == "Alliance" and 1 or 0
-    local key = "PVP_RANK_" .. tostring(first + rank - 1) .. "_" .. faction
-    local title = Compat.Call(UnitSex, "player") == 3 and Compat.Safe(_G[key .. "_FEMALE"], "string")
-    title = title or Compat.Safe(_G[key], "string")
+    local title = Compat.GetGlobalStringForPlayer("PVP_RANK_" .. tostring(first + rank - 1) .. "_" .. faction)
     return title ~= "" and title or nil
 end
 
