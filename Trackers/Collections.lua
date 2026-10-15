@@ -74,11 +74,8 @@ function Collections:PLAYER_ENTERING_WORLD() self:AskForLook("PLAYER_ENTERING_WO
 -- The mounts seen collected, as a copy, so a look that stops at a failed write leaves the state as
 -- it was; nil before the first look.
 local function knownMounts()
-    local saved = Store:GetState("collections")
-    if type(saved) ~= "table" or type(saved.mounts) ~= "table" then return nil end
-    local known = {}
-    for id in pairs(saved.mounts) do known[id] = true end
-    return known
+    local saved = Store:CopyState("collections")
+    return type(saved) == "table" and type(saved.mounts) == "table" and saved.mounts or nil
 end
 
 local function save(known)

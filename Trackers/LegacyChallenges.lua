@@ -103,15 +103,14 @@ local function backfillOpts(challenge)
 end
 
 -- Compares the completed challenges with the snapshot and writes an entry for each new one this
--- character earned; returns how the look ended and the new ones, for the trace. A failed write
--- keeps nothing of the look, so the next one starts from the same snapshot.
+-- character earned; returns how the look ended and the new ones, for the trace, then true once the
+-- look is saved. A failed write keeps nothing of the look, so the next one starts from the same
+-- snapshot.
 local function compare(challenges, earned)
     if not Store:IsWritable() then return "read-only", {} end
-    local saved = Store:GetState("legacy")
+    local saved = Store:CopyState("legacy")
     local first = type(saved) ~= "table" or type(saved.done) ~= "table"
-    -- A copy, so a look that stops at a failed write leaves the saved snapshot as it was.
-    local known = {}
-    for id in pairs(first and {} or saved.done) do known[id] = true end
+    local known = first and {} or saved.done
     local silent = first and Compat.GetPlayerLevel() == 1
     local new, written, outcome = {}, 0, nil
     for _, id in ipairs(sortedKeys(challenges, earned)) do
@@ -138,9 +137,9 @@ local function compare(challenges, earned)
     end
     if outcome then return outcome, new end
     if not Store:SetState("legacy", { done = known }) then return "read-only", new end
-    if first then return written > 0 and "back-filled " .. written or "first look", new end
-    if written > 0 then return "recorded " .. written, new end
-    return #new > 0 and "not this character's" or "unchanged", new
+    if first then return written > 0 and "back-filled " .. written or "first look", new, true end
+    if written > 0 then return "recorded " .. written, new, true end
+    return #new > 0 and "not this character's" or "unchanged", new, true
 end
 
 function Legacy:Look()
@@ -156,9 +155,10 @@ function Legacy:Look()
     -- keeps what was earned for the next one.
     local outcome, new = "no challenges", nil
     if total > 0 then
-        outcome, new = compare(challenges, earned)
-        -- A look that wrote nothing (read-only, or a failed write) keeps them for the next one.
-        if outcome ~= "read-only" and not outcome:find("^not written") then self.earned = nil end
+        local saved
+        outcome, new, saved = compare(challenges, earned)
+        -- A look that wasn't saved (read-only, or a failed write) keeps them for the next one.
+        if saved then self.earned = nil end
     end
     local anyNew = new and #new > 0
     Trace:Add(self.id, asked, outcome, "challenges", challenges and total or raw,

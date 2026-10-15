@@ -93,6 +93,17 @@ describe("append", function()
         T.eq(Store:StartSession(Stubs.Now()), nil)
         T.eq(ns.charDB.meta.seq, 0)
     end)
+
+    it("hands out a copy of the state that changes nothing saved", function()
+        local _, Store = fresh()
+        Store:SetState("snap", { known = { [7] = true }, seen = 1 })
+        local copy = Store:CopyState("snap")
+        copy.known[8] = true
+        copy.seen = 2
+        T.eq(Store:GetState("snap").known[8], nil)
+        T.eq(Store:GetState("snap").seen, 1)
+        T.eq(Store:CopyState("missing"), nil)
+    end)
 end)
 
 describe("counters", function()

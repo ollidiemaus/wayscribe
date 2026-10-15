@@ -140,12 +140,11 @@ end
 -- look ended and what changed, for the trace.
 local function compare(standings)
     if not Store:IsWritable() then return "read-only", {} end
-    local saved = Store:GetState("reputation")
+    local saved = Store:CopyState("reputation")
     local first = type(saved) ~= "table"
-    -- A copy, so a look that stops at a failed write leaves the saved snapshot as it was.
     local known = {}
     for id, entry in pairs(first and {} or saved) do
-        if type(entry) == "table" then known[id] = { r = entry.r, hi = entry.hi, lo = entry.lo } end
+        if type(entry) == "table" then known[id] = entry end
     end
     local changed, written = {}, 0
     for id, now in pairs(standings) do

@@ -95,11 +95,8 @@ end
 -- The items seen worn, as a copy, so a look that stops at a failed write leaves the state as it was;
 -- nil before the first look. Without the state, the journal's own entries are seen.
 local function knownItems()
-    local saved = Store:GetState("gear")
-    if type(saved) ~= "table" or type(saved.items) ~= "table" then return nil end
-    local known = {}
-    for item in pairs(saved.items) do known[item] = true end
-    return known
+    local saved = Store:CopyState("gear")
+    return type(saved) == "table" and type(saved.items) == "table" and saved.items or nil
 end
 
 local function journalItems()
@@ -108,7 +105,8 @@ local function journalItems()
     return known
 end
 
--- Takes one worn item into `known` and writes its entry if it is notable; returns how it ended.
+-- Takes one worn item into `known` and writes its entry if it is notable; returns how it ended, then
+-- true when it wrote the entry and false when the write failed.
 local function consider(item, quality, known)
     if known[item] then return "known" end
     if not quality then return "no quality" end -- not loaded yet: the next look reads it again
@@ -118,10 +116,10 @@ local function consider(item, quality, known)
     end
     local first = not Store:GetFirst(quality == RARE and "GEAR:RARE" or "GEAR:EPIC")
     local record, reason = Store:Append("GEAR", { item = item, quality = quality, name = Compat.GetItemName(item) })
-    if not record then return "not written: " .. tostring(reason) end
+    if not record then return "not written: " .. tostring(reason), false end
     known[item] = true
-    if quality == RARE then return "first rare" end
-    return first and "first epic" or "epic"
+    if quality == RARE then return "first rare", true end
+    return first and "first epic" or "epic", true
 end
 
 local function save(known)
@@ -145,8 +143,11 @@ function Gear:PLAYER_EQUIPMENT_CHANGED(slot)
         outcome = "read-only"
     else
         outcome = consider(item, quality, known)
-        if not save(known) then outcome = "read-only" end
-        if outcome == "no quality" then self:AskForLook("PLAYER_EQUIPMENT_CHANGED") end
+        if not save(known) then
+            outcome = "read-only"
+        elseif quality == nil and not known[item] then
+            self:AskForLook("PLAYER_EQUIPMENT_CHANGED") -- its quality wasn't loaded yet
+        end
     end
     Trace:Add(self.id, "PLAYER_EQUIPMENT_CHANGED", outcome, "slot", slot, "item", rawItem, "quality", rawQuality)
 end
@@ -163,10 +164,10 @@ local function compare(worn)
     local new, written = {}, 0
     for _, slot in ipairs(worn) do
         if not known[slot.item] then new[#new + 1] = slot.item .. ":" .. tostring(slot.quality or "?") end
-        local outcome = consider(slot.item, slot.quality, known)
+        local outcome, wrote = consider(slot.item, slot.quality, known)
         -- What was written so far is kept, so the next look doesn't write it again.
-        if outcome:find("^not written") then return save(known) and outcome or "read-only", new end
-        if outcome == "first rare" or outcome == "first epic" or outcome == "epic" then written = written + 1 end
+        if wrote == false then return save(known) and outcome or "read-only", new end
+        if wrote then written = written + 1 end
     end
     if not save(known) then return "read-only", new end
     if written > 0 then return "recorded " .. written, new end

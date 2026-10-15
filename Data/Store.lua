@@ -111,6 +111,19 @@ function Store:GetState(key)
     return self.db and self.db.state[key]
 end
 
+local function deepCopy(value)
+    if type(value) ~= "table" then return value end
+    local result = {}
+    for key, item in pairs(value) do result[key] = deepCopy(item) end
+    return result
+end
+
+-- A copy of the state, for a tracker that changes its snapshot while it writes entries: a look that
+-- stops at a failed write leaves the saved snapshot as it was.
+function Store:CopyState(key)
+    return deepCopy(self:GetState(key))
+end
+
 function Store:SetState(key, value)
     if not self:IsWritable() then return false end
     self.db.state[key] = value

@@ -44,19 +44,14 @@ function FlightPaths:CHAT_MSG_SYSTEM(text)
     if line and Compat.Safe(text, "string") == line then self:AskForLook("CHAT_MSG_SYSTEM") end
 end
 
-local function copy(set)
-    local result = {}
-    for key, value in pairs(type(set) == "table" and set or {}) do result[key] = value end
-    return result
-end
-
 -- Compares the known nodes with the snapshot and writes an entry for each newly known one; returns
 -- how the look ended and the new nodes, for the trace (at a first look, only the one recorded). A failed write keeps nothing of the look.
 local function compare(nodes, continent)
     if not Store:IsWritable() then return "read-only", {} end
-    local saved = Store:GetState("flightPaths")
+    local saved = Store:CopyState("flightPaths")
     saved = type(saved) == "table" and saved or {}
-    local seen, known = copy(saved.seen), copy(saved.known)
+    local seen = type(saved.seen) == "table" and saved.seen or {}
+    local known = type(saved.known) == "table" and saved.known or {}
     local new = {}
     for _, node in ipairs(nodes) do
         if not known[nodeKey(node)] then new[#new + 1] = node end

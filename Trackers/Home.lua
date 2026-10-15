@@ -36,20 +36,21 @@ function Home:HEARTHSTONE_BOUND() self:AskForLook("HEARTHSTONE_BOUND") end
 function Home:CONFIRM_BINDER() self:AskForLook("CONFIRM_BINDER") end
 function Home:PLAYER_ENTERING_WORLD() self:AskForLook("PLAYER_ENTERING_WORLD") end
 
--- Compares the place with the snapshot and writes the entry; returns how the look ended, for the trace.
+-- Compares the place with the snapshot and writes the entry; returns how the look ended, for the
+-- trace, then true unless the journal was read-only: this session has read the home.
 local function compare(now)
-    if not Store:IsWritable() then return "read-only" end
+    if not Store:IsWritable() then return "read-only", false end
     local saved = Store:GetState("home")
     local before = type(saved) == "table" and type(saved.name) == "string" and saved.name or nil
-    if before == now then return "unchanged" end
+    if before == now then return "unchanged", true end
     if not before or not takenThisSession then
-        if not Store:SetState("home", { name = now }) then return "read-only" end
-        return before and "taken at login" or "first look"
+        if not Store:SetState("home", { name = now }) then return "read-only", false end
+        return before and "taken at login" or "first look", true
     end
     local entry, reason = Store:Append("HOME", { name = now })
-    if not entry then return "not written: " .. tostring(reason) end
-    if not Store:SetState("home", { name = now }) then return "read-only" end
-    return "moved"
+    if not entry then return "not written: " .. tostring(reason), true end
+    if not Store:SetState("home", { name = now }) then return "read-only", false end
+    return "moved", true
 end
 
 function Home:Look()
@@ -59,8 +60,9 @@ function Home:Look()
     if not name then
         outcome = "unreadable"
     else
-        outcome = compare(name)
-        if outcome ~= "read-only" then takenThisSession = true end
+        local taken
+        outcome, taken = compare(name)
+        if taken then takenThisSession = true end
     end
     Trace:Add(self.id, asked, outcome, "bind", raw)
 end

@@ -136,6 +136,7 @@ day, §6.13); `merge` combines that field into the year.
 Store:Append(type, data [, opts])   -- milestone record; returns the record
 Store:Count(path, key, n)           -- counters: Store:Count("gather", itemID, 3)
 Store:SetState(tracker, tbl)        -- resumable tracker state
+Store:CopyState(tracker)            -- a deep copy to change while writing; a failed write keeps the saved one
 ```
 
 `Append` options: `ts` (default now), `dedupeKey`, `simulated` (`/ws simulate`, record flag `sim`)
