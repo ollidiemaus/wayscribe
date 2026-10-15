@@ -191,4 +191,55 @@ describe("capabilities", function()
         T.truthy(found["questLine.748 = nil"])
         T.truthy(found["questLog.asked = 2"])
     end)
+
+    it("probe reads what the launch trackers rely on, and names what is missing or secret", function()
+        local ns = Stubs.LoadAddon()
+        _G.C_Map.GetBestMapForUnit = function() return 1412 end
+        _G.GetMoney = function() return 12345 end
+        _G.C_Reputation = {
+            GetNumFactions = function() return 3 end,
+            GetFactionDataByIndex = function(index)
+                return ({ { isHeader = true, isCollapsed = true, name = "Horde" },
+                    { factionID = 81, name = "Thunder Bluff", reaction = 5 },
+                    { factionID = 530, name = "Darkspear Trolls", reaction = 4 } })[index]
+            end,
+            GetFactionDataByID = function(id)
+                if id == 81 then return { factionID = 81, reaction = 5 } end
+                if id == 2800 then return { name = "PvP Rank Points", reaction = 4 } end
+            end,
+        }
+        _G.FACTION_STANDING_LABEL5, _G.FACTION_STANDING_LABEL5_FEMALE = "Friendly", "Friendly"
+        _G.GetInventoryItemID = function(_, slot) return ({ [1] = 6125, [16] = 2361 })[slot] end
+        _G.GetInventoryItemQuality = function(_, slot) return slot == 16 and Stubs.SECRET or 1 end
+        _G.GetCategoryList = function() return { 92 } end
+        _G.GetCategoryNumAchievements = function() return 2 end
+        _G.GetAchievementInfo = function(_, index)
+            if index == 1 then return 6, "Level 10", 0, true, 10, 14, 26, "", 0, "", "", false, false end
+            return 7, "Level 20", 0, false
+        end
+        _G.IsInGuild = function() return false end
+        _G.GetBindLocation = function() return "Bloodhoof Village" end
+        Stubs.Login()
+        local found = {}
+        for _, line in ipairs(ns.Probe:Run()) do found[line] = true end
+        _G.FACTION_STANDING_LABEL5, _G.FACTION_STANDING_LABEL5_FEMALE = nil, nil
+        T.truthy(found["event.PLAYER_MONEY = true"])
+        T.truthy(found["firstVisit.map.0 = 1412 Mulgore (type 3)"])
+        T.truthy(found["gold.money = 12345"])
+        T.truthy(found["rep.list = 2 factions, 1 headers (1 collapsed)"])
+        T.truthy(found["rep.sample = 81 Thunder Bluff, reaction 5 Friendly / Friendly"])
+        T.truthy(found["rep.sampleByID = 5"])
+        T.truthy(found["rep.2800 = PvP Rank Points, reaction 4"])
+        T.truthy(found["rep.2802 = nil"])
+        T.truthy(found["gear.slots = 1:6125/q1 16:2361/qsecret"])
+        T.truthy(found["legacy.challenges = 2 in 1 categories, 1 completed, 0 by this character"])
+        T.truthy(found["legacy.sample = 6 Level 10, 10/14/26, by me false"])
+        T.truthy(found["flightPaths.taxiMap = missing"])
+        T.truthy(found["guild.inGuild = false"])
+        T.truthy(found["guild.name = missing"])
+        T.truthy(found["home.bind = Bloodhoof Village"])
+        T.truthy(found["collections.mounts = missing"])
+        T.truthy(found["collections.toys = missing of missing"])
+        T.truthy(found["pvpRank.level = missing"])
+    end)
 end)

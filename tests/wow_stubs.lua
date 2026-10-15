@@ -277,7 +277,7 @@ local function installMaps()
         GetAreaInfo = function(areaID) return state.areaNames and state.areaNames[areaID] end,
         GetMapInfo = function(mapID)
             local map = MAPS[mapID]
-            return { mapID = mapID, name = map and map.name, parentMapID = map and map.parent or 0 }
+            return { mapID = mapID, name = map and map.name, mapType = map and map.type, parentMapID = map and map.parent or 0 }
         end,
         -- The maps under mapID (all levels down with allDescendants), of one map type if given.
         GetMapChildrenInfo = function(mapID, mapType, allDescendants)
@@ -340,6 +340,13 @@ local function installWorld()
     _G.C_QuestLog = { GetTitleForQuestID = function(questID) return state.questTitles[questID] end }
     _G.C_QuestLine = nil
     _G.C_CVar = { GetCVar = function(name) return state.cvars[name] end }
+    -- What the 1.0 launch trackers read: absent until a spec gives them, so no spec sees another's.
+    for _, name in ipairs({ "GetMoney", "C_Reputation", "GetInventoryItemID", "GetInventoryItemQuality",
+        "GetCategoryList", "GetCategoryNumAchievements", "GetAchievementInfo", "NumTaxiNodes", "GetTaxiMapID",
+        "C_TaxiMap", "IsInGuild", "GetGuildInfo", "GetBindLocation", "C_MountJournal", "C_PetJournal", "C_ToyBox",
+        "C_MajorFactions", "GetCurrentArenaSeason" }) do
+        _G[name] = nil
+    end
 end
 
 -- The default UI's templates and atlases the journal asks for, as a client confirms them.
