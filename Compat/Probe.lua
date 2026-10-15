@@ -206,7 +206,9 @@ local function gameRule(name)
 end
 
 -- First visits: the best map and the maps above it, with their types (3 = zone, 2 = continent),
--- the zone the tracker takes from them, and the zones the world map shows explored.
+-- the zone the tracker takes from them, and the zones the world map shows explored: how many count,
+-- of the zones that return explored-area textures, with each zone's textures and how many of them
+-- the map only shows under the mouse.
 local function addFirstVisits(add, mapID)
     add("firstVisit.zone", Compat.GetZoneOf(mapID))
     local depth = 0
@@ -219,15 +221,20 @@ local function addFirstVisits(add, mapID)
         mapID = parent ~= 0 and parent or nil
         depth = depth + 1
     end
-    local explored = Compat.GetExploredZones()
-    if not explored then
+    local counts, explored = Compat.GetExploredTextureCounts(), Compat.GetExploredZones()
+    if not (counts and explored) then
         add("firstVisit.explored", "missing")
         return
     end
-    local zones = {}
-    for zone in pairs(explored) do zones[#zones + 1] = zone end
+    local zones, parts, counted = {}, {}, 0
+    for zone in pairs(counts) do zones[#zones + 1] = zone end
     table.sort(zones)
-    add("firstVisit.explored", #zones .. " zones" .. (#zones > 0 and ": " .. table.concat(zones, " ") or ""))
+    for _, zone in ipairs(zones) do
+        if explored[zone] then counted = counted + 1 end
+        parts[#parts + 1] = string.format("%d %d/%d", zone, counts[zone].textures, counts[zone].hover)
+    end
+    add("firstVisit.explored", counted .. " of " .. #zones .. " zones"
+        .. (#zones > 0 and " (textures/hover-only): " .. table.concat(parts, ", ") or ""))
 end
 
 -- Reputation: the rows the reputation list shows (collapsed headers hide their factions), one
@@ -329,7 +336,9 @@ local function addFlightPaths(add)
     end
 end
 
--- Collections: mounts as the mount journal knows them, then pets and toys.
+-- Collections: mounts as the mount journal knows them, then pets and toys. Whether the character
+-- has any toy, and the journal's "collected only" filter, tell a "0 of 0" that means nothing owned
+-- from one that means the API doesn't answer.
 local function addCollections(add)
     local ids = call("C_MountJournal.GetMountIDs")
     if type(ids) == "table" then
@@ -350,6 +359,8 @@ local function addCollections(add)
     add("collections.pets", pets and describe(owned) .. " of " .. describe(pets) or probeValue("C_PetJournal.GetNumPets"))
     add("collections.toys", describe(probeValue("C_ToyBox.GetNumLearnedDisplayedToys")) .. " of "
         .. describe(probeValue("C_ToyBox.GetNumTotalDisplayedToys")))
+    add("collections.hasAnyToy", probeValue("C_ToyBoxInfo.HasAnyToy"))
+    add("collections.onlyShowCollected", probeValue("C_CVar.GetCVar", "onlyShowCollectedItemsInJournal"))
 end
 
 local function addLaunchTrackers(add, mapID)

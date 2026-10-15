@@ -73,6 +73,21 @@ describe("first visits", function()
         end)
     end)
 
+    it("leave out zones whose explored areas the map only shows under the mouse", function()
+        withMaps(function()
+            -- Forever lists hover-only textures for zones a new character has never been to.
+            local hover, shown = { isShownByMouseOver = true }, { isShownByMouseOver = false }
+            local ns = start(1412, { setup = function()
+                Stubs.SetExplored({ [1411] = { hover, hover }, [1456] = { hover, shown },
+                    [1412] = { { isShownByMouseOver = Stubs.SECRET } } })
+            end })
+            T.same(ns.Compat.GetExploredZones(), { [1412] = true, [1456] = true })
+            walkTo(1456)
+            walkTo(1411)
+            T.same(visits(ns), { 1411 })
+        end)
+    end)
+
     it("still record a level 1 character's starting zone when its map shows it explored", function()
         local ns = start(1412, { level = 1, setup = function() Stubs.SetExplored({ [1412] = true }) end })
         T.same(visits(ns), { 1412 })

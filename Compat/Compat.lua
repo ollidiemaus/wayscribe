@@ -428,20 +428,42 @@ function Compat.GetZoneRects()
     return rects
 end
 
--- The zones whose map the character has uncovered (any explored area), as { [uiMapID] = true }:
--- where the character has been (First visits, docs/ARCHITECTURE.md §6.12). A zone without areas to
--- uncover is never in it. nil without the API.
-function Compat.GetExploredZones()
+-- The explored-area textures of each zone map that returns any, as { [uiMapID] = { textures = n,
+-- hover = m } }, where hover counts the ones the world map only shows under the mouse
+-- (isShownByMouseOver). nil without the API.
+function Compat.GetExploredTextureCounts()
     if not Compat.has.mapExploration then return nil end
     local children = Compat.Call(C_Map.GetMapChildrenInfo, worldRoot() or AZEROTH, zoneType(), true)
     if type(children) ~= "table" then return nil end
-    local explored = {}
+    local counts = {}
     for _, info in ipairs(children) do
         local mapID = type(info) == "table" and Compat.Safe(info.mapID, "number")
         local textures = mapID and Compat.Call(C_MapExplorationInfo.GetExploredMapTextures, mapID)
         if type(textures) == "table" and next(textures) ~= nil then
-            explored[mapID] = true
+            local count = { textures = 0, hover = 0 }
+            for _, texture in pairs(textures) do
+                count.textures = count.textures + 1
+                if type(texture) == "table" and Compat.Safe(texture.isShownByMouseOver) == true then
+                    count.hover = count.hover + 1
+                end
+            end
+            counts[mapID] = count
         end
+    end
+    return counts
+end
+
+-- The zones whose map the character has uncovered, as { [uiMapID] = true }: where the character
+-- has been (First visits, docs/ARCHITECTURE.md §6.12). A zone counts when the map shows at least
+-- one of its explored areas without the mouse over it: Forever returns hover-only textures for
+-- zones a new character has never been to. A zone without areas to uncover is never in it. nil
+-- without the API.
+function Compat.GetExploredZones()
+    local counts = Compat.GetExploredTextureCounts()
+    if not counts then return nil end
+    local explored = {}
+    for mapID, count in pairs(counts) do
+        if count.textures > count.hover then explored[mapID] = true end
     end
     return explored
 end

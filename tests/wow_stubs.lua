@@ -302,7 +302,9 @@ local function installWorld()
     -- Zones with explored areas, set with Stubs.SetExplored.
     _G.C_MapExplorationInfo = {
         GetExploredMapTextures = function(mapID)
-            return state.explored and state.explored[mapID] and { { fileDataIDs = { 1 } } } or {}
+            local textures = state.explored and state.explored[mapID]
+            if type(textures) == "table" then return textures end
+            return textures and { { fileDataIDs = { 1 }, isShownByMouseOver = false } } or {}
         end,
     }
     _G.GetInstanceInfo = function()
@@ -350,7 +352,7 @@ local function installWorld()
     for _, name in ipairs({ "GetMoney", "C_Reputation", "GetInventoryItemID", "GetInventoryItemQuality",
         "GetCategoryList", "GetCategoryNumAchievements", "GetAchievementInfo", "NumTaxiNodes", "GetTaxiMapID",
         "C_TaxiMap", "IsInGuild", "GetGuildInfo", "GetBindLocation", "C_MountJournal", "C_PetJournal", "C_ToyBox",
-        "C_MajorFactions", "GetCurrentArenaSeason" }) do
+        "C_ToyBoxInfo", "C_MajorFactions", "GetCurrentArenaSeason" }) do
         _G[name] = nil
     end
 end
@@ -652,7 +654,8 @@ function Stubs.SetTaxi(onTaxi) state.onTaxi = onTaxi end
 -- The map C_Map.GetBestMapForUnit reports (default 1411), and GetSubZoneText (default "").
 function Stubs.SetBestMap(mapID) state.bestMap = mapID end
 function Stubs.SetSubZone(name) state.subZone = name end
--- The zones the world map shows explored: { [uiMapID] = true }.
+-- The zones the world map shows explored: { [uiMapID] = true }, or a zone's own texture list
+-- (C_MapExplorationInfo.GetExploredMapTextures) in place of true.
 function Stubs.SetExplored(zones) state.explored = zones end
 function Stubs.SetAreaName(areaID, name)
     state.areaNames = state.areaNames or {}

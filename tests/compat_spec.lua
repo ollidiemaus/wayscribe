@@ -195,7 +195,8 @@ describe("capabilities", function()
     it("probe reads what the launch trackers rely on, and names what is missing or secret", function()
         local ns = Stubs.LoadAddon()
         _G.C_Map.GetBestMapForUnit = function() return 1412 end
-        Stubs.SetExplored({ [1412] = true })
+        Stubs.SetExplored({ [1412] = { { isShownByMouseOver = true }, { isShownByMouseOver = true } } })
+        Stubs.state.cvars.onlyShowCollectedItemsInJournal = "1"
         _G.GetMoney = function() return 12345 end
         _G.C_Reputation = {
             GetNumFactions = function() return 3 end,
@@ -227,7 +228,7 @@ describe("capabilities", function()
         T.truthy(found["event.PLAYER_MONEY = true"])
         T.truthy(found["firstVisit.map.0 = 1412 Mulgore (type 3)"])
         T.truthy(found["firstVisit.zone = 1412"])
-        T.truthy(found["firstVisit.explored = 1 zones: 1412"])
+        T.truthy(found["firstVisit.explored = 0 of 1 zones (textures/hover-only): 1412 2/2"])
         T.truthy(found["gold.money = 12345"])
         T.truthy(found["rep.list = 2 factions, 1 headers (1 collapsed)"])
         T.truthy(found["rep.sample = 81 Thunder Bluff, reaction 5 Friendly / Friendly"])
@@ -243,6 +244,8 @@ describe("capabilities", function()
         T.truthy(found["home.bind = Bloodhoof Village"])
         T.truthy(found["collections.mounts = missing"])
         T.truthy(found["collections.toys = missing of missing"])
+        T.truthy(found["collections.hasAnyToy = missing"])
+        T.truthy(found["collections.onlyShowCollected = 1"])
         T.truthy(found["pvpRank.level = missing"])
     end)
 end)
