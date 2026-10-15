@@ -96,7 +96,8 @@ ns.RecordTypes:Register("TELEPORT", {
 })
 
 -- "412.3 miles traveled. Flight paths: 980.1 miles. 52 journeys by hearthstone and teleport. 12
--- zones visited for the first time (Trackers/FirstVisits.lua). You walked 12.3% of Azeroth."
+-- zones visited for the first time (Trackers/FirstVisits.lua). 4 flight paths learned
+-- (Trackers/FlightPaths.lua). You walked 12.3% of Azeroth."
 -- Distances are journal counters; only the share of Azeroth needs the trails, measured in the
 -- background (Data/Coverage.lua) while the card waits.
 YearCards:Register({
@@ -122,6 +123,10 @@ YearCards:Register({
         local visits = summary.rollup.records.FIRST_VISIT or 0
         if visits > 0 then
             card.lines[#card.lines + 1] = YearCards.Plural("CARD_FOOTSTEPS_FIRST_VISITS", visits)
+        end
+        local flightPaths = summary.rollup.records.FLIGHT_PATH or 0
+        if flightPaths > 0 then
+            card.lines[#card.lines + 1] = YearCards.Plural("CARD_FOOTSTEPS_FLIGHT_PATHS", flightPaths)
         end
         local coverage, pending = ns.Coverage:Get(summary.year)
         if coverage and coverage.walked > 0 then

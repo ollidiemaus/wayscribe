@@ -288,6 +288,22 @@ adds its checks here when it is built.
 - [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
 - [ ] **Your Year.** → A *Legacy Challenges* card after *Reputation*, with the count and the latest.
 
+### Flight paths (§6.17)
+
+- [ ] **First flight path.** On a fresh character, talk to the first flight master. → "New flight
+  path: *name*" in *Travel*; `/ws trace` shows `source="map"`, `known=1`, the `current` node's ID
+  and `recorded 1`. Note whether `CHAT_MSG_SYSTEM` joins `TAXIMAP_OPENED` in the same look.
+- [ ] **Older character.** Open the taxi map on a character that knows several paths. → No entry;
+  the trace shows `first look`. Then learn a new one. → Its entry, `new=` with its ID.
+- [ ] **Learned without a look.** Learn a path with Wayscribe off (or the tracker switched off),
+  then open the map at another flight master on that continent. → Its entry.
+- [ ] **Other continent.** Open the first taxi map on another continent. → No entry (`first look`),
+  unless it is the only node known there.
+- [ ] **Old frame.** If the old taxi frame ever opens instead of the flight map, the trace shows
+  `source="frame"` and names the nodes.
+- [ ] **Relog.** Log out and in, open the map again. → Nothing repeats (`unchanged`).
+- [ ] **Your Year.** → The Footsteps card has "*n* flight paths learned".
+
 ## Already verified
 
 Done on builds 70235, 70245 and 70291 (2026-10-06 to 09); no need to repeat. Details are in

@@ -336,6 +336,40 @@ function Compat.GetLegacyChallengeName(id)
     return readID == id and type(name) == "string" and name or nil
 end
 
+-- The flight master's known nodes, read from the taxi map that is open: Forever's flight map
+-- (GetTaxiMapID, C_TaxiMap.GetAllTaxiNodes, where state 0 current and 1 reachable mean known) or
+-- else the old taxi frame (NumTaxiNodes, TaxiNodeGetType CURRENT or REACHABLE, TaxiNodeName). Returns
+-- a list of { id, name, current }, without IDs from the old frame, then what was read, for the
+-- launch trace: { source = "map" | "frame", map = taxi map ID, nodes = how many }. Without an open,
+-- readable taxi map the list is nil. A node that can't be read is left out.
+local KNOWN_STATES = { [0] = true, [1] = true }
+local KNOWN_TYPES = { CURRENT = true, REACHABLE = true }
+function Compat.GetTaxiNodes()
+    local mapID = Compat.Call(GetTaxiMapID)
+    local all = type(mapID) == "number" and mapID > 0 and C_TaxiMap
+        and Compat.Call(C_TaxiMap.GetAllTaxiNodes, mapID)
+    if type(all) == "table" and #all > 0 then
+        local known = {}
+        for _, node in ipairs(all) do
+            local id = type(node) == "table" and Compat.Safe(node.nodeID, "number")
+            local state = id and Compat.Safe(node.state, "number")
+            if KNOWN_STATES[state] then
+                known[#known + 1] = { id = id, name = text(Compat.Safe(node.name, "string")), current = state == 0 }
+            end
+        end
+        return #known > 0 and known or nil, { source = "map", map = mapID, nodes = #all }
+    end
+    local count = Compat.Call(NumTaxiNodes)
+    if type(count) ~= "number" or count < 1 then return nil end
+    local known = {}
+    for index = 1, count do
+        local nodeType = Compat.Call(TaxiNodeGetType, index)
+        local name = KNOWN_TYPES[nodeType] and text(Compat.Call(TaxiNodeName, index))
+        if name then known[#known + 1] = { name = name, current = nodeType == "CURRENT" } end
+    end
+    return #known > 0 and known or nil, { source = "frame", nodes = count }
+end
+
 -- The item worn in an equipment slot and its quality (0 Poor to 7 Heirloom): the item is false for an
 -- empty slot and nil when it can't be read; the quality is nil until the client has loaded it. The
 -- raw values third and fourth, for the launch trace.
@@ -441,21 +475,33 @@ end
 local ZONE_MAP_TYPE = 3 -- Enum.UIMapType.Zone
 local AZEROTH = 947      -- the top of Forever's maps (UiMap.db2 of build 70235)
 
-local function zoneType()
-    return type(Enum) == "table" and type(Enum.UIMapType) == "table" and Enum.UIMapType.Zone or ZONE_MAP_TYPE
+local CONTINENT_MAP_TYPE = 2 -- Enum.UIMapType.Continent
+
+local function mapType(name, fallback)
+    return type(Enum) == "table" and type(Enum.UIMapType) == "table" and Enum.UIMapType[name] or fallback
+end
+
+-- The map itself or the nearest parent of type `wanted`, or nil.
+local function enclosingMap(mapID, wanted)
+    for _ = 1, MAX_MAP_DEPTH do
+        local info = mapID and C_Map and C_Map.GetMapInfo and Compat.Call(C_Map.GetMapInfo, mapID)
+        if type(info) ~= "table" then return nil end
+        if Compat.Safe(info.mapType, "number") == wanted then return mapID end
+        mapID = Compat.GetParentMap(mapID)
+    end
+    return nil
 end
 
 -- The zone a map lies in: the map itself or the nearest parent of the zone type, or nil (a
 -- continent, an unknown map). Cities are zones of their own (Thunder Bluff is not in Mulgore), and
 -- a dungeon's map lies in the zone of its entrance.
 function Compat.GetZoneOf(mapID)
-    for _ = 1, MAX_MAP_DEPTH do
-        local info = mapID and C_Map and C_Map.GetMapInfo and Compat.Call(C_Map.GetMapInfo, mapID)
-        if type(info) ~= "table" then return nil end
-        if Compat.Safe(info.mapType, "number") == zoneType() then return mapID end
-        mapID = Compat.GetParentMap(mapID)
-    end
-    return nil
+    return enclosingMap(mapID, mapType("Zone", ZONE_MAP_TYPE))
+end
+
+-- The continent a map lies in (Kalimdor for Mulgore), or nil.
+function Compat.GetContinentOf(mapID)
+    return enclosingMap(mapID, mapType("Continent", CONTINENT_MAP_TYPE))
 end
 
 -- The top of the player's chain of maps (the world), or nil before the player's map is known.
@@ -515,7 +561,7 @@ function Compat.GetZoneRects()
     if not Compat.has.mapChildren then return nil end
     local root = worldRoot()
     if not root then return nil end
-    local children = Compat.Call(C_Map.GetMapChildrenInfo, root, zoneType(), true)
+    local children = Compat.Call(C_Map.GetMapChildrenInfo, root, mapType("Zone", ZONE_MAP_TYPE), true)
     if type(children) ~= "table" then return nil end
     local rects = {}
     for _, info in ipairs(children) do
@@ -537,7 +583,7 @@ end
 -- (isShownByMouseOver). nil without the API.
 function Compat.GetExploredTextureCounts()
     if not Compat.has.mapExploration then return nil end
-    local children = Compat.Call(C_Map.GetMapChildrenInfo, worldRoot() or AZEROTH, zoneType(), true)
+    local children = Compat.Call(C_Map.GetMapChildrenInfo, worldRoot() or AZEROTH, mapType("Zone", ZONE_MAP_TYPE), true)
     if type(children) ~= "table" then return nil end
     local counts = {}
     for _, info in ipairs(children) do

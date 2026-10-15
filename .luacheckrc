@@ -46,10 +46,10 @@ read_globals = {
     "GetSpellInfo", "GetSpellTexture", "GetSubZoneText", "GetAddOnMetadata", "GetCVar",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "GetLootSourceInfo", "GetMoney", "UnitSex",
     "GetInventoryItemID", "GetInventoryItemQuality", "GetCategoryList", "GetCategoryNumAchievements",
-    "GetAchievementInfo",
+    "GetAchievementInfo", "GetTaxiMapID", "NumTaxiNodes", "TaxiNodeGetType", "TaxiNodeName", "ERR_NEWTAXIPATH",
     -- Namespaces
     "Enum", "C_AddOns", "C_CVar", "C_EventUtils", "C_GameRules", "C_Item", "C_Map", "C_MapExplorationInfo", "C_QuestLine",
-    "C_QuestLog", "C_Reputation", "C_Spell", "C_Texture", "C_Timer", "C_TradeSkillUI", "C_XMLUtil",
+    "C_QuestLog", "C_Reputation", "C_Spell", "C_TaxiMap", "C_Texture", "C_Timer", "C_TradeSkillUI", "C_XMLUtil",
     -- Libraries (optional, see embeds.xml)
     "LibStub",
 }

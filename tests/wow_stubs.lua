@@ -463,6 +463,9 @@ function Stubs.Install(opts)
     _G.DUEL_WINNER_KNOCKOUT = "%1$s has defeated %2$s in a duel"
     _G.DUEL_WINNER_RETREAT = "%2$s has fled from %1$s in a duel"
     _G.DUEL_COUNTDOWN = "Duel starting: %d"
+    _G.ERR_NEWTAXIPATH = "New flight path discovered!"
+    -- The taxi maps are absent until a spec opens one (Stubs.OpenTaxiMap).
+    _G.GetTaxiMapID, _G.C_TaxiMap, _G.NumTaxiNodes, _G.TaxiNodeGetType, _G.TaxiNodeName = nil, nil, nil, nil, nil
     _G.LOCALIZED_CLASS_NAMES_MALE = { WARRIOR = "Warrior", MAGE = "Mage", ROGUE = "Rogue", PRIEST = "Priest" }
     _G.RAID_CLASS_COLORS = { WARRIOR = { r = 0.78, g = 0.61, b = 0.43 }, MAGE = { r = 0.25, g = 0.78, b = 0.92 } }
     _G.GetLocale = function() return opts.locale or "enUS" end
@@ -754,6 +757,42 @@ function Stubs.EarnChallenge(id, alreadyEarned)
         end
     end
     Stubs.Fire("ACHIEVEMENT_EARNED", id, alreadyEarned)
+end
+
+-- Opens a flight master's taxi map on `list`, { id, name, state } with state 0 current, 1 reachable,
+-- 2 unreachable, and fires TAXIMAP_OPENED. The flight map (GetTaxiMapID gives `mapID`,
+-- C_TaxiMap.GetAllTaxiNodes the nodes) and the old taxi frame (NumTaxiNodes, TaxiNodeGetType,
+-- TaxiNodeName) both read the nodes; with `frameOnly` the flight map reads none, as away from it.
+local NODE_TYPES = { [0] = "CURRENT", [1] = "REACHABLE", [2] = "NONE" }
+function Stubs.OpenTaxiMap(list, mapID, frameOnly)
+    state.taxiNodes, state.taxiMap = list, not frameOnly and mapID or -1
+    _G.GetTaxiMapID = function() return state.taxiMap end
+    _G.C_TaxiMap = {
+        GetAllTaxiNodes = function(id)
+            local nodes = {}
+            if id ~= state.taxiMap then return nodes end
+            for index, node in ipairs(state.taxiNodes) do
+                nodes[#nodes + 1] = { nodeID = node.id, name = node.name, state = node.state, slotIndex = index }
+            end
+            return nodes
+        end,
+    }
+    _G.NumTaxiNodes = function() return #state.taxiNodes end
+    _G.TaxiNodeGetType = function(index)
+        local node = state.taxiNodes[index]
+        return node and NODE_TYPES[node.state] or "NONE"
+    end
+    _G.TaxiNodeName = function(index)
+        local node = state.taxiNodes[index]
+        return node and node.name or "INVALID"
+    end
+    Stubs.Fire("TAXIMAP_OPENED", 1)
+end
+
+-- Closes the taxi map: no map ID and no nodes, as away from a flight master.
+function Stubs.CloseTaxiMap()
+    state.taxiNodes, state.taxiMap = {}, -1
+    Stubs.Fire("TAXIMAP_CLOSED")
 end
 
 -- Where the player is: Stubs.SetInstance(389, "party", "Ragefire Chasm"); no arguments = outdoors.

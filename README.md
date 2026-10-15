@@ -57,6 +57,7 @@ Today · played 2 h 10 min
 - **Reputation:** the first time you reach Friendly, Honored, Revered or Exalted with a faction, or fall to Hostile or Hated.
 - **Notable gear:** the first rare item you equip, and every epic or better item.
 - **Legacy Challenges:** each Legacy Challenge you complete, and the ones completed before you installed Wayscribe.
+- **Flight paths:** each new flight master you learn.
 - **Journeys:** hearthstone, Astral Recall, mage teleports and transporters, from where to where.
 - **Distance:** how far you walked, rode and flew each day.
 

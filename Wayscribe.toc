@@ -79,6 +79,7 @@ Trackers\Gold.lua
 Trackers\Reputation.lua
 Trackers\Gear.lua
 Trackers\LegacyChallenges.lua
+Trackers\FlightPaths.lua
 
 UI\Theme.lua
 UI\DayView.lua
