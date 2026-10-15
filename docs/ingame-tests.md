@@ -26,9 +26,44 @@ the events, does it look right, is it fast enough.
 you saw only if it differs from the expectation; for looks, a screenshot helps. Quoted texts are the
 English client's; a German client shows the German ones.
 
-**Start here** if time is short: the [dungeon run with a reload](#dungeons-and-bosses), a
-[flight](#footsteps-on-the-world-map), [`/ws stats` after two hours](#footsteps-on-the-world-map)
-and [a journal file that didn't load](#backup).
+**Start here:** the [beta session for the launch trackers](#beta-session-the-launch-trackers),
+before the beta closes on October 21. After that, if time is short: the
+[dungeon run with a reload](#dungeons-and-bosses), a [flight](#footsteps-on-the-world-map),
+[`/ws stats` after two hours](#footsteps-on-the-world-map) and
+[a journal file that didn't load](#backup).
+
+## Beta session: the launch trackers
+
+Wayscribe 1.0 adds trackers for the game's launch: first visits to zones, gold, reputation,
+notable gear, Legacy Challenges, flight paths, guild, home, collections and PvP rank (what each
+one records: [ARCHITECTURE.md §6.11](architecture/06.11-launch-trackers.md)). This one session
+before the beta closes is all the testing they get before launch, and the rest
+is [checked after launch](#after-launch).
+
+**When:** in the stress test on October 19 if it lets you play, otherwise on October 20 or 21, with
+the build from October 19 evening or later. **Who:** a **new level 1 character**, any race, with
+developer mode on (`/ws dev`). **Route** (30 to 45 minutes): the starting area, the first town with
+an inn, then the capital, for example Northshire, Goldshire and Stormwind, or Camp Narache, Bloodhoof
+Village and Thunder Bluff. The texts below are the expected meaning, not the exact wording.
+
+- [ ] **The probe**, right after logging in: `/ws probe`. → Lines starting with `firstVisit.`, `gold.`,
+  `rep.`, `gear.`, `legacy.`, `flightPaths.`, `guild.`, `home.`, `collections.` and `pvpRank.`. None
+  says "error". The probe is saved with the game's files, so nothing needs copying.
+- [ ] **The starting zone.** → Today's page starts with the first visit to the starting zone.
+- [ ] **Gear.** Equip a quest reward. → No entry unless it is blue or better, but `/ws trace` lists
+  the change.
+- [ ] **Reputation.** Turn in a few quests. → `/ws trace` lists reputation updates. An entry only if
+  a standing changes (Neutral to Friendly).
+- [ ] **Gold.** Sell something to a vendor, then buy something. → Today's page: one gold line with
+  earned and spent.
+- [ ] **Home.** Set your hearthstone at the town's inn. → An entry that the inn's place is now your
+  home.
+- [ ] **A new zone or city.** Walk into the next zone or the capital. → A first visit for it.
+  `/reload` and walk out and in again. → No second entry.
+- [ ] **A flight path.** Talk to the capital's flight master, and with the taxi map open, type
+  `/ws probe` again. → An entry for the new flight path, and the probe's `flightPaths.` lines count
+  the known nodes.
+- [ ] **At the end:** `/ws log` says "No errors recorded.", and `/ws trace` shows what each tracker saw.
 
 ## Dungeons and bosses
 
@@ -187,6 +222,12 @@ The Duels tracker (0.9, §6.10). Developer mode (`/ws dev`) also logs every duel
 - [ ] **The Your Year card** (developer mode previews the year, `/ws year`). → *Duels* after
   *Deaths*: won and lost; with more duels the most frequent opponent, the nemesis and the
   easiest and toughest class.
+
+## After launch
+
+The launch trackers' checks that need more than a level 1 character (§6.11): reaching a new
+standing, a rare and an epic item, a Legacy Challenge, a guild, a mount, a PvP rank. Each tracker
+adds its checks here when it is built.
 
 ## Already verified
 

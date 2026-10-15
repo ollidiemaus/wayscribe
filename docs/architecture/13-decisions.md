@@ -65,6 +65,22 @@ The choices that shaped the addon, by topic. Each says what was decided and why.
   kill) can add icons the same way.
 - **Cards live with their trackers**, like record types and counters: one file still adds a
   feature, its Your Year card included. Only the opening card is the UI's own.
+- **Launch trackers ship without an in-game check** (§6.11). The beta ends before there is time for
+  one, so a launch tracker ships once it is probed and unit-tested and fails silent. Its in-game
+  checks follow after launch, and the dev-mode trace collects the evidence.
+- **Snapshots before events and chat lines.** A tracker that compares saved state is caught up by
+  its next look when an event never fires. Only that kind can be trusted without playing.
+- **The first look is silent**, as Professions does. The exceptions are where the game knows better:
+  a level 1 character's starting zone, a flight path learned that very moment, and Legacy
+  Challenges, which the game dates itself.
+- **Gold and Home take changes found at login silently.** A gold total gained elsewhere would land
+  on the wrong day, and the name of home changes with the client's language.
+- **Notable gear is the first rare and every epic.** An entry for every blue item would bury the
+  journal while leveling, and epics alone would leave most characters with nothing before 60.
+- **Small trackers get no Your Year card.** First visits and flight paths are lines on the
+  Footsteps card, and guild and home have none. With a card each, Your Year would grow from 12
+  cards to over 20.
+- **No screenshot tracker.** It was on the idea list and dropped in planning: not wanted.
 
 ## UI
 
