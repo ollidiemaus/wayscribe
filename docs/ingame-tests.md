@@ -340,6 +340,9 @@ adds its checks here when it is built.
   `new=<mountID>` and `recorded 1`.
 - [ ] **Another character.** Learn a mount on an alt, then log in the first character. → Note
   whether the mount reads as collected there: if it does, it makes an entry (§6.20, the price).
+- [ ] **Pets and toys.** Learn a companion pet (Prairie Dog Whistle, Cat Carrier) or a toy, then run
+  `/ws probe`. → If `collections.pets` or `collections.toys` counts it, pets and toys can join
+  Collections (§6.20); if it still reads `0 of 0`, they stay out.
 - [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
 - [ ] **Your Year.** → A *Mounts* card after *Legacy Challenges*, with the count and the first mount.
 

@@ -37,15 +37,17 @@ Decided on 2026-10-15. The beta ends on 2026-10-21 (PDT) and Forever launches on
   home (§6.19), collections: mounts (§6.20), PvP rank (§6.21).
 - **Left out for launch:** screenshots (not wanted), talents (Retail-style trees plus Forever's
   Legacy trees, with no clear moment), learned spells (too many), honor kills (only an unloaded frame
-  reads them), battlegrounds (no battleground browser in Forever's UI), and the game's "Discovered"
-  messages for subzones (first visits cover zones).
+  reads them), battlegrounds (no battleground browser in Forever's UI), pets and toys (the beta
+  couldn't show that their journals work, §6.20), and the game's "Discovered" messages for subzones
+  (first visits cover zones).
 
 ## Next
 - **First public release:** CurseForge and GitHub Releases are set up; pushing the first tag
   publishes it (see [DEVELOPMENT.md](../DEVELOPMENT.md#releasing)).
 - **The archive** (Phase B, §4.7), once `/ws stats` from real players says it's needed.
 - **Tracker ideas** after launch (each a single-file addition): talent milestones, PvP honor kills,
-  battlegrounds, learned spells as a counter, Legacy Track levels.
+  battlegrounds, learned spells as a counter, Legacy Track levels, pets and toys in Collections
+  once a learned one shows up in `/ws probe` (§6.20).
 - **Footsteps:** a fog-of-war look on the map from the walked squares (§6.8).
 - **Dungeon maps:** the old dungeons' map art is still in Forever's files; maps in the journal
   whose fog lifts room by room (plan: [dungeon-maps.md](../dungeon-maps.md)).
