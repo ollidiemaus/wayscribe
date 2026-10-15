@@ -8,7 +8,8 @@ local L, Compat, Store, Trace = ns.L, ns.Compat, ns.Store, ns.Trace
 --
 -- The first look is silent: the zone the character stands in, and every zone its world map shows
 -- explored, were visited before the tracker existed. They are kept in state.visits. A level 1
--- character's starting zone is the exception, and its first entry.
+-- character is the exception: it has been nowhere else, though Forever's map shows zones explored
+-- on a brand-new one too (docs/ARCHITECTURE.md §12 row 16). Its starting zone is its first entry.
 local SETTLE = 1 -- seconds after an event, when the best map has caught up with a loading screen
 
 ns.RecordTypes:Register("FIRST_VISIT", {
@@ -71,8 +72,10 @@ local function visit(look)
     if type(known) ~= "table" then
         look.first, look.level, look.explored = true, Compat.GetPlayerLevel(), Compat.GetExploredZones()
         known = {}
-        for visited in pairs(look.explored or {}) do known[visited] = true end
-        known[zone] = look.level ~= 1 or nil
+        if look.level ~= 1 then
+            for visited in pairs(look.explored or {}) do known[visited] = true end
+            known[zone] = true
+        end
         if not Store:SetState("visits", known) then return "read-only" end
     end
     if known[zone] then return look.first and "first look" or "known" end

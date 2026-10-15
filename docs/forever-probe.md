@@ -495,3 +495,44 @@ Notes:
 - At the login, a second after `PLAYER_ENTERING_WORLD`, the best map was still Kalimdor, so the look
   found no zone and wrote nothing. `ZONE_CHANGED_NEW_AREA` two seconds later looked again. The
   Southern Gold Road is part of the Barrens, so no entry. The error log has nothing new.
+
+## Client 1.60.1, build 70374, a brand-new character (2026-10-15)
+
+Mato, a level 1 Tauren Druid created at 15:23, in Camp Narache, Mulgore, right after entering the
+world, with the copy of `0456417`. The lines that differ from the 15:08 run on Scoopz, without the
+position, quest and profession lines:
+
+```text
+addon = 0.0.6-10-g0456417
+level = 1
+firstVisit.zone = 1412
+firstVisit.map.0 = 1412 Mulgore (type 3)
+firstVisit.explored = 3 of 3 zones (textures/hover-only): 1416 1/0, 1429 1/0, 1450 1/0
+gold.money = 0
+gear.slots = 5:6139/q0 7:6124/q0 16:35/q1
+flightPaths.taxiMap = -1
+flightPaths.nodes = 0 ()
+home.bind = Camp Narache
+```
+
+The launch trace of that session:
+
+```text
+2026-10-15 15:23:24 FirstVisits enable+PLAYER_ENTERING_WORLD: taxi=false instance="none" map=1414 zone=missing -> no zone
+2026-10-15 15:23:37 FirstVisits ZONE_CHANGED_NEW_AREA: taxi=false instance="none" map=1412 zone=1412 level=1 explored={1416,1429,1450} -> recorded
+```
+
+Notes:
+- A brand-new character's map shows Alterac Mountains, Elwynn Forest and Moonglade explored too,
+  one texture each and none hover-only, before it has taken a step. Its first look kept
+  them in `state.visits`, so it would never get a first visit for them; since then a level 1
+  character's first look takes no explored zones (§6.12). Both characters are Tauren Druids, so the
+  cause may still be race or class.
+- The journal's first entry is the first visit to Mulgore, marked as a first. The login's look,
+  a second after `PLAYER_ENTERING_WORLD`, still found Kalimdor as the best map, and the zone change
+  13 seconds later took Mulgore.
+- `legacy.*` reads as on Scoopz: "Played in the WoW: Forever Beta" (64283) is completed on
+  10/9/26 with *wasEarnedByMe* true, six days before this character existed. The flag doesn't
+  tell an account's challenges from the character's.
+- `rep.*` reads as on Scoopz (4 factions under 1 header, Darkspear Trolls Friendly), and
+  `collections.*` too (pets and toys `0 of 0`, no toy). The error log has nothing new.

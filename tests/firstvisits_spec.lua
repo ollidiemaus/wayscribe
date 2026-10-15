@@ -2,11 +2,16 @@ local T = require("testlib")
 local Stubs = require("wow_stubs")
 local describe, it = T.describe, T.it
 
--- Durotar and Thunder Bluff (cities are zone maps directly under the continent, UiMap.db2 of build
--- 70374) and a cave in Mulgore, next to the stub's Mulgore and Kalimdor.
+-- Durotar, Moonglade and Thunder Bluff (cities are zone maps directly under the continent, UiMap.db2
+-- of build 70374), two zones of the Eastern Kingdoms and a cave in Mulgore, next to the stub's
+-- Mulgore and Kalimdor.
 local EXTRA = {
     [1411] = { name = "Durotar", parent = 1414, type = 3 },
+    [1450] = { name = "Moonglade", parent = 1414, type = 3 },
     [1456] = { name = "Thunder Bluff", parent = 1414, type = 3 },
+    [1415] = { name = "Eastern Kingdoms", parent = 947, type = 2 },
+    [1416] = { name = "Alterac Mountains", parent = 1415, type = 3 },
+    [1429] = { name = "Elwynn Forest", parent = 1415, type = 3 },
     [9001] = { name = "Palemane Rock", parent = 1412, type = 5 },
 }
 
@@ -75,7 +80,7 @@ describe("first visits", function()
 
     it("leave out zones whose explored areas the map only shows under the mouse", function()
         withMaps(function()
-            -- Forever lists hover-only textures for zones a new character has never been to.
+            -- Forever's map draws a hover-only texture only while the mouse is over it.
             local hover, shown = { isShownByMouseOver = true }, { isShownByMouseOver = false }
             local ns = start(1412, { setup = function()
                 Stubs.SetExplored({ [1411] = { hover, hover }, [1456] = { hover, shown },
@@ -88,9 +93,17 @@ describe("first visits", function()
         end)
     end)
 
-    it("still record a level 1 character's starting zone when its map shows it explored", function()
-        local ns = start(1412, { level = 1, setup = function() Stubs.SetExplored({ [1412] = true }) end })
-        T.same(visits(ns), { 1412 })
+    it("take no explored zones on a level 1 character, whose map shows zones it has never been to", function()
+        withMaps(function()
+            -- A new level 1 Tauren in Camp Narache on the beta (build 70374), and its starting zone.
+            local ns = start(1412, { level = 1, setup = function()
+                Stubs.SetExplored({ [1412] = true, [1416] = true, [1429] = true, [1450] = true })
+            end })
+            T.same(visits(ns), { 1412 })
+            walkTo(1450)
+            walkTo(1429)
+            T.same(visits(ns), { 1412, 1450, 1429 })
+        end)
     end)
 
     it("count a smaller map as the zone it lies in", function()

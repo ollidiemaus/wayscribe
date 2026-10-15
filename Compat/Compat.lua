@@ -456,9 +456,9 @@ end
 -- The zones whose map the character has uncovered, as { [uiMapID] = true }: where the character
 -- has been (First visits, docs/ARCHITECTURE.md §6.12). A zone counts when the map shows at least
 -- one of its explored areas without the mouse over it, as Blizzard's map draws them. On the beta
--- it also named zones the character had never been to, with textures that aren't hover-only
--- (docs/ARCHITECTURE.md §12 row 16). A zone without areas to uncover is never in it. nil without
--- the API.
+-- it also named zones the character had never been to, with textures that aren't hover-only, on a
+-- brand-new level 1 character too (docs/ARCHITECTURE.md §12 row 16). A zone without areas to
+-- uncover is never in it. nil without the API.
 function Compat.GetExploredZones()
     local counts = Compat.GetExploredTextureCounts()
     if not counts then return nil end

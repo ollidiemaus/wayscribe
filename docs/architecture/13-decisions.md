@@ -73,6 +73,10 @@ The choices that shaped the addon, by topic. Each says what was decided and why.
 - **The first look is silent**, as Professions does. The exceptions are where the game knows better:
   a level 1 character's starting zone, a flight path learned that very moment, and Legacy
   Challenges, which the game dates itself.
+- **A level 1 character takes no explored zones** (§6.12). Forever's map shows zones explored that
+  a brand-new character has never been to, and a first visit taken as known is never recorded.
+  Every character at launch is new; a late "first time" for a zone it walked before Wayscribe was
+  there costs less.
 - **Gold and Home take changes found at login silently.** A gold total gained elsewhere would land
   on the wrong day, and the name of home changes with the client's language.
 - **Notable gear is the first rare and every epic.** An entry for every blue item would bury the
