@@ -3,10 +3,11 @@ local L, Compat, Store, Trace, YearCards = ns.L, ns.Compat, ns.Store, ns.Trace, 
 
 -- Notable gear (docs/ARCHITECTURE.md §6.15): the first rare item the character equips, and every
 -- epic or better item, once per item. The tracker keeps every item it has seen worn,
--- state.gear = { items = { [itemID] = true } }, so re-equipping an item or a second copy repeats
--- nothing, and what is worn at the first look is taken silently. "Seen before" is also the journal's:
--- the first rare is the firsts key GEAR:RARE, and a journal restored without the state gives its
--- epics back as seen.
+-- state.gear = { items = { [itemID] = true }, hadRare, hadEpic }, so re-equipping an item or a
+-- second copy repeats nothing. What is worn at the first look is taken silently, and a rare or an
+-- epic among it was the character's first: hadRare and hadEpic keep a later one from being marked
+-- as a first. "Seen before" is also the journal's: the first rare is the firsts key GEAR:RARE, and a
+-- journal restored without the state gives its epics back as seen, and as had.
 local ICON = "Interface\\Icons\\INV_Chest_Plate16"
 local FIRST_SLOT, LAST_SLOT = 1, 19 -- INVSLOT_HEAD to INVSLOT_TABARD; the bag slots come after
 local RARE, EPIC, LEGENDARY, ARTIFACT = 3, 4, 5, 6 -- Heirloom (7) and WoW Token (8) aren't found gear
@@ -23,8 +24,13 @@ end
 ns.RecordTypes:Register("GEAR", {
     version = 1,
     category = "progress",
-    fields = { item = "number", quality = "number", name = "string?" },
-    firstKey = function(data) return data.quality == RARE and "GEAR:RARE" or "GEAR:EPIC" end,
+    -- notFirst: an epic worn after the first look found one worn, so the journal's first isn't the
+    -- character's.
+    fields = { item = "number", quality = "number", name = "string?", notFirst = "boolean?" },
+    firstKey = function(data)
+        if data.notFirst then return nil end
+        return data.quality == RARE and "GEAR:RARE" or "GEAR:EPIC"
+    end,
     -- The epics worn, and the first rare and first epic (Your Year).
     rollup = function(rollup, data, record)
         local gear = rollup.gear or { epics = 0 }
@@ -92,38 +98,47 @@ function Gear:PLAYER_ENTERING_WORLD()
     self:AskForLook("PLAYER_ENTERING_WORLD")
 end
 
--- The items seen worn, as a copy, so a look that stops at a failed write leaves the state as it was;
--- nil before the first look. Without the state, the journal's own entries are seen.
-local function knownItems()
+-- The snapshot, as a copy, so a look that stops at a failed write leaves the state as it was; nil
+-- before the first look.
+local function snapshot()
     local saved = Store:CopyState("gear")
-    return type(saved) == "table" and type(saved.items) == "table" and saved.items or nil
+    return type(saved) == "table" and type(saved.items) == "table" and saved or nil
 end
 
-local function journalItems()
-    local known = {}
-    for _, record in ipairs(Store:GetRecordsOfType("GEAR")) do known[record.data.item] = true end
-    return known
+-- The first look's snapshot of a journal that has entries but no state (a backup restored without
+-- it): their items are seen, and an epic among them was had.
+local function journalSnapshot()
+    local snap = { items = {} }
+    for _, record in ipairs(Store:GetRecordsOfType("GEAR")) do
+        snap.items[record.data.item] = true
+        if isEpic(record.data.quality) then snap.hadEpic = true end
+    end
+    return snap
 end
 
--- Takes one worn item into `known` and writes its entry if it is notable; returns how it ended, then
--- true when it wrote the entry and false when the write failed.
-local function consider(item, quality, known)
+-- Takes one worn item into the snapshot and writes its entry if it is notable; returns how it
+-- ended, then true when it wrote the entry and false when the write failed.
+local function consider(item, quality, snap)
+    local known = snap.items
     if known[item] then return "known" end
     if not quality then return "no quality" end -- not loaded yet: the next look reads it again
-    if quality ~= RARE and not isEpic(quality) or quality == RARE and Store:GetFirst("GEAR:RARE") then
+    local laterRare = quality == RARE and (snap.hadRare or Store:GetFirst("GEAR:RARE"))
+    if quality ~= RARE and not isEpic(quality) or laterRare then
         known[item] = true
         return quality == RARE and "later rare" or "not notable"
     end
-    local first = not Store:GetFirst(quality == RARE and "GEAR:RARE" or "GEAR:EPIC")
-    local record, reason = Store:Append("GEAR", { item = item, quality = quality, name = Compat.GetItemName(item) })
+    local notFirst = quality ~= RARE and snap.hadEpic or nil
+    local first = not notFirst and not Store:GetFirst(quality == RARE and "GEAR:RARE" or "GEAR:EPIC")
+    local record, reason = Store:Append("GEAR",
+        { item = item, quality = quality, name = Compat.GetItemName(item), notFirst = notFirst })
     if not record then return "not written: " .. tostring(reason), false end
     known[item] = true
     if quality == RARE then return "first rare", true end
     return first and "first epic" or "epic", true
 end
 
-local function save(known)
-    return Store:SetState("gear", { items = known })
+local function save(snap)
+    return Store:SetState("gear", snap)
 end
 
 -- One slot, on PLAYER_EQUIPMENT_CHANGED. Before the first look, the event asks for it instead, and
@@ -131,8 +146,8 @@ end
 function Gear:PLAYER_EQUIPMENT_CHANGED(slot)
     slot = Compat.Safe(slot, "number")
     if not slot or slot < FIRST_SLOT or slot > LAST_SLOT then return end
-    local known = knownItems()
-    if not known then return self:AskForLook("PLAYER_EQUIPMENT_CHANGED") end
+    local snap = snapshot()
+    if not snap then return self:AskForLook("PLAYER_EQUIPMENT_CHANGED") end
     local item, quality, rawItem, rawQuality = Compat.GetEquippedItem(slot)
     local outcome
     if item == nil then
@@ -142,34 +157,39 @@ function Gear:PLAYER_EQUIPMENT_CHANGED(slot)
     elseif not Store:IsWritable() then
         outcome = "read-only"
     else
-        outcome = consider(item, quality, known)
-        if not save(known) then
+        outcome = consider(item, quality, snap)
+        if not save(snap) then
             outcome = "read-only"
-        elseif quality == nil and not known[item] then
+        elseif quality == nil and not snap.items[item] then
             self:AskForLook("PLAYER_EQUIPMENT_CHANGED") -- its quality wasn't loaded yet
         end
     end
     Trace:Add(self.id, "PLAYER_EQUIPMENT_CHANGED", outcome, "slot", slot, "item", rawItem, "quality", rawQuality)
 end
 
--- Every slot: the first look takes what is worn, a later one catches what an event missed.
+-- Every slot: the first look takes what is worn, and a rare or an epic among it as had; a later
+-- look catches what an event missed.
 local function compare(worn)
     if not Store:IsWritable() then return "read-only", {} end
-    local known = knownItems()
-    if not known then
-        known = journalItems()
-        for _, slot in ipairs(worn) do known[slot.item] = true end
-        return save(known) and "first look" or "read-only", {}
+    local snap = snapshot()
+    if not snap then
+        snap = journalSnapshot()
+        for _, slot in ipairs(worn) do
+            snap.items[slot.item] = true
+            if slot.quality == RARE then snap.hadRare = true end
+            if slot.quality and isEpic(slot.quality) then snap.hadEpic = true end
+        end
+        return save(snap) and "first look" or "read-only", {}
     end
     local new, written = {}, 0
     for _, slot in ipairs(worn) do
-        if not known[slot.item] then new[#new + 1] = slot.item .. ":" .. tostring(slot.quality or "?") end
-        local outcome, wrote = consider(slot.item, slot.quality, known)
+        if not snap.items[slot.item] then new[#new + 1] = slot.item .. ":" .. tostring(slot.quality or "?") end
+        local outcome, wrote = consider(slot.item, slot.quality, snap)
         -- What was written so far is kept, so the next look doesn't write it again.
-        if wrote == false then return save(known) and outcome or "read-only", new end
+        if wrote == false then return save(snap) and outcome or "read-only", new end
         if wrote then written = written + 1 end
     end
-    if not save(known) then return "read-only", new end
+    if not save(snap) then return "read-only", new end
     if written > 0 then return "recorded " .. written, new end
     return #new > 0 and "nothing notable" or "unchanged", new
 end

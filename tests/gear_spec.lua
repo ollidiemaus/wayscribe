@@ -2,11 +2,12 @@ local T = require("testlib")
 local Stubs = require("wow_stubs")
 local describe, it = T.describe, T.it
 
-local HEAD, SHIRT, CHEST, FINGER, TRINKET1, TRINKET2, MAIN_HAND, BAG = 1, 4, 5, 11, 13, 14, 16, 20
+local HEAD, SHIRT, CHEST, FEET, FINGER, TRINKET1, TRINKET2, MAIN_HAND, BAG = 1, 4, 5, 8, 11, 13, 14, 16, 20
 
 local ITEMS = {
     shirt = { id = 45, quality = 1, name = "Tauren Shirt" },
     robe = { id = 6125, quality = 1, name = "Brawler's Harness" },
+    boots = { id = 1002, quality = 1, name = "Worn Boots" },
     green = { id = 5000, quality = 2, name = "Gnoll Punisher" },
     wornRing = { id = 1000, quality = 3, name = "Ring of Precision" },
     wornEpic = { id = 1001, quality = 4, name = "Hide of the Wild" },
@@ -22,8 +23,13 @@ local function item(key, quality)
     return { id = def.id, quality = quality == nil and def.quality or quality or nil }
 end
 
--- What a level 10 Tauren wears at the first look: a rare ring and an epic chest among the whites.
+-- What a level 1 Tauren wears at the first look: nothing notable.
 local function worn()
+    return { [SHIRT] = item("shirt"), [CHEST] = item("robe"), [FEET] = item("boots") }
+end
+
+-- What a level 10 Tauren wears at the first look: a rare ring and an epic chest among the whites.
+local function notable()
     return { [SHIRT] = item("shirt"), [CHEST] = item("wornEpic"), [FINGER] = item("wornRing") }
 end
 
@@ -74,7 +80,7 @@ describe("gear", function()
     end)
 
     it("record nothing for re-equipping an item, a second copy, or what was worn at the first look", function()
-        local ns = start()
+        local ns = start(notable())
         equip(TRINKET1, "trinket")
         equip(TRINKET1, nil)
         equip(TRINKET1, "trinket")
@@ -83,7 +89,33 @@ describe("gear", function()
         equip(CHEST, "wornEpic")
         equip(FINGER, nil)
         equip(FINGER, "wornRing")
+        T.same(entries(ns), { "Equipped an epic item: Hand of Justice" })
+    end)
+
+    it("take a rare and an epic worn at the first look as the character's first ones", function()
+        local ns = start(notable())
+        equip(MAIN_HAND, "sword")
+        equip(TRINKET1, "trinket")
+        T.same(entries(ns), { "Equipped an epic item: Hand of Justice" }, "neither is the character's first")
+        local built = card(ns)
+        T.eq(built.big, "1")
+        T.same(built.lines, {}, "no first to date")
+        ns.Store:Rebuild()
+        T.same(entries(ns), { "Equipped an epic item: Hand of Justice" }, "a rebuild marks no first either")
+    end)
+
+    it("take a rare worn at the first look as the first rare only", function()
+        local ns = start({ [SHIRT] = item("shirt"), [FINGER] = item("wornRing") })
+        equip(MAIN_HAND, "sword")
+        equip(TRINKET1, "trinket")
         T.same(entries(ns), { "*Equipped your first epic item: Hand of Justice" })
+    end)
+
+    it("take an epic worn at the first look as the first epic only", function()
+        local ns = start({ [SHIRT] = item("shirt"), [CHEST] = item("wornEpic") })
+        equip(MAIN_HAND, "sword")
+        equip(TRINKET1, "trinket")
+        T.same(entries(ns), { "*Equipped your first rare item: Thrash Blade", "Equipped an epic item: Hand of Justice" })
     end)
 
     it("record nothing below rare, and a legendary as better than epic", function()
@@ -131,7 +163,7 @@ describe("gear", function()
 
     it("take nothing as the first look while the inventory reads empty", function()
         local ns = start({})
-        Stubs.SetEquipment(worn())
+        Stubs.SetEquipment(notable())
         Stubs.Fire("PLAYER_ENTERING_WORLD", false, false)
         Stubs.Advance(1)
         equip(CHEST, "robe")
@@ -217,7 +249,8 @@ describe("gear", function()
         Stubs.SetEquipment(Stubs.state.equipment)
         Stubs.Fire("PLAYER_ENTERING_WORLD", false, false)
         Stubs.Advance(1)
-        T.same(entries(ns), { "*Equipped your first epic item: Ironfoe", "*Equipped your first rare item: Thrash Blade" },
+        -- The trinket was worn at the first readable look, so Ironfoe isn't the first epic.
+        T.same(entries(ns), { "Equipped an epic item: Ironfoe", "*Equipped your first rare item: Thrash Blade" },
             "a secret quality was left for the next look")
         T.eq(#ns.Log:GetEntries(), 0)
     end)
@@ -258,6 +291,19 @@ describe("gear", function()
         equip(TRINKET1, "trinket")
         T.same(entries(ns), { "*Equipped your first rare item: Thrash Blade",
             "*Equipped your first epic item: Hand of Justice" }, "the journal knows them")
+    end)
+
+    it("know the character had an epic when the journal comes back without the tracker's state", function()
+        local ns = start(notable())
+        equip(TRINKET1, "trinket")
+        equip(TRINKET1, nil)
+        equip(CHEST, "robe")
+        ns.Store:SetState("gear", nil)
+        ns = Stubs.Relog()
+        Stubs.Advance(1)
+        equip(MAIN_HAND, "ironfoe")
+        T.same(entries(ns), { "Equipped an epic item: Hand of Justice", "Equipped an epic item: Ironfoe" },
+            "the journal's epic was the first")
     end)
 
     it("repeat nothing after a backup is restored", function()

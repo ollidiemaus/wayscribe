@@ -3,9 +3,11 @@ local L, Compat, Store, Trace, YearCards = ns.L, ns.Compat, ns.Store, ns.Trace, 
 
 -- Collections (docs/ARCHITECTURE.md §6.20): an entry for each new mount the character collects. A
 -- look reads the mount journal's collected flag and compares it with the snapshot,
--- state.collections = { mounts = { [mountID] = true } }, so a missed event is caught at the next
--- look. The first look takes what is owned silently, also for a journal restored without the state.
--- The firsts key MOUNT marks the first mount, so a restored journal doesn't mark another.
+-- state.collections = { mounts = { [mountID] = true }, hadMount }, so a missed event is caught at the
+-- next look. The first look takes what is owned silently, also for a journal restored without the
+-- state, and a mount among it was the character's first: hadMount keeps a later one from being
+-- marked as a first. The firsts key MOUNT marks the first mount, so a restored journal doesn't mark
+-- another.
 local ICON = "Interface\\Icons\\Ability_Mount_RidingHorse"
 
 local function mountName(data)
@@ -16,8 +18,10 @@ end
 ns.RecordTypes:Register("MOUNT", {
     version = 1,
     category = "progress",
-    fields = { mount = "number", name = "string?" },
-    firstKey = function() return "MOUNT" end,
+    -- notFirst: collected after the first look found a mount owned, so the journal's first isn't the
+    -- character's.
+    fields = { mount = "number", name = "string?", notFirst = "boolean?" },
+    firstKey = function(data) return not data.notFirst and "MOUNT" or nil end,
     -- How many were collected, and the first mount (Your Year).
     rollup = function(rollup, data, record)
         local mounts = rollup.mounts or { n = 0 }
@@ -71,39 +75,39 @@ function Collections:NEW_MOUNT_ADDED() self:AskForLook("NEW_MOUNT_ADDED") end
 function Collections:COMPANION_LEARNED() self:AskForLook("COMPANION_LEARNED") end
 function Collections:PLAYER_ENTERING_WORLD() self:AskForLook("PLAYER_ENTERING_WORLD") end
 
--- The mounts seen collected, as a copy, so a look that stops at a failed write leaves the state as
--- it was; nil before the first look.
-local function knownMounts()
+-- The snapshot, as a copy, so a look that stops at a failed write leaves the state as it was; nil
+-- before the first look.
+local function snapshot()
     local saved = Store:CopyState("collections")
-    return type(saved) == "table" and type(saved.mounts) == "table" and saved.mounts or nil
+    return type(saved) == "table" and type(saved.mounts) == "table" and saved or nil
 end
 
-local function save(known)
-    return Store:SetState("collections", { mounts = known })
+local function save(snap)
+    return Store:SetState("collections", snap)
 end
 
 -- Compares the collected mounts with the snapshot and writes an entry for each new one; returns how
 -- the look ended and the new ones, for the trace.
 local function compare(collected)
     if not Store:IsWritable() then return "read-only", {} end
-    local known = knownMounts()
-    if not known then
-        known = {}
-        for _, mount in ipairs(collected) do known[mount.id] = true end
-        return save(known) and "first look" or "read-only", {}
+    local snap = snapshot()
+    if not snap then
+        snap = { mounts = {}, hadMount = #collected > 0 or nil }
+        for _, mount in ipairs(collected) do snap.mounts[mount.id] = true end
+        return save(snap) and "first look" or "read-only", {}
     end
-    local new, written = {}, 0
+    local known, new, written = snap.mounts, {}, 0
     for _, mount in ipairs(collected) do
         if not known[mount.id] then
             new[#new + 1] = mount.id
-            local record, reason = Store:Append("MOUNT", { mount = mount.id, name = mount.name })
+            local record, reason = Store:Append("MOUNT", { mount = mount.id, name = mount.name, notFirst = snap.hadMount })
             -- What was written so far is kept, so the next look doesn't write it again.
-            if not record then return save(known) and "not written: " .. tostring(reason) or "read-only", new end
+            if not record then return save(snap) and "not written: " .. tostring(reason) or "read-only", new end
             known[mount.id] = true
             written = written + 1
         end
     end
-    if not save(known) then return "read-only", new end
+    if not save(snap) then return "read-only", new end
     return written > 0 and "recorded " .. written or "unchanged", new
 end
 

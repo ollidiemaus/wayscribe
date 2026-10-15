@@ -4,14 +4,21 @@ local describe, it = T.describe, T.it
 
 local HORSE, PINTO, WOLF, RAPTOR = 6, 18, 14, 27
 
--- The mount journal of a character that owns the Brown Horse.
+-- The mount journal of a character that owns none yet.
 local function mounts()
     return {
-        { id = HORSE, name = "Brown Horse", collected = true },
+        { id = HORSE, name = "Brown Horse" },
         { id = PINTO, name = "Pinto" },
         { id = WOLF, name = "Timber Wolf" },
         { id = RAPTOR, name = "Emerald Raptor" },
     }
+end
+
+-- The mount journal of a character that owns the Brown Horse.
+local function owned()
+    local list = mounts()
+    list[1].collected = true
+    return list
 end
 
 local function mount(id)
@@ -60,7 +67,7 @@ end
 describe("collections", function()
     it("take the mounts owned already silently, then record each new one, the first as a first", function()
         local ns = start()
-        T.same(entries(ns), {}, "owned before Wayscribe")
+        T.same(entries(ns), {})
         collect(PINTO)
         collect(WOLF)
         T.same(entries(ns), { "*New mount: Pinto", "New mount: Timber Wolf" })
@@ -84,12 +91,17 @@ describe("collections", function()
         T.same(#ns.Store:GetRecordsOfType("MOUNT", loginDay, loginDay), 1)
     end)
 
-    it("record a first mount on a character that owned none", function()
-        local list = mounts()
-        list[1].collected = nil
-        local ns = start(list)
-        collect(HORSE)
-        T.same(entries(ns), { "*New mount: Brown Horse" })
+    it("mark no first mount on a character that owned one at the first look", function()
+        local ns = start(owned())
+        T.same(entries(ns), {}, "owned before Wayscribe")
+        collect(PINTO)
+        collect(WOLF)
+        T.same(entries(ns), { "New mount: Pinto", "New mount: Timber Wolf" })
+        local built = card(ns)
+        T.eq(built.big, "2")
+        T.same(built.lines, {}, "no first mount to date")
+        ns.Store:Rebuild()
+        T.same(entries(ns), { "New mount: Pinto", "New mount: Timber Wolf" }, "a rebuild marks no first either")
     end)
 
     it("write nothing and log no error when the API is missing, errors or is secret", function()
@@ -118,7 +130,7 @@ describe("collections", function()
 
     it("take no mount as uncollected before its collected flag is loaded", function()
         local ns = Stubs.LoadAddon()
-        Stubs.SetMounts(mounts())
+        Stubs.SetMounts(owned())
         local info = _G.C_MountJournal.GetMountInfoByID
         _G.C_MountJournal.GetMountInfoByID = function(id) return (info(id)) end -- names only, as at login
         Stubs.Login()
@@ -209,9 +221,9 @@ describe("collections", function()
         local traced = {}
         for i, line in ipairs(ns.Trace:GetLines()) do traced[i] = line:gsub("^%S+ %S+ ", "") end
         T.same(traced, {
-            "Collections enable+PLAYER_ENTERING_WORLD: mounts=4 collected=1 -> first look",
-            'Collections NEW_MOUNT_ADDED: mounts=4 collected=2 new="18" -> recorded 1',
-            'Collections COMPANION_LEARNED+PLAYER_ENTERING_WORLD: mounts=4 collected=4 new="14 27" -> recorded 2',
+            "Collections enable+PLAYER_ENTERING_WORLD: mounts=4 collected=0 -> first look",
+            'Collections NEW_MOUNT_ADDED: mounts=4 collected=1 new="18" -> recorded 1',
+            'Collections COMPANION_LEARNED+PLAYER_ENTERING_WORLD: mounts=4 collected=3 new="14 27" -> recorded 2',
             "Collections PLAYER_ENTERING_WORLD: mounts=missing -> no mounts",
         })
     end)

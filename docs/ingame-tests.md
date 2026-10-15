@@ -260,11 +260,13 @@ adds its checks here when it is built.
 ### Notable gear (§6.15)
 
 - [ ] **First look.** Log in a character that wears a rare or epic item. → No entry; `/ws trace` shows
-  `first look` with `worn=` the number of items worn.
-- [ ] **The first rare.** Equip a rare (blue) item. → "Equipped your first rare item: *name*", in
+  `first look` with `worn=` the number of items worn. Equip another epic. → "Equipped an epic item:
+  *name*", without the first-time badge: the one worn at the first look was the first.
+- [ ] **The first rare.** On a character that wore no rare at its first look, equip a rare (blue) item. → "Equipped your first rare item: *name*", in
   *Progress*, with the first-time badge; the trace shows `first rare`. Equip another rare. → No entry
   (`later rare`).
-- [ ] **Epics.** Equip an epic item, then a second one. → "Equipped your first epic item: *name*",
+- [ ] **Epics.** On a character that wore no epic at its first look, equip an epic item, then a second
+  one. → "Equipped your first epic item: *name*",
   then "Equipped an epic item: *name*". Take one off and put it back on. → No entry (`known`).
 - [ ] **Quality at equip time.** Equip an item the client hasn't seen this session (just looted).
   → The trace shows its `quality=`, not `no quality`; if it says `no quality`, the look a second
@@ -335,8 +337,8 @@ adds its checks here when it is built.
 
 - [ ] **First look.** Log in a character that owns a mount. → No entry; `/ws trace` shows
   `mounts=<n> collected=<owned>` and `first look` (or `unchanged` on a character Wayscribe knows).
-- [ ] **New mount.** Learn a mount. → "New mount: *name*" in *Progress*, marked as a first if it is
-  the first; the trace shows `NEW_MOUNT_ADDED` (note whether `COMPANION_LEARNED` comes too),
+- [ ] **New mount.** Learn a mount. → "New mount: *name*" in *Progress*, marked as a first only if the
+  character owned no mount at its first look; the trace shows `NEW_MOUNT_ADDED` (note whether `COMPANION_LEARNED` comes too),
   `new=<mountID>` and `recorded 1`.
 - [ ] **Another character.** Learn a mount on an alt, then log in the first character. → Note
   whether the mount reads as collected there: if it does, it makes an entry (§6.20, the price).
