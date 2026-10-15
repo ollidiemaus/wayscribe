@@ -6,7 +6,6 @@ local L, Compat, Store, Trace, YearCards = ns.L, ns.Compat, ns.Store, ns.Trace, 
 -- each arena season. A look compares the rank with the snapshot, state.pvpRank = { season, best },
 -- so a missed event is caught at the next look. The first look, losing a rank and a new season take
 -- the rank silently; a journal restored without the state gets a silent first look.
-local SETTLE = 1 -- seconds after an event; the two rank events and a login are one look
 local ICON = "Interface\\Icons\\INV_BannerPVP_02"
 
 local function rankText(data)
@@ -55,20 +54,7 @@ local PvPRank = ns.Trackers:New("PvPRank", {
     label = L.TRACKER_PVPRANK, tooltip = L.TRACKER_PVPRANK_TIP,
 })
 
--- Each event asks for a look a second later; a burst of them is one look, which the launch trace
--- names by every event that asked.
-function PvPRank:AskForLook(event)
-    local asked = self.asked or {}
-    self.asked = asked
-    if not asked[event] then
-        asked[event] = true
-        asked[#asked + 1] = event
-    end
-    self:Debounce("look", SETTLE, self.Look)
-end
-
 function PvPRank:OnEnable()
-    self.asked = nil
     self:TryRegisterEvent("PLAYER_PVP_RANK_CHANGED")
     self:TryRegisterEvent("MAJOR_FACTION_RENOWN_LEVEL_CHANGED")
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -104,10 +90,9 @@ local function compare(rank, season)
 end
 
 function PvPRank:Look()
-    local asked = self.asked
-    self.asked = nil
+    local asked = self:TakeAsked()
     local rank, season, rawRank, rawSeason = Compat.GetPvPRank()
     local outcome = "unreadable"
     if rank and season then outcome = compare(rank, season) end
-    Trace:Add(self.id, asked and table.concat(asked, "+"), outcome, "rank", rawRank, "season", rawSeason)
+    Trace:Add(self.id, asked, outcome, "rank", rawRank, "season", rawSeason)
 end

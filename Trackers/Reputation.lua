@@ -8,7 +8,6 @@ local L, Compat, Store, Trace, YearCards = ns.L, ns.Compat, ns.Store, ns.Trace, 
 -- climbing back to a standing held before is no entry. Meeting a faction is no entry, and the first
 -- look is silent. "Reached before" is also the journal's own firsts (REP:<faction>:<standing>), so
 -- a restored journal never repeats one.
-local SETTLE = 1 -- seconds after an event; a burst of UPDATE_FACTION is one look
 local ICON = "Interface\\Icons\\Achievement_Reputation_01"
 local FRIENDLY, HOSTILE, HONORED, EXALTED = 5, 2, 6, 8
 -- Forever's progress tracks are factions too (PvP Rank Points, Legacy Track), but not standings.
@@ -100,20 +99,7 @@ local Reputation = ns.Trackers:New("Reputation", {
     label = L.TRACKER_REPUTATION, tooltip = L.TRACKER_REPUTATION_TIP,
 })
 
--- Each event asks for a look a second later; a burst of them is one look, which the launch trace
--- names by every event that asked.
-function Reputation:AskForLook(event)
-    local asked = self.asked or {}
-    self.asked = asked
-    if not asked[event] then
-        asked[event] = true
-        asked[#asked + 1] = event
-    end
-    self:Debounce("look", SETTLE, self.Look)
-end
-
 function Reputation:OnEnable()
-    self.asked = nil
     self:TryRegisterEvent("UPDATE_FACTION")
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
     self:AskForLook("enable")
@@ -186,8 +172,7 @@ local function compare(standings)
 end
 
 function Reputation:Look()
-    local asked = self.asked
-    self.asked = nil
+    local asked = self:TakeAsked()
     local saved = Store:GetState("reputation")
     local standings, rows = readStandings(type(saved) == "table" and saved or nil)
     local outcome, changed, count = "no factions", nil, 0
@@ -197,6 +182,6 @@ function Reputation:Look()
         table.sort(changed)
     end
     local anyChange = changed and #changed > 0
-    Trace:Add(self.id, asked and table.concat(asked, "+"), outcome, "rows", rows, "factions", count,
+    Trace:Add(self.id, asked, outcome, "rows", rows, "factions", count,
         anyChange and "changed", anyChange and table.concat(changed, " "))
 end

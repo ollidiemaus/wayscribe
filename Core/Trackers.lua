@@ -5,13 +5,48 @@ local _, ns = ...
 local Trackers = { list = {}, byId = {} }
 ns.Trackers = Trackers
 
+local LOOK_DELAY = 1 -- seconds after an event; login and a loading screen are one look
+
+-- A tracker is a module (docs/ARCHITECTURE.md §3.2) with what the launch trackers share (§6.11).
+local Tracker = setmetatable({}, { __index = ns.Module })
+Tracker.__index = Tracker
+
+-- A launch tracker reads the game in self:Look() a moment after an event asks for it: a burst of
+-- events is one look, which the launch trace names by every event that asked. `seconds` replaces
+-- the tracker's delay for this request.
+function Tracker:AskForLook(event, seconds)
+    local asked = self.asked or {}
+    self.asked = asked
+    if not asked[event] then
+        asked[event] = true
+        asked[#asked + 1] = event
+    end
+    self:Debounce("look", seconds or self.lookDelay, self.Look)
+end
+
+-- The events that asked for the look being taken, joined by "+", for its trace line; the next
+-- burst starts afresh.
+function Tracker:TakeAsked()
+    local asked = self.asked
+    self.asked = nil
+    return asked and table.concat(asked, "+")
+end
+
+-- A look asked for before the tracker was switched off goes with it.
+function Tracker:Disable()
+    self.asked = nil
+    ns.Module.Disable(self)
+end
+
 -- opts.label and opts.tooltip: shown in settings; opts.default: on unless false;
--- opts.internal: always on, no toggle.
+-- opts.internal: always on, no toggle; opts.lookDelay: seconds from an event to the look it asks
+-- for (one by default).
 function Trackers:New(id, opts)
     assert(not self.byId[id], "duplicate tracker " .. tostring(id))
     opts = opts or {}
-    local tracker = ns.NewModule("tracker:" .. id)
+    local tracker = setmetatable(ns.NewModule("tracker:" .. id), Tracker)
     tracker.id = id
+    tracker.lookDelay = opts.lookDelay or LOOK_DELAY
     tracker.label = opts.label or id
     tracker.tooltip = opts.tooltip
     tracker.default = opts.default ~= false

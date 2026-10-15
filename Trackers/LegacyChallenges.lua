@@ -9,7 +9,6 @@ local L, Compat, Store, Time, Trace, YearCards = ns.L, ns.Compat, ns.Store, ns.T
 -- account's challenges too, so only ACHIEVEMENT_EARNED proves an account-wide challenge is this
 -- character's; at a look those are taken silently, and so is everything at a level 1 character's
 -- first look.
-local SETTLE = 1 -- seconds after an event; login and a loading screen are one look
 local ICON = "Interface\\Icons\\Achievement_General"
 
 local function challengeName(data)
@@ -63,20 +62,7 @@ YearCards:Register({
 
 local Legacy = ns.Trackers:New("LegacyChallenges", { label = L.TRACKER_LEGACY, tooltip = L.TRACKER_LEGACY_TIP })
 
--- Each event asks for a look a second later; a burst of them is one look, which the launch trace
--- names by every event that asked.
-function Legacy:AskForLook(event)
-    local asked = self.asked or {}
-    self.asked = asked
-    if not asked[event] then
-        asked[event] = true
-        asked[#asked + 1] = event
-    end
-    self:Debounce("look", SETTLE, self.Look)
-end
-
 function Legacy:OnEnable()
-    self.asked = nil
     self:TryRegisterEvent("ACHIEVEMENT_EARNED")
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
     self:AskForLook("enable")
@@ -158,8 +144,7 @@ local function compare(challenges, earned)
 end
 
 function Legacy:Look()
-    local asked, earned = self.asked, self.earned or {}
-    self.asked = nil
+    local asked, earned = self:TakeAsked(), self.earned or {}
     local challenges, raw = Compat.GetLegacyChallenges()
     local total, completed = 0, 0
     for _, challenge in pairs(challenges or {}) do
@@ -176,7 +161,7 @@ function Legacy:Look()
         if outcome ~= "read-only" and not outcome:find("^not written") then self.earned = nil end
     end
     local anyNew = new and #new > 0
-    Trace:Add(self.id, asked and table.concat(asked, "+"), outcome, "challenges", challenges and total or raw,
+    Trace:Add(self.id, asked, outcome, "challenges", challenges and total or raw,
         challenges and "completed", completed, #earnedList > 0 and "earned", table.concat(earnedList, " "),
         anyNew and "new", anyNew and table.concat(new, " "))
 end

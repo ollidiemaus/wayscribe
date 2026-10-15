@@ -26,23 +26,10 @@ ns.RecordTypes:Register("FIRST_VISIT", {
 })
 
 local FirstVisits = ns.Trackers:New("FirstVisits", {
-    label = L.TRACKER_FIRST_VISITS, tooltip = L.TRACKER_FIRST_VISITS_TIP,
+    label = L.TRACKER_FIRST_VISITS, tooltip = L.TRACKER_FIRST_VISITS_TIP, lookDelay = SETTLE,
 })
 
--- Each event asks for a look one second later; a burst of them is one look, which the launch trace
--- names by every event that asked.
-function FirstVisits:AskForLook(event)
-    local asked = self.asked or {}
-    self.asked = asked
-    if not asked[event] then
-        asked[event] = true
-        asked[#asked + 1] = event
-    end
-    self:Debounce("look", SETTLE, self.Look)
-end
-
 function FirstVisits:OnEnable()
-    self.asked = nil
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
     self:RegisterEvent("ZONE_CHANGED_NEW_AREA")
     self:TryRegisterEvent("PLAYER_CONTROL_GAINED") -- a taxi landed
@@ -85,12 +72,11 @@ local function visit(look)
 end
 
 function FirstVisits:Look()
-    local asked = self.asked
-    self.asked = nil
+    local asked = self:TakeAsked()
     local map = Compat.GetPlayerMapID()
     local _, instanceType = Compat.GetInstance()
     local look = { taxi = Compat.IsOnTaxi(), instanceType = instanceType, zone = Compat.GetZoneOf(map) }
     local outcome = visit(look)
-    Trace:Add(self.id, asked and table.concat(asked, "+"), outcome, "taxi", look.taxi, "instance", instanceType,
+    Trace:Add(self.id, asked, outcome, "taxi", look.taxi, "instance", instanceType,
         "map", map, "zone", look.zone, look.first and "level", look.level, look.first and "explored", look.explored)
 end

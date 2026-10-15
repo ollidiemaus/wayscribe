@@ -102,9 +102,11 @@ A feature is one file (ARCHITECTURE.md §6):
    one too; a test checks).
 3. One line in `Wayscribe.toc`, in the Trackers block.
 4. A `tests/<name>_spec.lua`, and the file in `tests/run.lua`'s list.
-5. A launch tracker (§6.11) also ends each look with one `ns.Trace:Add(self.id, event, outcome,
-   name, value, ...)`: the event that asked, how the look ended ("recorded", "known", ...) and the
-   values it read. `Trackers/FirstVisits.lua` shows the pattern, its spec is in `tests/trace_spec.lua`.
+5. A launch tracker (§6.11) has its events call `self:AskForLook(event)` and does its reading in
+   `self:Look()`, a second later (`lookDelay` in `ns.Trackers:New`'s options changes that). Each look
+   ends with one `ns.Trace:Add(self.id, self:TakeAsked(), outcome, name, value, ...)`: the events
+   that asked, how the look ended ("recorded", "known", ...) and the values it read.
+   `Trackers/FirstVisits.lua` shows the pattern, its spec is in `tests/trace_spec.lua`.
 
 Every game value goes through `Compat.Safe` or `Compat.Call` (secret values), and new APIs are
 feature-detected in `Compat`, never assumed (ARCHITECTURE.md §1, §5).

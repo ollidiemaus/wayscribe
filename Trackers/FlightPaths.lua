@@ -27,23 +27,10 @@ ns.RecordTypes:Register("FLIGHT_PATH", {
 })
 
 local FlightPaths = ns.Trackers:New("FlightPaths", {
-    label = L.TRACKER_FLIGHT_PATHS, tooltip = L.TRACKER_FLIGHT_PATHS_TIP,
+    label = L.TRACKER_FLIGHT_PATHS, tooltip = L.TRACKER_FLIGHT_PATHS_TIP, lookDelay = SETTLE,
 })
 
--- Each event asks for a look shortly after; a burst of them is one look, which the launch trace
--- names by every event that asked.
-function FlightPaths:AskForLook(event)
-    local asked = self.asked or {}
-    self.asked = asked
-    if not asked[event] then
-        asked[event] = true
-        asked[#asked + 1] = event
-    end
-    self:Debounce("look", SETTLE, self.Look)
-end
-
 function FlightPaths:OnEnable()
-    self.asked = nil
     self:TryRegisterEvent("TAXIMAP_OPENED")
     self:TryRegisterEvent("CHAT_MSG_SYSTEM")
 end
@@ -96,8 +83,7 @@ local function compare(nodes, continent)
 end
 
 function FlightPaths:Look()
-    local asked = self.asked
-    self.asked = nil
+    local asked = self:TakeAsked()
     local nodes, read = Compat.GetTaxiNodes()
     -- The flight map is one per continent; the old frame's continent is the player's.
     local map = read and (read.map or Compat.GetContinentOf(Compat.GetPlayerMapID()))
@@ -110,7 +96,7 @@ function FlightPaths:Look()
     end
     local newKeys = {}
     for i, node in ipairs(new or {}) do newKeys[i] = tostring(nodeKey(node)) end
-    Trace:Add(self.id, asked and table.concat(asked, "+"), outcome, "source", read and read.source,
+    Trace:Add(self.id, asked, outcome, "source", read and read.source,
         read and "map", map, read and "nodes", read and read.nodes, read and "known", nodes and #nodes or 0,
         current and "current", current, #newKeys > 0 and "new", table.concat(newKeys, " "))
 end

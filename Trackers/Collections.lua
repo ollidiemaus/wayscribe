@@ -6,7 +6,6 @@ local L, Compat, Store, Trace, YearCards = ns.L, ns.Compat, ns.Store, ns.Trace, 
 -- state.collections = { mounts = { [mountID] = true } }, so a missed event is caught at the next
 -- look. The first look takes what is owned silently, also for a journal restored without the state.
 -- The firsts key MOUNT marks the first mount, so a restored journal doesn't mark another.
-local SETTLE = 1 -- seconds after an event; login and a loading screen are one look
 local ICON = "Interface\\Icons\\Ability_Mount_RidingHorse"
 
 local function mountName(data)
@@ -61,20 +60,7 @@ local Collections = ns.Trackers:New("Collections", {
     label = L.TRACKER_COLLECTIONS, tooltip = L.TRACKER_COLLECTIONS_TIP,
 })
 
--- Each event asks for a look a second later; a burst of them is one look, which the launch trace
--- names by every event that asked.
-function Collections:AskForLook(event)
-    local asked = self.asked or {}
-    self.asked = asked
-    if not asked[event] then
-        asked[event] = true
-        asked[#asked + 1] = event
-    end
-    self:Debounce("look", SETTLE, self.Look)
-end
-
 function Collections:OnEnable()
-    self.asked = nil
     self:TryRegisterEvent("NEW_MOUNT_ADDED")
     self:TryRegisterEvent("COMPANION_LEARNED")
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -125,8 +111,7 @@ local function compare(collected)
 end
 
 function Collections:Look()
-    local asked = self.asked
-    self.asked = nil
+    local asked = self:TakeAsked()
     local mounts, raw = Compat.GetMounts()
     local total, collected = 0, {}
     for id, mount in pairs(mounts or {}) do
@@ -138,6 +123,6 @@ function Collections:Look()
     local outcome, new = "no mounts", nil
     if total > 0 then outcome, new = compare(collected) end
     local anyNew = new and #new > 0
-    Trace:Add(self.id, asked and table.concat(asked, "+"), outcome, "mounts", mounts and total or raw,
+    Trace:Add(self.id, asked, outcome, "mounts", mounts and total or raw,
         mounts and "collected", #collected, anyNew and "new", anyNew and table.concat(new, " "))
 end

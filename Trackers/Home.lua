@@ -6,7 +6,6 @@ local L, Compat, Store, Trace = ns.L, ns.Compat, ns.Store, ns.Trace
 -- with the saved snapshot, state.home = { name = place }. The place is read in the client's
 -- language, so the first look of each session (the login) takes it silently: a switched client
 -- language, or a bind made while Wayscribe was off, is no move.
-local SETTLE = 1   -- seconds after an event; a burst of them is one look
 
 -- Whether this session has read the home yet. The file loads anew on each login and /reload, so
 -- switching the tracker off and on again during play doesn't make its next look silent.
@@ -26,20 +25,7 @@ local Home = ns.Trackers:New("Home", {
     label = L.TRACKER_HOME, tooltip = L.TRACKER_HOME_TIP,
 })
 
--- Each event asks for a look a second later; a burst of them is one look, which the launch trace
--- names by every event that asked.
-function Home:AskForLook(event)
-    local asked = self.asked or {}
-    self.asked = asked
-    if not asked[event] then
-        asked[event] = true
-        asked[#asked + 1] = event
-    end
-    self:Debounce("look", SETTLE, self.Look)
-end
-
 function Home:OnEnable()
-    self.asked = nil
     self:TryRegisterEvent("HEARTHSTONE_BOUND")
     self:TryRegisterEvent("CONFIRM_BINDER")
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -67,8 +53,7 @@ local function compare(now)
 end
 
 function Home:Look()
-    local asked = self.asked
-    self.asked = nil
+    local asked = self:TakeAsked()
     local name, raw = Compat.GetBindLocation()
     local outcome
     if not name then
@@ -77,5 +62,5 @@ function Home:Look()
         outcome = compare(name)
         if outcome ~= "read-only" then takenThisSession = true end
     end
-    Trace:Add(self.id, asked and table.concat(asked, "+"), outcome, "bind", raw)
+    Trace:Add(self.id, asked, outcome, "bind", raw)
 end

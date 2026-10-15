@@ -7,7 +7,6 @@ local L, Compat, Store, Trace = ns.L, ns.Compat, ns.Store, ns.Trace
 -- Wayscribe was off is caught at the next look. Right after login the name can still be missing, so
 -- only "not in a guild" means the character left. Rank changes are no entries, and the first look is
 -- silent.
-local SETTLE = 1   -- seconds after an event; a burst of PLAYER_GUILD_UPDATE is one look
 local RETRY = 5    -- seconds before another look while the guild's name hasn't loaded
 local RETRIES = 3
 
@@ -25,20 +24,8 @@ local Guild = ns.Trackers:New("Guild", {
     label = L.TRACKER_GUILD, tooltip = L.TRACKER_GUILD_TIP,
 })
 
--- Each event asks for a look a second later; a burst of them is one look, which the launch trace
--- names by every event that asked.
-function Guild:AskForLook(event, seconds)
-    local asked = self.asked or {}
-    self.asked = asked
-    if not asked[event] then
-        asked[event] = true
-        asked[#asked + 1] = event
-    end
-    self:Debounce("look", seconds or SETTLE, self.Look)
-end
-
 function Guild:OnEnable()
-    self.asked, self.retries = nil, 0
+    self.retries = 0
     self:TryRegisterEvent("PLAYER_GUILD_UPDATE")
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
     self:AskForLook("enable")
@@ -81,8 +68,7 @@ local function compare(now)
 end
 
 function Guild:Look()
-    local asked = self.asked
-    self.asked = nil
+    local asked = self:TakeAsked()
     local inGuild, name, rawIn, rawName = Compat.GetGuild()
     local outcome
     if inGuild == nil then
@@ -97,5 +83,5 @@ function Guild:Look()
         self.retries = 0
         outcome = compare(inGuild and name or false)
     end
-    Trace:Add(self.id, asked and table.concat(asked, "+"), outcome, "inGuild", rawIn, inGuild and "name", rawName)
+    Trace:Add(self.id, asked, outcome, "inGuild", rawIn, inGuild and "name", rawName)
 end

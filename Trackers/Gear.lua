@@ -7,7 +7,6 @@ local L, Compat, Store, Trace, YearCards = ns.L, ns.Compat, ns.Store, ns.Trace, 
 -- nothing, and what is worn at the first look is taken silently. "Seen before" is also the journal's:
 -- the first rare is the firsts key GEAR:RARE, and a journal restored without the state gives its
 -- epics back as seen.
-local SETTLE = 1 -- seconds after an event; login and a loading screen are one look
 local ICON = "Interface\\Icons\\INV_Chest_Plate16"
 local FIRST_SLOT, LAST_SLOT = 1, 19 -- INVSLOT_HEAD to INVSLOT_TABARD; the bag slots come after
 local RARE, EPIC, LEGENDARY, ARTIFACT = 3, 4, 5, 6 -- Heirloom (7) and WoW Token (8) aren't found gear
@@ -83,20 +82,7 @@ YearCards:Register({
 
 local Gear = ns.Trackers:New("Gear", { label = L.TRACKER_GEAR, tooltip = L.TRACKER_GEAR_TIP })
 
--- Login and loading screens ask for a look at every slot a second later; the launch trace names it
--- by every event that asked.
-function Gear:AskForLook(event)
-    local asked = self.asked or {}
-    self.asked = asked
-    if not asked[event] then
-        asked[event] = true
-        asked[#asked + 1] = event
-    end
-    self:Debounce("look", SETTLE, self.Look)
-end
-
 function Gear:OnEnable()
-    self.asked = nil
     self:TryRegisterEvent("PLAYER_EQUIPMENT_CHANGED")
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
     self:AskForLook("enable")
@@ -188,8 +174,7 @@ local function compare(worn)
 end
 
 function Gear:Look()
-    local asked = self.asked
-    self.asked = nil
+    local asked = self:TakeAsked()
     local worn = {}
     for slot = FIRST_SLOT, LAST_SLOT do
         local item, quality = Compat.GetEquippedItem(slot)
@@ -199,6 +184,6 @@ function Gear:Look()
     local outcome, new = "no items", nil
     if #worn > 0 then outcome, new = compare(worn) end
     local anyNew = new and #new > 0
-    Trace:Add(self.id, asked and table.concat(asked, "+"), outcome, "worn", #worn,
+    Trace:Add(self.id, asked, outcome, "worn", #worn,
         anyNew and "new", anyNew and table.concat(new, " "))
 end
