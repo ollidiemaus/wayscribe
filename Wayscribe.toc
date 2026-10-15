@@ -75,6 +75,7 @@ Trackers\Footsteps.lua
 Trackers\Deaths.lua
 Trackers\Duels.lua
 Trackers\FirstVisits.lua
+Trackers\Gold.lua
 
 UI\Theme.lua
 UI\DayView.lua

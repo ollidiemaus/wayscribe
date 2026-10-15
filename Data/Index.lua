@@ -81,7 +81,8 @@ function Index:ApplyRecord(db, month, record, def)
     end
 end
 
-function Index:ApplyCount(month, path, key, amount)
+-- dayAmount is the day's total for the key after this count.
+function Index:ApplyCount(month, path, key, amount, dayAmount, dayKey)
     local counters = month.rollup.counters
     local bucket = counters[path]
     if not bucket then
@@ -89,6 +90,13 @@ function Index:ApplyCount(month, path, key, amount)
         counters[path] = bucket
     end
     bucket[key] = (bucket[key] or 0) + amount
+    local def = ns.RecordTypes.counters[path]
+    if def and def.rollup then
+        local ok, err = pcall(def.rollup, month.rollup, key, dayAmount, dayKey)
+        if not ok then
+            ns.Log:Error("rollup:" .. path, err)
+        end
+    end
 end
 
 local function sortedKeys(map)
@@ -105,7 +113,7 @@ local function byTime(a, b)
     return a.id < b.id
 end
 
-function Index:RebuildDay(db, month, day)
+function Index:RebuildDay(db, month, day, dayKey)
     local count = 0
     if type(day.records) == "table" then
         table.sort(day.records, byTime)
@@ -121,7 +129,7 @@ function Index:RebuildDay(db, month, day)
     if type(day.counters) == "table" then
         for path, bucket in pairs(day.counters) do
             for key, amount in pairs(bucket) do
-                self:ApplyCount(month, path, key, amount)
+                self:ApplyCount(month, path, key, amount, amount, dayKey)
             end
         end
     end
@@ -141,7 +149,7 @@ function Index:Rebuild(db)
                 local day = month.days[dayKey]
                 if type(day) == "table" then
                     month.rollup.activeDays = (month.rollup.activeDays or 0) + 1
-                    total = total + self:RebuildDay(db, month, day)
+                    total = total + self:RebuildDay(db, month, day, dayKey)
                 end
             end
         end

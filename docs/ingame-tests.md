@@ -229,6 +229,19 @@ The launch trackers' checks that need more than a level 1 character (§6.11): re
 standing, a rare and an epic item, a Legacy Challenge, a guild, a mount, a PvP rank. Each tracker
 adds its checks here when it is built.
 
+### Gold (§6.13)
+
+- [ ] **Every source.** Loot coins, turn in a quest with a reward, sell, buy and repair at a vendor.
+  → Today's page has one gold line; its *earned* and *spent* add up to the change in your bags.
+- [ ] **Mail and the auction house.** Take gold from the mailbox, post an auction (the deposit) and
+  collect a sale. → Taking and collecting count as earned, the deposit as spent.
+- [ ] **A trade.** Give another player some silver in a trade. → Counted once, as spent.
+- [ ] **Between sessions.** Log out with developer mode on, log in on another character, mail this
+  one some copper, log back in. → No gold change in today's line; `/ws trace` shows
+  `Gold enable: ... -> taken`, and opening the mail counts as earned.
+- [ ] **Your Year.** → A *Gold* card before *Time played*, with earned, spent, the best day and the
+  most held at once.
+
 ## Already verified
 
 Done on builds 70235, 70245 and 70291 (2026-10-06 to 09); no need to repeat. Details are in

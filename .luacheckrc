@@ -44,7 +44,7 @@ read_globals = {
     "UnitIsPlayer", "LOCALIZED_CLASS_NAMES_MALE", "RAID_CLASS_COLORS",
     "GetInstanceInfo", "GetProfessions", "GetProfessionInfo", "GetNumSkillLines", "GetSkillLineInfo",
     "GetSpellInfo", "GetSpellTexture", "GetSubZoneText", "GetAddOnMetadata", "GetCVar",
-    "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "GetLootSourceInfo",
+    "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "GetLootSourceInfo", "GetMoney",
     -- Namespaces
     "Enum", "C_AddOns", "C_CVar", "C_EventUtils", "C_GameRules", "C_Item", "C_Map", "C_MapExplorationInfo", "C_QuestLine",
     "C_QuestLog", "C_Spell", "C_Texture", "C_Timer", "C_TradeSkillUI", "C_XMLUtil",

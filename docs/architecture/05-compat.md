@@ -30,6 +30,7 @@ Compat.GetZoneRects()            -- -> { { map, c, minX, maxX, minY, maxY } } of
 Compat.GetZoneOf(mapID)          -- -> the zone a map lies in (itself, or the nearest zone above it)
 Compat.GetExploredZones()        -- -> { [zoneMapID] = true } for every zone the world map shows explored without a hover
 Compat.GetExploredTextureCounts() -- -> { [zoneMapID] = { textures, hover } } of every zone with explored-area textures
+Compat.GetMoney()                -- -> copper, or nil when missing, erroring or secret; the raw value second (trace)
 Compat.IsOnTaxi() / Compat.IsDeadOrGhost()
 Compat.HasWorldMapCanvas()       -- WorldMapFrame takes MapCanvas data providers
 Compat.GetProfessionSnapshot()   -- -> { [skillLineID] = { rank, max, name } }

@@ -249,6 +249,15 @@ function Compat.GetPlayerLevel()
     return type(level) == "number" and level > 0 and level or nil
 end
 
+-- The character's money in copper, or nil; the raw value second, for the launch trace.
+function Compat.GetMoney()
+    if type(GetMoney) ~= "function" then return nil end
+    local ok, raw = pcall(GetMoney)
+    if not ok then return nil end
+    local money = Compat.Safe(raw, "number")
+    return money and money >= 0 and math.floor(money) == money and money or nil, raw
+end
+
 function Compat.GetPlayerMapID()
     if not (C_Map and C_Map.GetBestMapForUnit) then return nil end
     local mapID = Compat.Call(C_Map.GetBestMapForUnit, "player")

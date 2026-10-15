@@ -125,7 +125,10 @@ ns.RecordTypes:Register("DUNGEON_COMPLETED", {
 The Store uses `fields` to validate (types, missing and unknown fields, no secrets, nothing a saved
 file can't hold), plus `firstKey` and `rollup` to maintain indexes. The UI uses `render`. Neither
 layer has a per-type `if/else`. Counters register the same way (`RecordTypes:RegisterCounter(path,
-{ order, category, render })`), so the day page can show each one as a summary line.
+{ order, category, render, rollup?, merge? })`), so the day page can show each one as a summary line.
+A counter's `rollup(monthRollup, key, dayAmount, dayKey)` runs after each count with the day's new
+total, and at a rebuild once per day with its total, so a month can keep a per-day best (gold's best
+day, §6.13); `merge` combines that field into the year.
 
 ## 4.4 Write path
 

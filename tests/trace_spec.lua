@@ -16,10 +16,12 @@ local function withMaps(fn)
     if not ok then error(err, 0) end
 end
 
--- Logs in on Mulgore, developer mode on or off, and lets First visits take its first look.
+-- Logs in on Mulgore, developer mode on or off, and lets First visits take its first look. The other
+-- launch trackers are switched off, so the trace holds only First visits' looks.
 local function start(devMode, opts)
     opts = opts or {}
-    opts.accountDB = { schema = 1, settings = { trackers = {}, devMode = devMode or nil }, log = {}, characters = {} }
+    opts.accountDB = { schema = 1, settings = { trackers = { Gold = false }, devMode = devMode or nil }, log = {},
+        characters = {} }
     local ns = Stubs.LoadAddon(opts)
     Stubs.SetBestMap(1412)
     if opts.setup then opts.setup() end

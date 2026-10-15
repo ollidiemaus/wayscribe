@@ -634,6 +634,11 @@ end
 function Stubs.SetTime(ts) state.now = ts end
 function Stubs.Now() return state.now end
 function Stubs.SetLevel(level) state.level = level end
+-- The character's money in copper; gives the game GetMoney, which is absent until a spec sets it.
+function Stubs.SetMoney(copper)
+    state.money = copper
+    _G.GetMoney = function() return state.money end
+end
 function Stubs.Printed() return state.printed end
 
 -- Where the player is: Stubs.SetInstance(389, "party", "Ragefire Chasm"); no arguments = outdoors.
@@ -708,7 +713,7 @@ function Stubs.Relog(opts, reload)
         questTitles = state.questTitles, cvars = state.cvars, position = state.position,
         onTaxi = state.onTaxi, dead = state.dead, subZone = state.subZone, bestMap = state.bestMap,
         areaNames = state.areaNames, explored = state.explored,
-        spellIcons = state.spellIcons,
+        spellIcons = state.spellIcons, money = state.money,
     }
     opts = opts or {}
     for key, value in pairs(saved) do
@@ -718,6 +723,7 @@ function Stubs.Relog(opts, reload)
     opts.level = opts.level or state.level
     Stubs.Install(opts)
     for key, value in pairs(world) do state[key] = value end
+    if state.money ~= nil then Stubs.SetMoney(state.money) end
     local ns = {}
     for _, file in ipairs(Stubs.TocFiles()) do
         assert(loadfile(file))("Wayscribe", ns)

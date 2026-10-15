@@ -32,7 +32,7 @@ Decided on 2026-10-15. The beta ends on 2026-10-21 (PDT) and Forever launches on
   looks change until launch.
 - **Oct 19 to 21:** one session on a fresh level 1 character, in the stress test on Oct 19 if it lets
   players in, or on Oct 20/21. The checklist is at the top of [ingame-tests.md](../ingame-tests.md).
-- **Built so far:** first visits (§6.12).
+- **Built so far:** first visits (§6.12), gold (§6.13).
 - **Left out for launch:** screenshots (not wanted), talents (Retail-style trees plus Forever's
   Legacy trees, with no clear moment), learned spells (too many), honor kills (only an unloaded frame
   reads them), battlegrounds (no battleground browser in Forever's UI), and the game's "Discovered"
