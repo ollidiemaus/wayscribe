@@ -82,6 +82,7 @@ Trackers\LegacyChallenges.lua
 Trackers\FlightPaths.lua
 Trackers\Guild.lua
 Trackers\Home.lua
+Trackers\Collections.lua
 
 UI\Theme.lua
 UI\DayView.lua

@@ -776,6 +776,34 @@ function Stubs.EarnChallenge(id, alreadyEarned)
     Stubs.Fire("ACHIEVEMENT_EARNED", id, alreadyEarned)
 end
 
+-- The mount journal, a list of { id, name, collected }: gives the game C_MountJournal (GetMountIDs and
+-- GetMountInfoByID, whose 11th value is isCollected), which is absent until a spec sets it.
+function Stubs.SetMounts(list)
+    state.mounts = list
+    _G.C_MountJournal = {
+        GetMountIDs = function()
+            local ids = {}
+            for i, row in ipairs(state.mounts) do ids[i] = row.id end
+            return ids
+        end,
+        GetMountInfoByID = function(id)
+            for _, row in ipairs(state.mounts) do
+                if row.id == id then
+                    return row.name, id * 10, 132261, false, true, 0, false, false, nil, false, row.collected or false, id
+                end
+            end
+        end,
+    }
+end
+
+-- Collects mount `id` and fires NEW_MOUNT_ADDED for it.
+function Stubs.CollectMount(id)
+    for _, row in ipairs(state.mounts) do
+        if row.id == id then row.collected = true end
+    end
+    Stubs.Fire("NEW_MOUNT_ADDED", id)
+end
+
 -- Opens a flight master's taxi map on `list`, { id, name, state } with state 0 current, 1 reachable,
 -- 2 unreachable, and fires TAXIMAP_OPENED. The flight map (GetTaxiMapID gives `mapID`,
 -- C_TaxiMap.GetAllTaxiNodes the nodes) and the old taxi frame (NumTaxiNodes, TaxiNodeGetType,
@@ -886,6 +914,7 @@ function Stubs.Relog(opts, reload)
         areaNames = state.areaNames, explored = state.explored,
         spellIcons = state.spellIcons, money = state.money, factions = state.factions,
         equipment = state.equipment, challenges = state.challenges, guild = state.guild, bind = state.bind,
+        mounts = state.mounts,
     }
     opts = opts or {}
     for key, value in pairs(saved) do
@@ -901,6 +930,7 @@ function Stubs.Relog(opts, reload)
     if state.challenges ~= nil then Stubs.SetChallenges(state.challenges) end
     if state.guild ~= nil then Stubs.SetGuild(state.guild.inGuild, state.guild.name, state.guild.rank) end
     if state.bind ~= nil then Stubs.SetBindLocation(state.bind) end
+    if state.mounts ~= nil then Stubs.SetMounts(state.mounts) end
     local ns = {}
     for _, file in ipairs(Stubs.TocFiles()) do
         assert(loadfile(file))("Wayscribe", ns)

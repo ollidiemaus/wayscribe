@@ -218,7 +218,8 @@ describe("flight paths", function()
 
     it("trace each look in developer mode", function()
         local accountDB = { schema = 1, log = {}, characters = {}, settings = { trackers = { FirstVisits = false, Guild = false,
-            Gold = false, Reputation = false, Gear = false, LegacyChallenges = false, Home = false }, devMode = true } }
+            Gold = false, Reputation = false, Gear = false, LegacyChallenges = false, Home = false,
+            Collections = false }, devMode = true } }
         local ns = start({ accountDB = accountDB })
         visit(OLDER)
         Stubs.OpenTaxiMap(nodes({ [TB] = REACHABLE, [CROSSROADS] = REACHABLE, [ORGRIMMAR] = REACHABLE,

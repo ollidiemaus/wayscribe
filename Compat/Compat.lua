@@ -410,6 +410,30 @@ function Compat.GetBindLocation()
     return name ~= "" and name or nil, raw
 end
 
+-- The mount journal: { [mountID] = { name, collected } }, or nil when it can't be read; the raw ID
+-- list second, for the launch trace. A mount whose row can't be read, or whose collected flag isn't
+-- a boolean yet, is left out.
+function Compat.GetMounts()
+    local journal = C_MountJournal
+    if type(journal) ~= "table" or type(journal.GetMountIDs) ~= "function"
+        or type(journal.GetMountInfoByID) ~= "function" then
+        return nil
+    end
+    local ok, raw = pcall(journal.GetMountIDs)
+    if not ok then return nil end
+    if Compat.Safe(raw, "table") == nil then return nil, raw end
+    local mounts = {}
+    for _, id in ipairs(raw) do
+        if Compat.Safe(id, "number") then
+            local name, _, _, _, _, _, _, _, _, _, isCollected = Compat.Call(journal.GetMountInfoByID, id)
+            if type(isCollected) == "boolean" then
+                mounts[id] = { name = type(name) == "string" and name ~= "" and name or nil, collected = isCollected }
+            end
+        end
+    end
+    return mounts, raw
+end
+
 function Compat.GetPlayerMapID()
     if not (C_Map and C_Map.GetBestMapForUnit) then return nil end
     local mapID = Compat.Call(C_Map.GetBestMapForUnit, "player")

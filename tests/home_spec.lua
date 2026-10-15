@@ -134,7 +134,8 @@ describe("home", function()
 
     it("trace each look in developer mode", function()
         local accountDB = { schema = 1, log = {}, characters = {}, settings = { trackers = { FirstVisits = false,
-            Gold = false, Reputation = false, Gear = false, LegacyChallenges = false, Guild = false }, devMode = true } }
+            Gold = false, Reputation = false, Gear = false, LegacyChallenges = false, Guild = false,
+            Collections = false }, devMode = true } }
         start("Camp Narache", { accountDB = accountDB })
         local ns = Stubs.ns
         bind("Bloodhoof Village")

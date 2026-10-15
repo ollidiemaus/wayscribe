@@ -60,6 +60,7 @@ Today · played 2 h 10 min
 - **Flight paths:** each new flight master you learn.
 - **Guild:** when you join a guild and when you leave it.
 - **Home:** each new inn you bind your hearthstone to.
+- **Collections:** each new mount you collect, your first one marked.
 - **Journeys:** hearthstone, Astral Recall, mage teleports and transporters, from where to where.
 - **Distance:** how far you walked, rode and flew each day.
 

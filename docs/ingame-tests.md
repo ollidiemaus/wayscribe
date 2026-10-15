@@ -331,6 +331,18 @@ adds its checks here when it is built.
   `taken at login` with the German place. Switch back the same way.
 - [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
 
+### Collections (§6.20)
+
+- [ ] **First look.** Log in a character that owns a mount. → No entry; `/ws trace` shows
+  `mounts=<n> collected=<owned>` and `first look` (or `unchanged` on a character Wayscribe knows).
+- [ ] **New mount.** Learn a mount. → "New mount: *name*" in *Progress*, marked as a first if it is
+  the first; the trace shows `NEW_MOUNT_ADDED` (note whether `COMPANION_LEARNED` comes too),
+  `new=<mountID>` and `recorded 1`.
+- [ ] **Another character.** Learn a mount on an alt, then log in the first character. → Note
+  whether the mount reads as collected there: if it does, it makes an entry (§6.20, the price).
+- [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
+- [ ] **Your Year.** → A *Mounts* card after *Legacy Challenges*, with the count and the first mount.
+
 ## Already verified
 
 Done on builds 70235, 70245 and 70291 (2026-10-06 to 09); no need to repeat. Details are in
