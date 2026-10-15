@@ -445,7 +445,7 @@ Notes:
   only those three, and all 108 Footsteps trails are on Kalimdor. They don't share area bits with
   Mulgore (`AreaTable`, build 70374). Forever's map hides textures with `isShownByMouseOver` until
   the mouse is over them (`MapExplorationDataProvider`), while `Compat.GetExploredZones` counts any
-  texture: the likely cause, not yet confirmed in game.
+  texture: a possible cause, which the next section rules out.
 - First visits wrote The Barrens at 14:21, marked as a first. Its silent first look, in Thunder
   Bluff, kept 1412, 1416, 1429, 1450 and 1456 in `state.visits`, so a first visit to the three
   zones above would be silent. Both trace lines rightly end `recorded before`.
@@ -453,3 +453,45 @@ Notes:
   filtered (Forever's own pet window reads the same), and Forever has the
   `onlyShowCollectedItemsInJournal` setting, so a character without pets or toys can't tell
   "doesn't work" from "nothing to show".
+
+## Client 1.60.1, build 70374, Wayscribe 962ac39 (2026-10-15)
+
+Scoopz, level 3, in the Southern Barrens near Camp Taurajo, with the copy of `962ac39`
+(hover-only textures left out of the explored zones, two new collections lines). The lines new or
+changed at 15:07:
+
+```text
+addon = 0.0.6-9-g962ac39
+firstVisit.explored = 5 of 5 zones (textures/hover-only): 1412 3/0, 1413 1/0, 1416 1/0, 1429 1/0, 1450 1/0
+collections.hasAnyToy = false
+collections.onlyShowCollected = 1
+```
+
+At 15:08 on the Southern Gold Road, away from a flight master, the taxi map read differently (and
+the `flightPaths.nodes` line was left out):
+
+```text
+flightPaths.taxiMap = nil
+```
+
+The launch trace of that session:
+
+```text
+2026-10-15 15:06:54 FirstVisits enable+PLAYER_ENTERING_WORLD: taxi=false instance="none" map=1414 zone=missing -> no zone
+2026-10-15 15:06:56 FirstVisits ZONE_CHANGED_NEW_AREA: taxi=false instance="none" map=1413 zone=1413 -> recorded before
+2026-10-15 15:07:24 FirstVisits enable+PLAYER_ENTERING_WORLD: taxi=false instance="none" map=1413 zone=1413 -> recorded before
+```
+
+Notes:
+- Hover-only textures are ruled out: Alterac Mountains, Elwynn Forest and Moonglade each return one
+  texture, and none of them is hover-only, so `Compat.GetExploredZones` still counts them. The cause
+  is unknown. Whether a brand-new character gets them too is untested; if it does, the first look on
+  a level 1 character can't take the explored zones.
+- Pets and toys: `onlyShowCollectedItemsInJournal` is on and `HasAnyToy` is false, so `0 of 0`
+  means the journals list only what the character owns, and it owns none. Whether a learned pet or
+  toy shows up is still untested.
+- Away from a flight master `GetTaxiMapID` gave `nil` this time and `-1` before. Both mean no taxi
+  map.
+- At the login, a second after `PLAYER_ENTERING_WORLD`, the best map was still Kalimdor, so the look
+  found no zone and wrote nothing. `ZONE_CHANGED_NEW_AREA` two seconds later looked again. The
+  Southern Gold Road is part of the Barrens, so no entry. The error log has nothing new.
