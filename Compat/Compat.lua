@@ -35,6 +35,16 @@ function Compat.Call(fn, ...)
     return afterCall(pcall(fn, ...))
 end
 
+-- For the launch trace, which shows a value the way the game gave it: fn's first value through
+-- Compat.Safe(value, expectedType), then the raw value, then true when the call ran. Without fn,
+-- or when it errors, all three are nil.
+function Compat.CallWithRaw(fn, expectedType, ...)
+    if type(fn) ~= "function" then return nil end
+    local ok, raw = pcall(fn, ...)
+    if not ok then return nil end
+    return Compat.Safe(raw, expectedType), raw, true
+end
+
 do
     local version, build, _, interface = Compat.Call(GetBuildInfo)
     Compat.clientVersion = type(version) == "string" and version or "?"
@@ -251,10 +261,7 @@ end
 
 -- The character's money in copper, or nil; the raw value second, for the launch trace.
 function Compat.GetMoney()
-    if type(GetMoney) ~= "function" then return nil end
-    local ok, raw = pcall(GetMoney)
-    if not ok then return nil end
-    local money = Compat.Safe(raw, "number")
+    local money, raw = Compat.CallWithRaw(GetMoney, "number")
     return money and money >= 0 and math.floor(money) == money and money or nil, raw
 end
 
@@ -276,9 +283,8 @@ end
 function Compat.GetFactionStandings()
     local api = C_Reputation
     if not (api and api.GetNumFactions and api.GetFactionDataByIndex) then return nil end
-    local ok, raw = pcall(api.GetNumFactions)
-    local rows = ok and Compat.Safe(raw, "number") or nil
-    if not rows then return nil, ok and raw or nil end
+    local rows, raw = Compat.CallWithRaw(api.GetNumFactions, "number")
+    if not rows then return nil, raw end
     local standings = {}
     for index = 1, rows do
         local id, name, reaction = factionStanding(Compat.Call(api.GetFactionDataByIndex, index))
@@ -307,11 +313,10 @@ function Compat.GetLegacyChallenges()
         or type(GetAchievementInfo) ~= "function" then
         return nil
     end
-    local ok, raw = pcall(GetCategoryList)
-    if not ok then return nil end
-    if Compat.Safe(raw, "table") == nil then return nil, raw end
+    local categories, raw = Compat.CallWithRaw(GetCategoryList, "table")
+    if not categories then return nil, raw end
     local challenges = {}
-    for _, category in ipairs(raw) do
+    for _, category in ipairs(categories) do
         local count = Compat.Safe(category, "number") and Compat.Call(GetCategoryNumAchievements, category)
         for index = 1, type(count) == "number" and count or 0 do
             local id, name, _, done, month, day, year, _, flags, _, _, _, byMe =
@@ -374,39 +379,27 @@ end
 -- empty slot and nil when it can't be read; the quality is nil until the client has loaded it. The
 -- raw values third and fourth, for the launch trace.
 function Compat.GetEquippedItem(slot)
-    if type(GetInventoryItemID) ~= "function" then return nil end
-    local ok, rawItem = pcall(GetInventoryItemID, "player", slot)
-    if not ok then return nil end
+    local item, rawItem, read = Compat.CallWithRaw(GetInventoryItemID, "number", "player", slot)
+    if not read then return nil end
     if rawItem == nil then return false end
-    local item = Compat.Safe(rawItem, "number")
     if not (item and item > 0) then return nil, nil, rawItem end
-    if type(GetInventoryItemQuality) ~= "function" then return item, nil, rawItem end
-    local okQuality, rawQuality = pcall(GetInventoryItemQuality, "player", slot)
-    if not okQuality then return item, nil, rawItem end
-    local quality = Compat.Safe(rawQuality, "number")
+    local quality, rawQuality = Compat.CallWithRaw(GetInventoryItemQuality, "number", "player", slot)
     return item, quality, rawItem, rawQuality
 end
 
 -- The character's guild: whether it is in one (true or false, nil unreadable) and the guild's name
 -- (nil while it hasn't loaded, right after login); the raw values third and fourth.
 function Compat.GetGuild()
-    if type(IsInGuild) ~= "function" then return nil end
-    local ok, rawIn = pcall(IsInGuild)
-    if not ok then return nil end
-    local inGuild = Compat.Safe(rawIn, "boolean")
-    if not inGuild or type(GetGuildInfo) ~= "function" then return inGuild, nil, rawIn end
-    local okName, rawName = pcall(GetGuildInfo, "player")
-    if not okName then return inGuild, nil, rawIn end
-    local name = Compat.Safe(rawName, "string")
+    local inGuild, rawIn, read = Compat.CallWithRaw(IsInGuild, "boolean")
+    if not read then return nil end
+    if not inGuild then return inGuild, nil, rawIn end
+    local name, rawName = Compat.CallWithRaw(GetGuildInfo, "string", "player")
     return inGuild, name ~= "" and name or nil, rawIn, rawName
 end
 
 -- The place of the inn the hearthstone is bound to, in the client's language, or nil; the raw value second.
 function Compat.GetBindLocation()
-    if type(GetBindLocation) ~= "function" then return nil end
-    local ok, raw = pcall(GetBindLocation)
-    if not ok then return nil end
-    local name = Compat.Safe(raw, "string")
+    local name, raw = Compat.CallWithRaw(GetBindLocation, "string")
     return name ~= "" and name or nil, raw
 end
 
@@ -419,11 +412,10 @@ function Compat.GetMounts()
         or type(journal.GetMountInfoByID) ~= "function" then
         return nil
     end
-    local ok, raw = pcall(journal.GetMountIDs)
-    if not ok then return nil end
-    if Compat.Safe(raw, "table") == nil then return nil, raw end
+    local ids, raw = Compat.CallWithRaw(journal.GetMountIDs, "table")
+    if not ids then return nil, raw end
     local mounts = {}
-    for _, id in ipairs(raw) do
+    for _, id in ipairs(ids) do
         if Compat.Safe(id, "number") then
             local name, _, _, _, _, _, _, _, _, _, isCollected = Compat.Call(journal.GetMountInfoByID, id)
             if type(isCollected) == "boolean" then
@@ -438,21 +430,15 @@ end
 -- nil when it can't be read; their raw values third and fourth, for the launch trace.
 Compat.PVP_RANK_FACTION = 2800
 function Compat.GetPvPRank()
-    local rank, rawRank, season, rawSeason
-    local factions = C_MajorFactions
-    if type(factions) == "table" and type(factions.GetMajorFactionProgressionInfo) == "function" then
-        local ok, info = pcall(factions.GetMajorFactionProgressionInfo, Compat.PVP_RANK_FACTION)
-        if ok and Compat.Safe(info, "table") then
-            rawRank = info.renownLevel
-            rank = Compat.Safe(rawRank, "number")
-        elseif ok then
-            rawRank = info
-        end
+    local factions = type(C_MajorFactions) == "table" and C_MajorFactions
+    local info, rawRank = Compat.CallWithRaw(factions and factions.GetMajorFactionProgressionInfo, "table",
+        Compat.PVP_RANK_FACTION)
+    local rank
+    if info then
+        rawRank = info.renownLevel
+        rank = Compat.Safe(rawRank, "number")
     end
-    if type(GetCurrentArenaSeason) == "function" then
-        local ok, raw = pcall(GetCurrentArenaSeason)
-        if ok then rawSeason, season = raw, Compat.Safe(raw, "number") end
-    end
+    local season, rawSeason = Compat.CallWithRaw(GetCurrentArenaSeason, "number")
     return rank, season, rawRank, rawSeason
 end
 

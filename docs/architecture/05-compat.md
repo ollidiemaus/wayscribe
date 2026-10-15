@@ -22,6 +22,7 @@ Compat.has = {
 }
 Compat.Safe(v [, expectedType])  -- -> v, or nil if issecretvalue(v) or the type is wrong. Every game value goes through this.
 Compat.Call(fn, ...)             -- pcall + Safe on each return value, for APIs that may error or return secrets
+Compat.CallWithRaw(fn, type, ...) -- -> first value through Safe, the raw value (for the launch trace), true if the call ran
 Compat.GetPlayerWorldPosition()  -- -> continentID, x, y in world yards (UnitPosition, else map position); nil in instances
 Compat.GetWorldPosFromMapPos(mapID, u, v) -- -> continentID, x, y of a map point
 Compat.GetMapAtWorldPos(continentID, x, y) -- -> the most detailed uiMapID there
