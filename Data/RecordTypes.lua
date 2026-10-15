@@ -154,6 +154,9 @@ end
 --   order     position among a day's counter lines
 --   category  journal filter group, like a record type's
 --   render    function(bucket) -> text, or nil for nothing worth showing
+--   rollup    function(monthRollup, key, dayAmount, dayKey), optional: after each count, with the
+--             day's new total for the key (a rebuild passes each day's total once)
+--   merge     function(target, source), combines the fields rollup adds (year summary)
 
 function RecordTypes:RegisterCounter(path, def)
     assert(type(path) == "string" and path ~= "", "counter needs a path")

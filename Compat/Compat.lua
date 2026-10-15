@@ -35,6 +35,16 @@ function Compat.Call(fn, ...)
     return afterCall(pcall(fn, ...))
 end
 
+-- For the launch trace, which shows a value the way the game gave it: fn's first value through
+-- Compat.Safe(value, expectedType), then the raw value, then true when the call ran. Without fn,
+-- or when it errors, all three are nil.
+function Compat.CallWithRaw(fn, expectedType, ...)
+    if type(fn) ~= "function" then return nil end
+    local ok, raw = pcall(fn, ...)
+    if not ok then return nil end
+    return Compat.Safe(raw, expectedType), raw, true
+end
+
 do
     local version, build, _, interface = Compat.Call(GetBuildInfo)
     Compat.clientVersion = type(version) == "string" and version or "?"
@@ -112,6 +122,9 @@ function Compat:Detect()
     has.worldMapCanvas = self.HasWorldMapCanvas()
     -- 0.5: the zone maps the coverage stat measures against, and the journal's tabs.
     has.mapChildren = has.mapWorldPos and C_Map.GetMapChildrenInfo ~= nil
+    -- 1.0: the zones the world map shows explored (First visits' first look).
+    has.mapExploration = has.mapChildren and C_MapExplorationInfo ~= nil
+        and C_MapExplorationInfo.GetExploredMapTextures ~= nil
     has.panelTabs = self.HasTemplate("PanelTabButtonTemplate") == true and type(PanelTemplates_SetNumTabs) == "function"
         and type(PanelTemplates_SetTab) == "function"
     -- Forever's characters have a first name and a surname, and the unit name functions return the
@@ -217,6 +230,13 @@ function Compat.FormatToPattern(format)
     return table.concat(parts), order
 end
 
+-- The client's global string `key` in the player's form: the female one (key_FEMALE) for a female
+-- character when the client has it, else `key`'s. nil when the client has neither.
+function Compat.GetGlobalStringForPlayer(key)
+    local female = Compat.Call(UnitSex, "player") == 3 and Compat.Safe(_G[key .. "_FEMALE"], "string")
+    return female or Compat.Safe(_G[key], "string")
+end
+
 local parsers = {}
 
 -- The arguments a line made from the client's global string `key` was formatted with, by their
@@ -244,6 +264,209 @@ end
 function Compat.GetPlayerLevel()
     local level = Compat.Call(UnitLevel, "player")
     return type(level) == "number" and level > 0 and level or nil
+end
+
+-- The character's money in copper, or nil; the raw value second, for the launch trace.
+function Compat.GetMoney()
+    local money, raw = Compat.CallWithRaw(GetMoney, "number")
+    return money and money >= 0 and math.floor(money) == money and money or nil, raw
+end
+
+-- A faction's standing from C_Reputation's faction data: id, name, reaction (1 Hated to 8 Exalted),
+-- or nil for a header without reputation, a secret or an odd value.
+local function factionStanding(data)
+    if type(data) ~= "table" then return nil end
+    if Compat.Safe(data.isHeader) == true and Compat.Safe(data.isHeaderWithRep) ~= true then return nil end
+    local id, reaction = Compat.Safe(data.factionID, "number"), Compat.Safe(data.reaction, "number")
+    if not (id and id > 0 and reaction and reaction >= 1 and reaction <= 8 and math.floor(reaction) == reaction) then
+        return nil
+    end
+    return id, Compat.Safe(data.name, "string"), reaction
+end
+
+-- The factions the reputation list shows: { [factionID] = { name, reaction } }, or nil without the
+-- list; the number of rows second (raw, for the launch trace). A collapsed header hides its
+-- factions, so read the known ones with Compat.GetFactionStanding too.
+function Compat.GetFactionStandings()
+    local api = C_Reputation
+    if not (api and api.GetNumFactions and api.GetFactionDataByIndex) then return nil end
+    local rows, raw = Compat.CallWithRaw(api.GetNumFactions, "number")
+    if not rows then return nil, raw end
+    local standings = {}
+    for index = 1, rows do
+        local id, name, reaction = factionStanding(Compat.Call(api.GetFactionDataByIndex, index))
+        if id then standings[id] = { name = name, reaction = reaction } end
+    end
+    return standings, raw
+end
+
+-- One faction's name and reaction, read by ID; nil when it can't be read.
+function Compat.GetFactionStanding(factionID)
+    local api = C_Reputation
+    if not (api and api.GetFactionDataByID) then return nil end
+    local id, name, reaction = factionStanding(Compat.Call(api.GetFactionDataByID, factionID))
+    if id ~= factionID then return nil end
+    return name, reaction
+end
+
+-- The Legacy Challenges (Forever's achievements): { [id] = { name, done, day, account, byMe } }, or
+-- nil when the categories can't be read; the raw category list second, for the launch trace; third,
+-- true when every category and challenge could be read, so an ID missing from the list isn't a
+-- challenge. `day` is the completion's day key (the game gives the year from 2000), `account` the
+-- account-wide flag, under which every character of the account reads the challenge as its own. A
+-- challenge that can't be read is left out.
+local ACCOUNT_WIDE = 0x20000 -- ACHIEVEMENT_FLAGS_ACCOUNT
+function Compat.GetLegacyChallenges()
+    if type(GetCategoryList) ~= "function" or type(GetCategoryNumAchievements) ~= "function"
+        or type(GetAchievementInfo) ~= "function" then
+        return nil
+    end
+    local categories, raw = Compat.CallWithRaw(GetCategoryList, "table")
+    if not categories then return nil, raw end
+    local challenges, complete = {}, true
+    for _, category in ipairs(categories) do
+        local count = Compat.Safe(category, "number") and Compat.Call(GetCategoryNumAchievements, category)
+        if type(count) ~= "number" then complete = false end
+        for index = 1, type(count) == "number" and count or 0 do
+            local id, name, _, done, month, day, year, _, flags, _, _, _, byMe =
+                Compat.Call(GetAchievementInfo, category, index)
+            if type(id) == "number" then
+                local dayKey
+                if done == true and type(year) == "number" and type(month) == "number" and type(day) == "number" then
+                    dayKey = (2000 + year) * 10000 + month * 100 + day
+                end
+                challenges[id] = { name = type(name) == "string" and name or nil, done = done == true, day = dayKey,
+                    account = type(flags) == "number" and math.floor(flags / ACCOUNT_WIDE) % 2 == 1,
+                    byMe = byMe }
+            else
+                complete = false
+            end
+        end
+    end
+    return challenges, raw, complete
+end
+
+-- One challenge's name, read by ID; nil when it can't be read.
+function Compat.GetLegacyChallengeName(id)
+    local readID, name = Compat.Call(GetAchievementInfo, id)
+    return readID == id and type(name) == "string" and name or nil
+end
+
+-- The flight master's known nodes, read from the taxi map that is open: Forever's flight map
+-- (GetTaxiMapID, C_TaxiMap.GetAllTaxiNodes, where state 0 current and 1 reachable mean known) or
+-- else the old taxi frame (NumTaxiNodes, TaxiNodeGetType CURRENT or REACHABLE, TaxiNodeName). Returns
+-- a list of { id, name, current }, without IDs from the old frame, then what was read, for the
+-- launch trace: { source = "map" | "frame", map = taxi map ID, nodes = how many }. Without an open,
+-- readable taxi map the list is nil. A node that can't be read is left out.
+local KNOWN_STATES = { [0] = true, [1] = true }
+local KNOWN_TYPES = { CURRENT = true, REACHABLE = true }
+function Compat.GetTaxiNodes()
+    local mapID = Compat.Call(GetTaxiMapID)
+    local all = type(mapID) == "number" and mapID > 0 and C_TaxiMap
+        and Compat.Call(C_TaxiMap.GetAllTaxiNodes, mapID)
+    if type(all) == "table" and #all > 0 then
+        local known = {}
+        for _, node in ipairs(all) do
+            local id = type(node) == "table" and Compat.Safe(node.nodeID, "number")
+            local state = id and Compat.Safe(node.state, "number")
+            if KNOWN_STATES[state] then
+                known[#known + 1] = { id = id, name = text(Compat.Safe(node.name, "string")), current = state == 0 }
+            end
+        end
+        return #known > 0 and known or nil, { source = "map", map = mapID, nodes = #all }
+    end
+    local count = Compat.Call(NumTaxiNodes)
+    if type(count) ~= "number" or count < 1 then return nil end
+    local known = {}
+    for index = 1, count do
+        local nodeType = Compat.Call(TaxiNodeGetType, index)
+        local name = KNOWN_TYPES[nodeType] and text(Compat.Call(TaxiNodeName, index))
+        if name then known[#known + 1] = { name = name, current = nodeType == "CURRENT" } end
+    end
+    return #known > 0 and known or nil, { source = "frame", nodes = count }
+end
+
+-- The item worn in an equipment slot and its quality (0 Poor to 7 Heirloom): the item is false for an
+-- empty slot and nil when it can't be read; the quality is nil until the client has loaded it. The
+-- raw values third and fourth, for the launch trace.
+function Compat.GetEquippedItem(slot)
+    local item, rawItem, read = Compat.CallWithRaw(GetInventoryItemID, "number", "player", slot)
+    if not read then return nil end
+    if rawItem == nil then return false end
+    if not (item and item > 0) then return nil, nil, rawItem end
+    local quality, rawQuality = Compat.CallWithRaw(GetInventoryItemQuality, "number", "player", slot)
+    return item, quality, rawItem, rawQuality
+end
+
+-- The character's guild: whether it is in one (true or false, nil unreadable) and the guild's name
+-- (nil while it hasn't loaded, right after login); the raw values third and fourth.
+function Compat.GetGuild()
+    local inGuild, rawIn, read = Compat.CallWithRaw(IsInGuild, "boolean")
+    if not read then return nil end
+    if not inGuild then return inGuild, nil, rawIn end
+    local name, rawName = Compat.CallWithRaw(GetGuildInfo, "string", "player")
+    return inGuild, name ~= "" and name or nil, rawIn, rawName
+end
+
+-- The place of the inn the hearthstone is bound to, in the client's language, or nil; the raw value second.
+function Compat.GetBindLocation()
+    local name, raw = Compat.CallWithRaw(GetBindLocation, "string")
+    return name ~= "" and name or nil, raw
+end
+
+-- The mount journal: { [mountID] = { name, collected } }, or nil when it can't be read; the raw ID
+-- list second, for the launch trace. A mount whose row can't be read, or whose collected flag isn't
+-- a boolean yet, is left out.
+function Compat.GetMounts()
+    local journal = C_MountJournal
+    if type(journal) ~= "table" or type(journal.GetMountIDs) ~= "function"
+        or type(journal.GetMountInfoByID) ~= "function" then
+        return nil
+    end
+    local ids, raw = Compat.CallWithRaw(journal.GetMountIDs, "table")
+    if not ids then return nil, raw end
+    local mounts = {}
+    for _, id in ipairs(ids) do
+        if Compat.Safe(id, "number") then
+            local name, _, _, _, _, _, _, _, _, _, isCollected = Compat.Call(journal.GetMountInfoByID, id)
+            if type(isCollected) == "boolean" then
+                mounts[id] = { name = type(name) == "string" and name ~= "" and name or nil, collected = isCollected }
+            end
+        end
+    end
+    return mounts, raw
+end
+
+-- Forever's progress tracks, renown factions that aren't reputations: PvP rank points and the
+-- Legacy Track.
+Compat.PVP_RANK_FACTION = 2800
+Compat.LEGACY_TRACK_FACTION = 2802
+
+-- The PvP rank: the renown level of the PvP rank faction and the current arena season, each nil when
+-- it can't be read; their raw values third and fourth, for the launch trace.
+function Compat.GetPvPRank()
+    local factions = type(C_MajorFactions) == "table" and C_MajorFactions
+    local info, rawRank = Compat.CallWithRaw(factions and factions.GetMajorFactionProgressionInfo, "table",
+        Compat.PVP_RANK_FACTION)
+    local rank
+    if info then
+        rawRank = info.renownLevel
+        rank = Compat.Safe(rawRank, "number")
+    end
+    local season, rawSeason = Compat.CallWithRaw(GetCurrentArenaSeason, "number")
+    return rank, season, rawRank, rawSeason
+end
+
+-- The client's title for PvP rank `rank` (1 and up) for the player's faction and sex, built the way
+-- Blizzard's PVPRankFrame builds it: GetText("PVP_RANK_<Rank_1 + rank - 1>_<0 Horde, 1 Alliance>",
+-- UnitSex("player")), whose female form is the key with _FEMALE. nil when the client has none.
+function Compat.GetPvPRankTitle(rank)
+    if type(rank) ~= "number" or rank <= 0 then return nil end
+    local ranks = type(Enum) == "table" and type(Enum.PvPRanks) == "table" and Enum.PvPRanks
+    local first = ranks and Compat.Safe(ranks.Rank_1, "number") or 5
+    local faction = Compat.Call(UnitFactionGroup, "player") == "Alliance" and 1 or 0
+    local title = Compat.GetGlobalStringForPlayer("PVP_RANK_" .. tostring(first + rank - 1) .. "_" .. faction)
+    return title ~= "" and title or nil
 end
 
 function Compat.GetPlayerMapID()
@@ -334,6 +557,35 @@ end
 local ZONE_MAP_TYPE = 3 -- Enum.UIMapType.Zone
 local AZEROTH = 947      -- the top of Forever's maps (UiMap.db2 of build 70235)
 
+local CONTINENT_MAP_TYPE = 2 -- Enum.UIMapType.Continent
+
+local function mapType(name, fallback)
+    return type(Enum) == "table" and type(Enum.UIMapType) == "table" and Enum.UIMapType[name] or fallback
+end
+
+-- The map itself or the nearest parent of type `wanted`, or nil.
+local function enclosingMap(mapID, wanted)
+    for _ = 1, MAX_MAP_DEPTH do
+        local info = mapID and C_Map and C_Map.GetMapInfo and Compat.Call(C_Map.GetMapInfo, mapID)
+        if type(info) ~= "table" then return nil end
+        if Compat.Safe(info.mapType, "number") == wanted then return mapID end
+        mapID = Compat.GetParentMap(mapID)
+    end
+    return nil
+end
+
+-- The zone a map lies in: the map itself or the nearest parent of the zone type, or nil (a
+-- continent, an unknown map). Cities are zones of their own (Thunder Bluff is not in Mulgore), and
+-- a dungeon's map lies in the zone of its entrance.
+function Compat.GetZoneOf(mapID)
+    return enclosingMap(mapID, mapType("Zone", ZONE_MAP_TYPE))
+end
+
+-- The continent a map lies in (Kalimdor for Mulgore), or nil.
+function Compat.GetContinentOf(mapID)
+    return enclosingMap(mapID, mapType("Continent", CONTINENT_MAP_TYPE))
+end
+
 -- The top of the player's chain of maps (the world), or nil before the player's map is known.
 local function worldRoot()
     local root = Compat.GetPlayerMapID()
@@ -391,8 +643,7 @@ function Compat.GetZoneRects()
     if not Compat.has.mapChildren then return nil end
     local root = worldRoot()
     if not root then return nil end
-    local zoneType = type(Enum) == "table" and type(Enum.UIMapType) == "table" and Enum.UIMapType.Zone or ZONE_MAP_TYPE
-    local children = Compat.Call(C_Map.GetMapChildrenInfo, root, zoneType, true)
+    local children = Compat.Call(C_Map.GetMapChildrenInfo, root, mapType("Zone", ZONE_MAP_TYPE), true)
     if type(children) ~= "table" then return nil end
     local rects = {}
     for _, info in ipairs(children) do
@@ -407,6 +658,44 @@ function Compat.GetZoneRects()
         end
     end
     return rects
+end
+
+-- The explored-area textures of each zone map that returns any, as { [uiMapID] = { textures = n,
+-- hover = m } }, where hover counts the ones the world map only shows under the mouse
+-- (isShownByMouseOver). nil without the API.
+function Compat.GetExploredTextureCounts()
+    if not Compat.has.mapExploration then return nil end
+    local children = Compat.Call(C_Map.GetMapChildrenInfo, worldRoot() or AZEROTH, mapType("Zone", ZONE_MAP_TYPE), true)
+    if type(children) ~= "table" then return nil end
+    local counts = {}
+    for _, info in ipairs(children) do
+        local mapID = type(info) == "table" and Compat.Safe(info.mapID, "number")
+        local textures = mapID and Compat.Call(C_MapExplorationInfo.GetExploredMapTextures, mapID)
+        if type(textures) == "table" and next(textures) ~= nil then
+            local count = { textures = 0, hover = 0 }
+            for _, texture in pairs(textures) do
+                count.textures = count.textures + 1
+                if type(texture) == "table" and Compat.Safe(texture.isShownByMouseOver) == true then
+                    count.hover = count.hover + 1
+                end
+            end
+            counts[mapID] = count
+        end
+    end
+    return counts
+end
+
+-- The zones whose map the character has uncovered, as { [uiMapID] = true }: where the character
+-- has been (First visits, docs/ARCHITECTURE.md §6.12). A zone counts when the map returns any of its
+-- explored areas, also one it shows only under the mouse. On the beta it also named zones the
+-- character had never been to, on a brand-new level 1 character too (docs/ARCHITECTURE.md §12 row
+-- 16). A zone without areas to uncover is never in it. nil without the API.
+function Compat.GetExploredZones()
+    local counts = Compat.GetExploredTextureCounts()
+    if not counts then return nil end
+    local explored = {}
+    for mapID in pairs(counts) do explored[mapID] = true end
+    return explored
 end
 
 function Compat.IsOnTaxi()

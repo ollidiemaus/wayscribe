@@ -14,6 +14,11 @@ local EVENTS = {
     "PLAYER_LEVEL_UP", "QUEST_TURNED_IN", "SCENARIO_COMPLETED", "SKILL_LINES_CHANGED",
     "TRADE_SKILL_LIST_UPDATE", "UNIT_SPELLCAST_SUCCEEDED", "ZONE_CHANGED_NEW_AREA",
     "PLAYER_CONTROL_LOST", "PLAYER_CONTROL_GAINED", "PLAYER_UNGHOST",
+    -- 1.0 Launch trackers (docs/ARCHITECTURE.md §6.11)
+    "PLAYER_MONEY", "UPDATE_FACTION", "PLAYER_EQUIPMENT_CHANGED", "ACHIEVEMENT_EARNED", "TAXIMAP_OPENED",
+    "UI_INFO_MESSAGE", "PLAYER_GUILD_UPDATE", "HEARTHSTONE_BOUND", "CONFIRM_BINDER", "NEW_MOUNT_ADDED",
+    "COMPANION_LEARNED", "NEW_PET_ADDED", "NEW_TOY_ADDED", "PLAYER_PVP_RANK_CHANGED",
+    "MAJOR_FACTION_RENOWN_LEVEL_CHANGED",
 }
 
 local LIBRARIES = { "LibStub", "CallbackHandler-1.0", "LibDataBroker-1.1", "LibDBIcon-1.0" }
@@ -170,6 +175,209 @@ local function addNotes(add)
     add("staticPopup", type(StaticPopup_Show) == "function")
 end
 
+-- 1.0 Launch: what the new trackers would read (docs/ARCHITECTURE.md §6.11). APIs are looked up by
+-- name, so one this client lacks reads "missing" instead of breaking the probe.
+local function lookup(path)
+    local value = _G
+    for part in path:gmatch("[^.]+") do
+        if type(value) ~= "table" then return nil end
+        value = value[part]
+    end
+    return value
+end
+
+local function call(path, ...)
+    return Compat.Call(lookup(path), ...)
+end
+
+-- An API's first return value, with "missing", "error" and "secret" told apart from nil.
+local function probeValue(path, ...)
+    local fn = lookup(path)
+    if type(fn) ~= "function" then return "missing" end
+    local ok, value = pcall(fn, ...)
+    if not ok then return "error" end
+    if Compat.IsSecret(value) then return "secret" end
+    return value
+end
+
+local function gameRule(name)
+    local rule = type(Enum) == "table" and type(Enum.GameRule) == "table" and Enum.GameRule[name]
+    return rule and call("C_GameRules.IsGameRuleActive", rule)
+end
+
+-- First visits: the best map and the maps above it, with their types (3 = zone, 2 = continent),
+-- the zone the tracker takes from them, and the zones the world map shows explored: how many count,
+-- of the zones that return explored-area textures, with each zone's textures and how many of them
+-- the map only shows under the mouse.
+local function addFirstVisits(add, mapID)
+    add("firstVisit.zone", Compat.GetZoneOf(mapID))
+    local depth = 0
+    while mapID and depth < 4 do
+        local info = call("C_Map.GetMapInfo", mapID)
+        if type(info) ~= "table" then break end
+        add("firstVisit.map." .. depth, mapID .. " " .. describe(Compat.Safe(info.name)) .. " (type "
+            .. describe(Compat.Safe(info.mapType)) .. ")")
+        local parent = Compat.Safe(info.parentMapID, "number")
+        mapID = parent ~= 0 and parent or nil
+        depth = depth + 1
+    end
+    local counts = Compat.GetExploredTextureCounts()
+    if not counts then
+        add("firstVisit.explored", "missing")
+        return
+    end
+    local zones, parts = {}, {}
+    for zone in pairs(counts) do zones[#zones + 1] = zone end
+    table.sort(zones)
+    for _, zone in ipairs(zones) do
+        parts[#parts + 1] = string.format("%d %d/%d", zone, counts[zone].textures, counts[zone].hover)
+    end
+    add("firstVisit.explored", #zones > 0 and table.concat(parts, ", ") .. " (textures/hover-only)" or "none")
+end
+
+-- Reputation: the rows the reputation list shows (collapsed headers hide their factions), one
+-- faction read by index and again by ID, and Forever's two tracks that are reputations inside.
+local function addReputation(add)
+    local count = probeValue("C_Reputation.GetNumFactions")
+    add("rep.rows", count)
+    if type(count) ~= "number" then return end
+    local headers, collapsed, factions, sample = 0, 0, 0, nil
+    for index = 1, count do
+        local data = call("C_Reputation.GetFactionDataByIndex", index)
+        if type(data) == "table" then
+            local isHeader = Compat.Safe(data.isHeader) == true
+            if isHeader then headers = headers + 1 end
+            if Compat.Safe(data.isCollapsed) == true then collapsed = collapsed + 1 end
+            if not isHeader or Compat.Safe(data.isHeaderWithRep) == true then
+                factions = factions + 1
+                sample = sample or data
+            end
+        end
+    end
+    add("rep.list", string.format("%d factions, %d headers (%d collapsed)", factions, headers, collapsed))
+    if sample then
+        local id, reaction = Compat.Safe(sample.factionID, "number"), Compat.Safe(sample.reaction, "number")
+        add("rep.sample", describe(id) .. " " .. describe(Compat.Safe(sample.name)) .. ", reaction "
+            .. describe(reaction) .. " " .. describe(reaction and _G["FACTION_STANDING_LABEL" .. reaction]) .. " / "
+            .. describe(reaction and _G["FACTION_STANDING_LABEL" .. reaction .. "_FEMALE"]))
+        local byID = id and call("C_Reputation.GetFactionDataByID", id)
+        add("rep.sampleByID", type(byID) == "table" and Compat.Safe(byID.reaction) or nil)
+    end
+    for _, factionID in ipairs({ Compat.PVP_RANK_FACTION, Compat.LEGACY_TRACK_FACTION }) do
+        local data = call("C_Reputation.GetFactionDataByID", factionID)
+        add("rep." .. factionID, type(data) == "table" and (describe(Compat.Safe(data.name)) .. ", reaction "
+            .. describe(Compat.Safe(data.reaction))) or nil)
+    end
+end
+
+-- Notable gear: each worn item and its quality (3 = rare, 4 = epic).
+local function addGear(add)
+    local parts = {}
+    for slot = 1, 19 do
+        local itemID = call("GetInventoryItemID", "player", slot)
+        if itemID then
+            parts[#parts + 1] = slot .. ":" .. describe(itemID) .. "/q"
+                .. describe(probeValue("GetInventoryItemQuality", "player", slot))
+        end
+    end
+    add("gear.slots", #parts > 0 and table.concat(parts, " ") or probeValue("GetInventoryItemID", "player", 1))
+end
+
+-- Legacy Challenges: how many there are, how many are done, and how many by this character
+-- (the game may count them per account), with one completed challenge and its date.
+local function addLegacyChallenges(add)
+    add("legacy.panelDisabled", gameRule("AchievementsPanelDisabled"))
+    add("legacy.track", probeValue("C_MajorFactions.GetCurrentRenownLevel", Compat.LEGACY_TRACK_FACTION))
+    local categories = call("GetCategoryList")
+    if type(categories) ~= "table" then
+        add("legacy.categories", probeValue("GetCategoryList"))
+        return
+    end
+    local total, completed, mine, sample = 0, 0, 0, nil
+    for _, categoryID in ipairs(categories) do
+        local count = Compat.Safe(categoryID, "number") and call("GetCategoryNumAchievements", categoryID)
+        for index = 1, type(count) == "number" and count or 0 do
+            local id, name, _, done, month, day, year, _, _, _, _, _, byMe = call("GetAchievementInfo", categoryID, index)
+            if id then
+                total = total + 1
+                if done then completed = completed + 1 end
+                if byMe then mine = mine + 1 end
+                if done and not sample then
+                    sample = string.format("%s %s, %s/%s/%s, by me %s", describe(id), describe(name), describe(month),
+                        describe(day), describe(year), describe(byMe))
+                end
+            end
+        end
+    end
+    add("legacy.challenges", string.format("%d in %d categories, %d completed, %d by this character", total,
+        #categories, completed, mine))
+    add("legacy.sample", sample)
+end
+
+-- Flight paths: the nodes are only readable at a flight master, so run the probe once with the
+-- taxi map open. Forever has two taxi maps: the old frame (NumTaxiNodes) and the flight map.
+local function addFlightPaths(add)
+    add("flightPaths.oldFrame", probeValue("NumTaxiNodes"))
+    local taxiMapID = call("GetTaxiMapID")
+    add("flightPaths.taxiMap", taxiMapID or probeValue("GetTaxiMapID"))
+    local nodes = taxiMapID and call("C_TaxiMap.GetAllTaxiNodes", taxiMapID)
+    if type(nodes) == "table" then
+        local byState = {}
+        for _, node in ipairs(nodes) do
+            local state = describe(type(node) == "table" and Compat.Safe(node.state) or nil)
+            byState[state] = (byState[state] or 0) + 1
+        end
+        local parts = {}
+        for state, n in pairs(byState) do parts[#parts + 1] = "state " .. state .. ": " .. n end
+        table.sort(parts)
+        add("flightPaths.nodes", #nodes .. " (" .. table.concat(parts, ", ") .. ")")
+    end
+end
+
+-- Collections: mounts as the mount journal knows them, then pets and toys. Whether the character
+-- has any toy, and the journal's "collected only" filter, tell a "0 of 0" that means nothing owned
+-- from one that means the API doesn't answer.
+local function addCollections(add)
+    local ids = call("C_MountJournal.GetMountIDs")
+    if type(ids) == "table" then
+        local collected, first = 0, nil
+        for _, mountID in ipairs(ids) do
+            local name, _, _, _, _, _, _, _, _, _, isCollected = call("C_MountJournal.GetMountInfoByID", mountID)
+            if isCollected then
+                collected = collected + 1
+                first = first or name
+            end
+        end
+        add("collections.mounts", string.format("%d in the journal, %d collected%s", #ids, collected,
+            first and " (" .. first .. ")" or ""))
+    else
+        add("collections.mounts", probeValue("C_MountJournal.GetMountIDs"))
+    end
+    local pets, owned = call("C_PetJournal.GetNumPets")
+    add("collections.pets", pets and describe(owned) .. " of " .. describe(pets) or probeValue("C_PetJournal.GetNumPets"))
+    add("collections.toys", describe(probeValue("C_ToyBox.GetNumLearnedDisplayedToys")) .. " of "
+        .. describe(probeValue("C_ToyBox.GetNumTotalDisplayedToys")))
+    add("collections.hasAnyToy", probeValue("C_ToyBoxInfo.HasAnyToy"))
+    add("collections.onlyShowCollected", probeValue("C_CVar.GetCVar", "onlyShowCollectedItemsInJournal"))
+end
+
+local function addLaunchTrackers(add, mapID)
+    addFirstVisits(add, mapID)
+    add("gold.money", probeValue("GetMoney"))
+    addReputation(add)
+    addGear(add)
+    addLegacyChallenges(add)
+    addFlightPaths(add)
+    add("guild.inGuild", probeValue("IsInGuild"))
+    add("guild.name", probeValue("GetGuildInfo", "player"))
+    add("home.bind", probeValue("GetBindLocation"))
+    addCollections(add)
+    local rank = call("C_MajorFactions.GetMajorFactionProgressionInfo", Compat.PVP_RANK_FACTION)
+    add("pvpRank.level", type(rank) == "table" and Compat.Safe(rank.renownLevel)
+        or probeValue("C_MajorFactions.GetMajorFactionProgressionInfo", Compat.PVP_RANK_FACTION))
+    add("pvpRank.season", probeValue("GetCurrentArenaSeason"))
+end
+
 local function collect()
     local lines = {}
     local function add(key, value)
@@ -223,6 +431,7 @@ local function collect()
     addFootsteps(add, mapID)
     addCoverage(add)
     addNotes(add)
+    addLaunchTrackers(add, mapID)
     return lines
 end
 

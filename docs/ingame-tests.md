@@ -26,9 +26,44 @@ the events, does it look right, is it fast enough.
 you saw only if it differs from the expectation; for looks, a screenshot helps. Quoted texts are the
 English client's; a German client shows the German ones.
 
-**Start here** if time is short: the [dungeon run with a reload](#dungeons-and-bosses), a
-[flight](#footsteps-on-the-world-map), [`/ws stats` after two hours](#footsteps-on-the-world-map)
-and [a journal file that didn't load](#backup).
+**Start here:** the [beta session for the launch trackers](#beta-session-the-launch-trackers),
+before the beta closes on October 21. After that, if time is short: the
+[dungeon run with a reload](#dungeons-and-bosses), a [flight](#footsteps-on-the-world-map),
+[`/ws stats` after two hours](#footsteps-on-the-world-map) and
+[a journal file that didn't load](#backup).
+
+## Beta session: the launch trackers
+
+Wayscribe 1.0 adds trackers for the game's launch: first visits to zones, gold, reputation,
+notable gear, Legacy Challenges, flight paths, guild, home, collections and PvP rank (what each
+one records: [ARCHITECTURE.md §6.11](architecture/06.11-launch-trackers.md)). This one session
+before the beta closes is all the testing they get before launch, and the rest
+is [checked after launch](#after-launch).
+
+**When:** in the stress test on October 19 if it lets you play, otherwise on October 20 or 21, with
+the build from October 19 evening or later. **Who:** a **new level 1 character**, any race, with
+developer mode on (`/ws dev`). **Route** (30 to 45 minutes): the starting area, the first town with
+an inn, then the capital, for example Northshire, Goldshire and Stormwind, or Camp Narache, Bloodhoof
+Village and Thunder Bluff. The texts below are the expected meaning, not the exact wording.
+
+- [ ] **The probe**, right after logging in: `/ws probe`. → Lines starting with `firstVisit.`, `gold.`,
+  `rep.`, `gear.`, `legacy.`, `flightPaths.`, `guild.`, `home.`, `collections.` and `pvpRank.`. None
+  says "error". The probe is saved with the game's files, so nothing needs copying.
+- [ ] **The starting zone.** → Today's page starts with the first visit to the starting zone.
+- [ ] **Gear.** Equip a quest reward. → No entry unless it is blue or better, but `/ws trace` lists
+  the change.
+- [ ] **Reputation.** Turn in a few quests. → `/ws trace` lists reputation updates. An entry only if
+  a standing changes (Neutral to Friendly).
+- [ ] **Gold.** Sell something to a vendor, then buy something. → Today's page: one gold line with
+  earned and spent.
+- [ ] **Home.** Set your hearthstone at the town's inn. → An entry that the inn's place is now your
+  home.
+- [ ] **A new zone or city.** Walk into the next zone or the capital. → A first visit for it.
+  `/reload` and walk out and in again. → No second entry.
+- [ ] **A flight path.** Talk to the capital's flight master, and with the taxi map open, type
+  `/ws probe` again. → An entry for the new flight path, and the probe's `flightPaths.` lines count
+  the known nodes.
+- [ ] **At the end:** `/ws log` says "No errors recorded.", and `/ws trace` shows what each tracker saw.
 
 ## Dungeons and bosses
 
@@ -187,6 +222,146 @@ The Duels tracker (0.9, §6.10). Developer mode (`/ws dev`) also logs every duel
 - [ ] **The Your Year card** (developer mode previews the year, `/ws year`). → *Duels* after
   *Deaths*: won and lost; with more duels the most frequent opponent, the nemesis and the
   easiest and toughest class.
+
+## After launch
+
+The launch trackers' checks that need more than a level 1 character (§6.11): reaching a new
+standing, a rare and an epic item, a Legacy Challenge, a guild, a mount, a PvP rank. Each tracker
+adds its checks here when it is built.
+
+### Gold (§6.13)
+
+- [ ] **Every source.** Loot coins, turn in a quest with a reward, sell, buy and repair at a vendor.
+  → Today's page has one gold line; its *earned* and *spent* add up to the change in your bags.
+- [ ] **Mail and the auction house.** Take gold from the mailbox, post an auction (the deposit) and
+  collect a sale. → Taking and collecting count as earned, the deposit as spent.
+- [ ] **A trade.** Give another player some silver in a trade. → Counted once, as spent.
+- [ ] **Between sessions.** Log out with developer mode on, log in on another character, mail this
+  one some copper, log back in. → No gold change in today's line; `/ws trace` shows
+  `Gold enable: ... -> taken`, and opening the mail counts as earned.
+- [ ] **Your Year.** → A *Gold* card before *Time played*, with earned, spent, the best day and the
+  most held at once.
+
+### Reputation (§6.14)
+
+- [ ] **A new standing.** Turn in quests until a faction reaches Friendly or Honored. → One entry
+  "Reached Honored with *faction*", in *Progress*; `/ws trace` shows `changed=` and `recorded 1`.
+- [ ] **Collapsed headers.** Collapse every header in the reputation window, then gain reputation.
+  → The entry still comes; the trace's `factions` count doesn't drop.
+- [ ] **Falling.** Kill guards of a neutral town (Booty Bay, Gadgetzan) until it is Hostile. → "Fell to
+  Hostile with *faction*". Climb back to Neutral and fall again. → No second entry.
+- [ ] **A new faction.** Meet a faction for the first time (it appears in the reputation window).
+  → No entry.
+- [ ] **A female character, German client.** → The standing reads as the reputation window names
+  it.
+- [ ] **Your Year.** → A *Reputation* card after *Quests*, with the factions at Exalted, Revered and
+  Honored and the faction climbed most.
+
+### Notable gear (§6.15)
+
+- [ ] **First look.** Log in a character that wears a rare or epic item. → No entry; `/ws trace` shows
+  `first look` with `worn=` the number of items worn. Equip another epic. → "Equipped an epic item:
+  *name*", without the first-time badge: the one worn at the first look was the first.
+- [ ] **The first rare.** On a character that wore no rare at its first look, equip a rare (blue) item. → "Equipped your first rare item: *name*", in
+  *Progress*, with the first-time badge; the trace shows `first rare`. Equip another rare. → No entry
+  (`later rare`).
+- [ ] **Epics.** On a character that wore no epic at its first look, equip an epic item, then a second
+  one. → "Equipped your first epic item: *name*",
+  then "Equipped an epic item: *name*". Take one off and put it back on. → No entry (`known`).
+- [ ] **Quality at equip time.** Equip an item the client hasn't seen this session (just looted).
+  → The trace shows its `quality=`, not `no quality`; if it says `no quality`, the look a second
+  later (or the next loading screen) writes the entry.
+- [ ] **Bags.** Swap a bag. → No trace line.
+- [ ] **Your Year.** → A *Notable gear* card after *Bosses*, with the epics worn and the dates of the
+  first rare and the first epic.
+
+### Legacy Challenges (§6.16)
+
+- [ ] **First look.** Log in a character above level 1 that has completed a challenge of its own.
+  → "Completed a Legacy Challenge: *name*" on the game's date, in *Progress*, without a time;
+  "Played in the WoW: Forever Beta" makes none. `/ws trace` shows `back-filled <n>` and
+  `new=` with `64283:account`.
+- [ ] **Level 1.** Log in a brand-new character. → No entry; the trace shows `first look`.
+- [ ] **Earned in play.** Complete a challenge. → The entry with its time; the trace shows
+  `earned=<id>` and `recorded 1`. Check that `ACHIEVEMENT_EARNED` fires for an account-wide one
+  (a class or profession rank), and whether it does when another character earned it first.
+- [ ] **Another character.** Complete a challenge on an alt, then log in the first character. → No
+  entry; the trace shows it `:account` (or `:other`).
+- [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
+- [ ] **Your Year.** → A *Legacy Challenges* card after *Reputation*, with the count and the latest.
+
+### Flight paths (§6.17)
+
+- [ ] **First flight path.** On a fresh character, talk to the first flight master. → "New flight
+  path: *name*" in *Travel*; `/ws trace` shows `source="map"`, `known=1`, the `current` node's ID
+  and `recorded 1`. Note whether `CHAT_MSG_SYSTEM` joins `TAXIMAP_OPENED` in the same look.
+- [ ] **Older character.** Open the taxi map on a character that knows several paths. → No entry;
+  the trace shows `first look`. Then learn a new one. → Its entry, `new=` with its ID.
+- [ ] **Learned without a look.** Learn a path with Wayscribe off (or the tracker switched off),
+  then open the map at another flight master on that continent. → Its entry.
+- [ ] **Other continent.** Open the first taxi map on another continent. → No entry (`first look`),
+  unless it is the only node known there.
+- [ ] **Old frame.** If the old taxi frame ever opens instead of the flight map, the trace shows
+  `source="frame"` and names the nodes.
+- [ ] **Relog.** Log out and in, open the map again. → Nothing repeats (`unchanged`).
+- [ ] **Your Year.** → The Footsteps card has "*n* flight paths learned".
+
+### Guild (§6.18)
+
+- [ ] **First look.** Log in a character that is in a guild. → No entry; `/ws trace` shows
+  `inGuild=true`, the guild's `name` and `first look`. Note whether the login look reads
+  `name missing` first, and whether a `retry` or a `PLAYER_GUILD_UPDATE` look then reads the name.
+- [ ] **Leave.** Leave the guild (`/gquit`). → "Left the guild <*name*>" in *Adventure*; the trace
+  shows `inGuild=false` and `left`.
+- [ ] **Join.** Accept a guild invite. → "Joined the guild <*name*>"; the trace shows `joined`.
+- [ ] **Rank.** Get promoted or demoted. → No entry; the trace shows `unchanged`.
+- [ ] **Offline change.** Leave (or join) on this character while Wayscribe is off, then log in with
+  it on. → The entries on the login day.
+- [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`), also when the login look reads
+  `name missing`.
+
+### Home (§6.19)
+
+- [ ] **First look.** Log in. → No entry; `/ws trace` shows `bind="<inn's place>"` and `first look`
+  (or `unchanged` on a character Wayscribe already knows).
+- [ ] **New inn.** Bind the hearthstone at another innkeeper. → "Hearthstone bound to *place*" in
+  *Travel*; the trace shows `CONFIRM_BINDER` (`unchanged`), then `HEARTHSTONE_BOUND` and `moved`.
+  Note whether `HEARTHSTONE_BOUND` fires at all, and whether the place matches the hearthstone's
+  tooltip.
+- [ ] **Same inn.** Bind again at the same innkeeper. → No entry (`unchanged`).
+- [ ] **Language.** Log out, switch the client to German, log in. → No entry; the trace shows
+  `taken at login` with the German place. Switch back the same way.
+- [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
+
+### Collections (§6.20)
+
+- [ ] **First look.** Log in a character that owns a mount. → No entry; `/ws trace` shows
+  `mounts=<n> collected=<owned>` and `first look` (or `unchanged` on a character Wayscribe knows).
+- [ ] **New mount.** Learn a mount. → "New mount: *name*" in *Progress*, marked as a first only if the
+  character owned no mount at its first look; the trace shows `NEW_MOUNT_ADDED` (note whether `COMPANION_LEARNED` comes too),
+  `new=<mountID>` and `recorded 1`.
+- [ ] **Another character.** Learn a mount on an alt, then log in the first character. → Note
+  whether the mount reads as collected there: if it does, it makes an entry (§6.20, the price).
+- [ ] **Pets and toys.** Learn a companion pet (Prairie Dog Whistle, Cat Carrier) or a toy, then run
+  `/ws probe`. → If `collections.pets` or `collections.toys` counts it, pets and toys can join
+  Collections (§6.20); if it still reads `0 of 0`, they stay out.
+- [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
+- [ ] **Your Year.** → A *Mounts* card after *Legacy Challenges*, with the count and the first mount.
+
+### PvP rank (§6.21)
+
+- [ ] **First look.** Log in. → No entry; `/ws trace` shows `rank=<n> season=<season>` and
+  `first look` (or `unchanged` on a character Wayscribe knows).
+- [ ] **New rank.** Earn honor until the rank goes up (the character frame's PvP tab). → "Reached
+  PvP rank *n*: *title*" in *PvP*, the title as the PvP tab shows it; the trace shows
+  `PLAYER_PVP_RANK_CHANGED` and/or `MAJOR_FACTION_RENOWN_LEVEL_CHANGED` (note which) and
+  `recorded <n>`.
+- [ ] **Other renown.** Complete a Legacy Challenge that raises the Legacy Track. → No PvP rank look
+  for it in the trace.
+- [ ] **Season.** Note what `GetCurrentArenaSeason()` reads at launch (the beta read 0) and whether
+  a season change resets the rank. → The first look in the new season ends `new season`, no entry.
+- [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
+- [ ] **Your Year.** → A *PvP rank* card after *Duels*, with the highest rank and its title.
 
 ## Already verified
 

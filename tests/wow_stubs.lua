@@ -179,7 +179,7 @@ end
 local function installUnits(opts)
     state.player = {
         guid = opts.guid or "Player-1-0000AAAA", name = opts.name or "Tester", realm = opts.realm or "Forever", class = "MAGE",
-        surname = opts.surname,
+        surname = opts.surname, sex = opts.sex or 2, faction = opts.faction or "Horde",
     }
     _G.UnitGUID = unitGuid
     _G.UnitFullName = function(unit) return unitNames(unit, true) end
@@ -201,6 +201,12 @@ local function installUnits(opts)
         return state.level
     end
     _G.UnitIsPlayer = function(unit) return unitMember(unit) ~= nil end
+    -- 2 male, 3 female (opts.sex)
+    _G.UnitSex = function(unit) return unit == "player" and state.player.sex or nil end
+    -- "Horde" or "Alliance" (opts.faction), the localized name second
+    _G.UnitFactionGroup = function(unit)
+        if unit == "player" then return state.player.faction, state.player.faction end
+    end
     _G.UnitExists = function(unit) return unitMember(unit) ~= nil end
     -- UnitPosition: x, y, z, instance (the continent); nil when no position is set.
     _G.UnitPosition = function(unit)
@@ -277,7 +283,7 @@ local function installMaps()
         GetAreaInfo = function(areaID) return state.areaNames and state.areaNames[areaID] end,
         GetMapInfo = function(mapID)
             local map = MAPS[mapID]
-            return { mapID = mapID, name = map and map.name, parentMapID = map and map.parent or 0 }
+            return { mapID = mapID, name = map and map.name, mapType = map and map.type, parentMapID = map and map.parent or 0 }
         end,
         -- The maps under mapID (all levels down with allDescendants), of one map type if given.
         GetMapChildrenInfo = function(mapID, mapType, allDescendants)
@@ -299,6 +305,14 @@ end
 
 local function installWorld()
     installMaps()
+    -- Zones with explored areas, set with Stubs.SetExplored.
+    _G.C_MapExplorationInfo = {
+        GetExploredMapTextures = function(mapID)
+            local textures = state.explored and state.explored[mapID]
+            if type(textures) == "table" then return textures end
+            return textures and { { fileDataIDs = { 1 }, isShownByMouseOver = false } } or {}
+        end,
+    }
     _G.GetInstanceInfo = function()
         local i = state.instance
         return i.name, i.type, i.difficulty, "", 5, 0, false, i.id, 0, nil
@@ -340,6 +354,13 @@ local function installWorld()
     _G.C_QuestLog = { GetTitleForQuestID = function(questID) return state.questTitles[questID] end }
     _G.C_QuestLine = nil
     _G.C_CVar = { GetCVar = function(name) return state.cvars[name] end }
+    -- What the 1.0 launch trackers read: absent until a spec gives them, so no spec sees another's.
+    for _, name in ipairs({ "GetMoney", "C_Reputation", "GetInventoryItemID", "GetInventoryItemQuality",
+        "GetCategoryList", "GetCategoryNumAchievements", "GetAchievementInfo", "NumTaxiNodes", "GetTaxiMapID",
+        "C_TaxiMap", "IsInGuild", "GetGuildInfo", "GetBindLocation", "C_MountJournal", "C_PetJournal", "C_ToyBox",
+        "C_ToyBoxInfo", "C_MajorFactions", "GetCurrentArenaSeason" }) do
+        _G[name] = nil
+    end
 end
 
 -- The default UI's templates and atlases the journal asks for, as a client confirms them.
@@ -397,7 +418,7 @@ function Stubs.InstallScrollBox()
     }
 end
 
--- opts: now, guid, name, realm, surname, level, interface, accountDB, charDB, footstepsDB, locale, unknownEvents
+-- opts: now, guid, name, realm, surname, faction, level, interface, accountDB, charDB, footstepsDB, locale, unknownEvents
 function Stubs.Install(opts)
     opts = opts or {}
     state = {
@@ -446,9 +467,24 @@ function Stubs.Install(opts)
     _G.DUEL_WINNER_KNOCKOUT = "%1$s has defeated %2$s in a duel"
     _G.DUEL_WINNER_RETREAT = "%2$s has fled from %1$s in a duel"
     _G.DUEL_COUNTDOWN = "Duel starting: %d"
+    _G.ERR_NEWTAXIPATH = "New flight path discovered!"
+    -- The taxi maps are absent until a spec opens one (Stubs.OpenTaxiMap).
+    _G.GetTaxiMapID, _G.C_TaxiMap, _G.NumTaxiNodes, _G.TaxiNodeGetType, _G.TaxiNodeName = nil, nil, nil, nil, nil
     _G.LOCALIZED_CLASS_NAMES_MALE = { WARRIOR = "Warrior", MAGE = "Mage", ROGUE = "Rogue", PRIEST = "Priest" }
     _G.RAID_CLASS_COLORS = { WARRIOR = { r = 0.78, g = 0.61, b = 0.43 }, MAGE = { r = 0.25, g = 0.78, b = 0.92 } }
     _G.GetLocale = function() return opts.locale or "enUS" end
+    -- The client's PvP rank titles, PVP_RANK_<5 + rank - 1>_<0 Horde, 1 Alliance>, as Forever's
+    -- GlobalStrings has them.
+    local pvpRanks = opts.locale == "deDE"
+        and { PVP_RANK_5_0 = "Späher", PVP_RANK_6_0 = "Grunzer", PVP_RANK_7_0 = "Waffenträger",
+            PVP_RANK_5_1 = "Gefreiter", PVP_RANK_6_1 = "Fußknecht", PVP_RANK_7_1 = "Landsknecht" }
+        or { PVP_RANK_5_0 = "Scout", PVP_RANK_6_0 = "Grunt", PVP_RANK_7_0 = "Sergeant", PVP_RANK_8_0 = "Senior Sergeant",
+            PVP_RANK_5_1 = "Private", PVP_RANK_6_1 = "Corporal", PVP_RANK_7_1 = "Sergeant",
+            PVP_RANK_8_1 = "Master Sergeant" }
+    for key in pairs(_G) do
+        if type(key) == "string" and key:match("^PVP_RANK_%d") then _G[key] = nil end
+    end
+    for key, title in pairs(pvpRanks) do _G[key] = title end
     _G.GetBuildInfo = function() return "1.60.1", "70009", "Oct 1 2026", opts.interface or 16001 end
     _G.WOW_PROJECT_ID, _G.WOW_PROJECT_MAINLINE = 1, 1
     installUnits(opts)
@@ -619,7 +655,228 @@ end
 function Stubs.SetTime(ts) state.now = ts end
 function Stubs.Now() return state.now end
 function Stubs.SetLevel(level) state.level = level end
+-- The character's money in copper; gives the game GetMoney, which is absent until a spec sets it.
+function Stubs.SetMoney(copper)
+    state.money = copper
+    _G.GetMoney = function() return state.money end
+end
 function Stubs.Printed() return state.printed end
+
+-- The reputation list, gives the game C_Reputation, which is absent until a spec sets it. A list of
+-- { factionID, name, reaction, isHeader, isHeaderWithRep, hidden }: `hidden` rows are under a
+-- collapsed header, out of the index but readable by ID.
+function Stubs.SetFactions(list)
+    state.factions = list
+    local function data(row)
+        return { factionID = row.factionID, name = row.name, reaction = row.reaction,
+            isHeader = row.isHeader or false, isHeaderWithRep = row.isHeaderWithRep or false }
+    end
+    local function shown()
+        local rows = {}
+        for _, row in ipairs(state.factions) do
+            if not row.hidden then rows[#rows + 1] = row end
+        end
+        return rows
+    end
+    _G.C_Reputation = {
+        GetNumFactions = function() return #shown() end,
+        GetFactionDataByIndex = function(index)
+            local row = shown()[index]
+            return row and data(row) or nil
+        end,
+        GetFactionDataByID = function(factionID)
+            for _, row in ipairs(state.factions) do
+                if row.factionID == factionID then return data(row) end
+            end
+        end,
+    }
+end
+
+-- The character's guild: `inGuild` (IsInGuild), `name` (GetGuildInfo's first value, nil while it
+-- hasn't loaded) and `rank`; gives the game IsInGuild and GetGuildInfo, which are absent until a spec sets them.
+function Stubs.SetGuild(inGuild, name, rank)
+    state.guild = { inGuild = inGuild, name = name, rank = rank or "Member" }
+    _G.IsInGuild = function() return state.guild.inGuild end
+    _G.GetGuildInfo = function(unit)
+        if unit == "player" and state.guild.name ~= nil then return state.guild.name, state.guild.rank, 3, nil end
+    end
+end
+
+-- The inn the hearthstone is bound to (GetBindLocation, in the client's language); gives the game
+-- GetBindLocation, which is absent until a spec sets it.
+function Stubs.SetBindLocation(name)
+    state.bind = name
+    _G.GetBindLocation = function() return state.bind end
+end
+
+-- Changes one faction's reaction in the list Stubs.SetFactions gave.
+function Stubs.SetReaction(factionID, reaction)
+    for _, row in ipairs(state.factions) do
+        if row.factionID == factionID then row.reaction = reaction end
+    end
+end
+
+-- What the character wears, { [slot] = { id, quality } } (quality nil: not loaded yet); gives the game
+-- GetInventoryItemID and GetInventoryItemQuality, which are absent until a spec sets them.
+function Stubs.SetEquipment(slots)
+    state.equipment = slots
+    local function worn(unit, slot)
+        return unit == "player" and state.equipment[slot] or nil
+    end
+    _G.GetInventoryItemID = function(unit, slot)
+        local item = worn(unit, slot)
+        return item and item.id or nil
+    end
+    _G.GetInventoryItemQuality = function(unit, slot)
+        local item = worn(unit, slot)
+        return item and item.quality or nil
+    end
+end
+
+-- Puts `item` (or nothing) in `slot` and fires PLAYER_EQUIPMENT_CHANGED for it.
+function Stubs.Equip(slot, item)
+    state.equipment[slot] = item
+    Stubs.Fire("PLAYER_EQUIPMENT_CHANGED", slot, item ~= nil)
+end
+
+-- The Legacy Challenges, a list of { id, name, category, done, date = { year, month, day }, byMe,
+-- account }: gives the game GetCategoryList, GetCategoryNumAchievements and GetAchievementInfo,
+-- which are absent until a spec sets them. `account` sets the account-wide flag; `byMe` defaults to
+-- `done`, as Forever reads it.
+local ACCOUNT_FLAG = 0x20000
+function Stubs.SetChallenges(list)
+    state.challenges = list
+    local function categories()
+        local seen, ids = {}, {}
+        for _, row in ipairs(state.challenges) do
+            if not seen[row.category] then
+                seen[row.category] = true
+                ids[#ids + 1] = row.category
+            end
+        end
+        return ids
+    end
+    local function inCategory(categoryID)
+        local rows = {}
+        for _, row in ipairs(state.challenges) do
+            if row.category == categoryID then rows[#rows + 1] = row end
+        end
+        return rows
+    end
+    local function info(row)
+        if not row then return nil end
+        local date = row.done and row.date or {}
+        local byMe = row.byMe
+        if byMe == nil then byMe = row.done or false end
+        return row.id, row.name, 10, row.done or false, date.month, date.day, date.year and date.year % 100,
+            "", row.account and ACCOUNT_FLAG or 0, 0, "", false, byMe, ""
+    end
+    _G.GetCategoryList = categories
+    _G.GetCategoryNumAchievements = function(categoryID) return #inCategory(categoryID) end
+    _G.GetAchievementInfo = function(categoryOrID, index)
+        if index then return info(inCategory(categoryOrID)[index]) end
+        for _, row in ipairs(state.challenges) do
+            if row.id == categoryOrID then return info(row) end
+        end
+    end
+end
+
+-- Completes challenge `id` today (by this character) and fires ACHIEVEMENT_EARNED for it.
+function Stubs.EarnChallenge(id, alreadyEarned)
+    local t = os.date("*t", state.now)
+    for _, row in ipairs(state.challenges) do
+        if row.id == id then
+            row.done, row.byMe, row.date = true, true, { year = t.year, month = t.month, day = t.day }
+        end
+    end
+    Stubs.Fire("ACHIEVEMENT_EARNED", id, alreadyEarned)
+end
+
+-- The mount journal, a list of { id, name, collected }: gives the game C_MountJournal (GetMountIDs and
+-- GetMountInfoByID, whose 11th value is isCollected), which is absent until a spec sets it.
+function Stubs.SetMounts(list)
+    state.mounts = list
+    _G.C_MountJournal = {
+        GetMountIDs = function()
+            local ids = {}
+            for i, row in ipairs(state.mounts) do ids[i] = row.id end
+            return ids
+        end,
+        GetMountInfoByID = function(id)
+            for _, row in ipairs(state.mounts) do
+                if row.id == id then
+                    return row.name, id * 10, 132261, false, true, 0, false, false, nil, false, row.collected or false, id
+                end
+            end
+        end,
+    }
+end
+
+-- Collects mount `id` and fires NEW_MOUNT_ADDED for it.
+function Stubs.CollectMount(id)
+    for _, row in ipairs(state.mounts) do
+        if row.id == id then row.collected = true end
+    end
+    Stubs.Fire("NEW_MOUNT_ADDED", id)
+end
+
+-- The PvP rank: the renown of faction 2800 (C_MajorFactions.GetMajorFactionProgressionInfo) in arena
+-- season `season` (GetCurrentArenaSeason), both absent until a spec sets them.
+function Stubs.SetPvPRank(rank, season)
+    state.pvpRank = { rank = rank, season = season }
+    _G.C_MajorFactions = {
+        GetMajorFactionProgressionInfo = function(factionID)
+            if factionID == 2800 then
+                return { renownLevel = state.pvpRank.rank, renownReputationEarned = 0, renownLevelThreshold = 1000 }
+            end
+        end,
+    }
+    _G.GetCurrentArenaSeason = function() return state.pvpRank.season end
+end
+
+-- The character reaches PvP rank `rank` (higher or lower): the renown changes and the rank events fire.
+function Stubs.ReachPvPRank(rank)
+    local old = state.pvpRank.rank
+    state.pvpRank.rank = rank
+    Stubs.Fire("MAJOR_FACTION_RENOWN_LEVEL_CHANGED", 2800, rank, old)
+    Stubs.Fire("PLAYER_PVP_RANK_CHANGED")
+end
+
+-- Opens a flight master's taxi map on `list`, { id, name, state } with state 0 current, 1 reachable,
+-- 2 unreachable, and fires TAXIMAP_OPENED. The flight map (GetTaxiMapID gives `mapID`,
+-- C_TaxiMap.GetAllTaxiNodes the nodes) and the old taxi frame (NumTaxiNodes, TaxiNodeGetType,
+-- TaxiNodeName) both read the nodes; with `frameOnly` the flight map reads none, as away from it.
+local NODE_TYPES = { [0] = "CURRENT", [1] = "REACHABLE", [2] = "NONE" }
+function Stubs.OpenTaxiMap(list, mapID, frameOnly)
+    state.taxiNodes, state.taxiMap = list, not frameOnly and mapID or -1
+    _G.GetTaxiMapID = function() return state.taxiMap end
+    _G.C_TaxiMap = {
+        GetAllTaxiNodes = function(id)
+            local nodes = {}
+            if id ~= state.taxiMap then return nodes end
+            for index, node in ipairs(state.taxiNodes) do
+                nodes[#nodes + 1] = { nodeID = node.id, name = node.name, state = node.state, slotIndex = index }
+            end
+            return nodes
+        end,
+    }
+    _G.NumTaxiNodes = function() return #state.taxiNodes end
+    _G.TaxiNodeGetType = function(index)
+        local node = state.taxiNodes[index]
+        return node and NODE_TYPES[node.state] or "NONE"
+    end
+    _G.TaxiNodeName = function(index)
+        local node = state.taxiNodes[index]
+        return node and node.name or "INVALID"
+    end
+    Stubs.Fire("TAXIMAP_OPENED", 1)
+end
+
+-- Closes the taxi map: no map ID and no nodes, as away from a flight master.
+function Stubs.CloseTaxiMap()
+    state.taxiNodes, state.taxiMap = {}, -1
+    Stubs.Fire("TAXIMAP_CLOSED")
+end
 
 -- Where the player is: Stubs.SetInstance(389, "party", "Ragefire Chasm"); no arguments = outdoors.
 function Stubs.SetInstance(id, instanceType, name, difficulty)
@@ -639,6 +896,9 @@ function Stubs.SetTaxi(onTaxi) state.onTaxi = onTaxi end
 -- The map C_Map.GetBestMapForUnit reports (default 1411), and GetSubZoneText (default "").
 function Stubs.SetBestMap(mapID) state.bestMap = mapID end
 function Stubs.SetSubZone(name) state.subZone = name end
+-- The zones the world map shows explored: { [uiMapID] = true }, or a zone's own texture list
+-- (C_MapExplorationInfo.GetExploredMapTextures) in place of true.
+function Stubs.SetExplored(zones) state.explored = zones end
 function Stubs.SetAreaName(areaID, name)
     state.areaNames = state.areaNames or {}
     state.areaNames[areaID] = name
@@ -689,8 +949,10 @@ function Stubs.Relog(opts, reload)
         spellNames = state.spellNames, itemNames = state.itemNames, itemClasses = state.itemClasses,
         questTitles = state.questTitles, cvars = state.cvars, position = state.position,
         onTaxi = state.onTaxi, dead = state.dead, subZone = state.subZone, bestMap = state.bestMap,
-        areaNames = state.areaNames,
-        spellIcons = state.spellIcons,
+        areaNames = state.areaNames, explored = state.explored,
+        spellIcons = state.spellIcons, money = state.money, factions = state.factions,
+        equipment = state.equipment, challenges = state.challenges, guild = state.guild, bind = state.bind,
+        mounts = state.mounts, pvpRank = state.pvpRank,
     }
     opts = opts or {}
     for key, value in pairs(saved) do
@@ -700,6 +962,14 @@ function Stubs.Relog(opts, reload)
     opts.level = opts.level or state.level
     Stubs.Install(opts)
     for key, value in pairs(world) do state[key] = value end
+    if state.money ~= nil then Stubs.SetMoney(state.money) end
+    if state.factions ~= nil then Stubs.SetFactions(state.factions) end
+    if state.equipment ~= nil then Stubs.SetEquipment(state.equipment) end
+    if state.challenges ~= nil then Stubs.SetChallenges(state.challenges) end
+    if state.guild ~= nil then Stubs.SetGuild(state.guild.inGuild, state.guild.name, state.guild.rank) end
+    if state.bind ~= nil then Stubs.SetBindLocation(state.bind) end
+    if state.mounts ~= nil then Stubs.SetMounts(state.mounts) end
+    if state.pvpRank ~= nil then Stubs.SetPvPRank(state.pvpRank.rank, state.pvpRank.season) end
     local ns = {}
     for _, file in ipairs(Stubs.TocFiles()) do
         assert(loadfile(file))("Wayscribe", ns)

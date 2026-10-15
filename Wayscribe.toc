@@ -54,6 +54,7 @@ Data\Coverage.lua
 Data\YearCards.lua
 Data\Schema.lua
 Data\Backup.lua
+Data\Trace.lua
 
 StaticData\Dungeons.lua
 StaticData\DungeonMaps.lua
@@ -73,6 +74,16 @@ Trackers\QuestChains.lua
 Trackers\Footsteps.lua
 Trackers\Deaths.lua
 Trackers\Duels.lua
+Trackers\FirstVisits.lua
+Trackers\Gold.lua
+Trackers\Reputation.lua
+Trackers\Gear.lua
+Trackers\LegacyChallenges.lua
+Trackers\FlightPaths.lua
+Trackers\Guild.lua
+Trackers\Home.lua
+Trackers\Collections.lua
+Trackers\PvPRank.lua
 
 UI\Theme.lua
 UI\DayView.lua

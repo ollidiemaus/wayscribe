@@ -65,6 +65,37 @@ The choices that shaped the addon, by topic. Each says what was decided and why.
   kill) can add icons the same way.
 - **Cards live with their trackers**, like record types and counters: one file still adds a
   feature, its Your Year card included. Only the opening card is the UI's own.
+- **Launch trackers ship without an in-game check** (§6.11). The beta ends before there is time for
+  one, so a launch tracker ships once it is probed and unit-tested and fails silent. Its in-game
+  checks follow after launch, and the dev-mode trace collects the evidence.
+- **Snapshots before events and chat lines.** A tracker that compares saved state is caught up by
+  its next look when an event never fires. Only that kind can be trusted without playing.
+- **The first look is silent**, as Professions does. The exceptions are where the game knows better:
+  a level 1 character's starting zone, a flight path learned that very moment, and Legacy
+  Challenges, which the game dates itself.
+- **A level 1 character takes no explored zones** (§6.12). Forever's map shows zones explored that
+  a brand-new character has never been to, and a first visit taken as known is never recorded.
+  Every character at launch is new; a late "first time" for a zone it walked before Wayscribe was
+  there costs less.
+- **Gold and Home take changes found at login silently.** A gold total gained elsewhere would land
+  on the wrong day, and the name of home changes with the client's language.
+- **Notable gear is the first rare and every epic.** An entry for every blue item would bury the
+  journal while leveling, and epics alone would leave most characters with nothing before 60.
+  Heirlooms and WoW Tokens (qualities 7 and 8) are left out: neither is gear the character found.
+- **A first from before the tracker counts** (2026-10-15). A rare or an epic worn at Notable gear's
+  first look, and a mount owned at Collections', was the character's first, so a later one isn't
+  marked as a first. Neither can be dated, so it makes no entry, and the journal's firsts stay
+  without it.
+- **Only `ACHIEVEMENT_EARNED` makes an account-wide Legacy Challenge this character's**
+  (2026-10-15, §6.16). Forever reads the account's challenges as every character's own, so a look
+  takes those silently. One this character earned while Wayscribe was off makes no entry, which is
+  cheaper than every alt claiming the account's.
+- **Collections launches with mounts only** (§6.20). The beta couldn't show whether a learned pet or
+  toy appears in its journal; a learned one in `/ws probe` after launch decides.
+- **Small trackers get no Your Year card.** First visits and flight paths are lines on the
+  Footsteps card, and guild and home have none. With a card each, Your Year would grow from 12
+  cards to over 20.
+- **No screenshot tracker.** It was on the idea list and dropped in planning: not wanted.
 
 ## UI
 

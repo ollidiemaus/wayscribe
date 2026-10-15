@@ -94,14 +94,14 @@ function Store:Count(path, key, amount, ts)
         ns.Log:Error("store", "invalid counter " .. tostring(path))
         return false
     end
-    local day, month = self:GetOrCreateDay(ts or Time.Now())
+    local day, month, dayKey = self:GetOrCreateDay(ts or Time.Now())
     local bucket = day.counters[path]
     if not bucket then
         bucket = {}
         day.counters[path] = bucket
     end
     bucket[key] = (bucket[key] or 0) + amount
-    ns.Index:ApplyCount(month, path, key, amount)
+    ns.Index:ApplyCount(month, path, key, amount, bucket[key], dayKey)
     ns.Bus:Fire("COUNTER_CHANGED", path, key, amount)
     return true
 end
@@ -109,6 +109,19 @@ end
 -- Resumable tracker state (snapshots, an open dungeon run, ...).
 function Store:GetState(key)
     return self.db and self.db.state[key]
+end
+
+local function deepCopy(value)
+    if type(value) ~= "table" then return value end
+    local result = {}
+    for key, item in pairs(value) do result[key] = deepCopy(item) end
+    return result
+end
+
+-- A copy of the state, for a tracker that changes its snapshot while it writes entries: a look that
+-- stops at a failed write leaves the saved snapshot as it was.
+function Store:CopyState(key)
+    return deepCopy(self:GetState(key))
 end
 
 function Store:SetState(key, value)
@@ -314,6 +327,16 @@ local function addCounts(target, source)
     end
 end
 
+-- Lets each record type or counter (by name or path) combine the rollup fields it adds.
+local function mergeFields(target, source, defs)
+    for name, def in pairs(defs) do
+        if def.merge then
+            local ok, err = pcall(def.merge, target, source)
+            if not ok then ns.Log:Error("merge:" .. name, err) end
+        end
+    end
+end
+
 -- Sums the 12 month summaries; type-specific rollup fields are combined by each type's merge().
 -- byMonth[1..12] keeps each month's summary (most active month).
 function Store:GetYearSummary(year)
@@ -337,12 +360,8 @@ function Store:GetYearSummary(year)
                 summary.rollup.counters[path] = summary.rollup.counters[path] or {}
                 addCounts(summary.rollup.counters[path], bucket)
             end
-            for _, def in pairs(ns.RecordTypes.defs) do
-                if def.merge then
-                    local ok, err = pcall(def.merge, summary.rollup, source)
-                    if not ok then ns.Log:Error("merge:" .. def.name, err) end
-                end
-            end
+            mergeFields(summary.rollup, source, ns.RecordTypes.defs)
+            mergeFields(summary.rollup, source, ns.RecordTypes.counters)
         end
     end
     return summary
