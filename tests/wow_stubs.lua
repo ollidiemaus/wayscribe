@@ -686,6 +686,13 @@ function Stubs.SetGuild(inGuild, name, rank)
     end
 end
 
+-- The inn the hearthstone is bound to (GetBindLocation, in the client's language); gives the game
+-- GetBindLocation, which is absent until a spec sets it.
+function Stubs.SetBindLocation(name)
+    state.bind = name
+    _G.GetBindLocation = function() return state.bind end
+end
+
 -- Changes one faction's reaction in the list Stubs.SetFactions gave.
 function Stubs.SetReaction(factionID, reaction)
     for _, row in ipairs(state.factions) do
@@ -878,7 +885,7 @@ function Stubs.Relog(opts, reload)
         onTaxi = state.onTaxi, dead = state.dead, subZone = state.subZone, bestMap = state.bestMap,
         areaNames = state.areaNames, explored = state.explored,
         spellIcons = state.spellIcons, money = state.money, factions = state.factions,
-        equipment = state.equipment, challenges = state.challenges, guild = state.guild,
+        equipment = state.equipment, challenges = state.challenges, guild = state.guild, bind = state.bind,
     }
     opts = opts or {}
     for key, value in pairs(saved) do
@@ -893,6 +900,7 @@ function Stubs.Relog(opts, reload)
     if state.equipment ~= nil then Stubs.SetEquipment(state.equipment) end
     if state.challenges ~= nil then Stubs.SetChallenges(state.challenges) end
     if state.guild ~= nil then Stubs.SetGuild(state.guild.inGuild, state.guild.name, state.guild.rank) end
+    if state.bind ~= nil then Stubs.SetBindLocation(state.bind) end
     local ns = {}
     for _, file in ipairs(Stubs.TocFiles()) do
         assert(loadfile(file))("Wayscribe", ns)

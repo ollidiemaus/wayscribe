@@ -59,6 +59,7 @@ Today · played 2 h 10 min
 - **Legacy Challenges:** each Legacy Challenge you complete, and the ones completed before you installed Wayscribe.
 - **Flight paths:** each new flight master you learn.
 - **Guild:** when you join a guild and when you leave it.
+- **Home:** each new inn you bind your hearthstone to.
 - **Journeys:** hearthstone, Astral Recall, mage teleports and transporters, from where to where.
 - **Distance:** how far you walked, rode and flew each day.
 

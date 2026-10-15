@@ -20,7 +20,7 @@ end
 -- launch trackers are switched off, so the trace holds only First visits' looks.
 local function start(devMode, opts)
     opts = opts or {}
-    local trackers = { Gold = false, Reputation = false, Gear = false, LegacyChallenges = false, Guild = false }
+    local trackers = { Gold = false, Reputation = false, Gear = false, LegacyChallenges = false, Guild = false, Home = false }
     opts.accountDB = { schema = 1, settings = { trackers = trackers, devMode = devMode or nil }, log = {}, characters = {} }
     local ns = Stubs.LoadAddon(opts)
     Stubs.SetBestMap(1412)

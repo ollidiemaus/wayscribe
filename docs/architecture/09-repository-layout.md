@@ -16,6 +16,7 @@ StaticData/ Dungeons.lua DungeonMaps.lua (generated, see tools/) Gathering.lua Q
 Trackers/  Session.lua Level.lua Professions.lua Gathering.lua Bosses.lua Dungeons.lua
            QuestChains.lua Footsteps.lua Deaths.lua DungeonMaps.lua Duels.lua FirstVisits.lua Gold.lua
            Reputation.lua Gear.lua LegacyChallenges.lua FlightPaths.lua Guild.lua
+           Home.lua
 UI/        Theme.lua DayView.lua YourYear.lua NotesView.lua Journal.lua Export.lua FootstepsMap.lua
            NotesMap.lua DungeonMap.lua MapsView.lua LoginRecap.lua Settings.lua Minimap.lua
 Media/     Icon.tga (128×128, 32-bit) IconSmall.tga (64×64, 32-bit), their .svg sources (not

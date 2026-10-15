@@ -285,6 +285,9 @@ L.TRACKER_GUILD = "Guild"
 L.TRACKER_GUILD_TIP = "When this character joins a guild and when it leaves. The guild it is already in is taken silently."
 L.GUILD_JOINED = "Joined the guild <%s>"
 L.GUILD_LEFT = "Left the guild <%s>"
+L.TRACKER_HOME = "Home"
+L.TRACKER_HOME_TIP = "Each new inn this character binds its hearthstone to. The inn it is bound to at login is taken silently."
+L.HOME_BOUND = "Hearthstone bound to %s"
 
 -- Footsteps on the world map
 L.FOOTSTEPS = "Footsteps"

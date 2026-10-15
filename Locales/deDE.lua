@@ -263,6 +263,9 @@ L.TRACKER_GUILD = "Gilde"
 L.TRACKER_GUILD_TIP = "Wann dieser Charakter einer Gilde beitritt und wann er sie verlässt. Die Gilde, in der er schon ist, wird still übernommen."
 L.GUILD_JOINED = "Der Gilde <%s> beigetreten"
 L.GUILD_LEFT = "Die Gilde <%s> verlassen"
+L.TRACKER_HOME = "Zuhause"
+L.TRACKER_HOME_TIP = "Jedes neue Gasthaus, an das dieser Charakter seinen Ruhestein bindet. Das Gasthaus, an das er beim Einloggen gebunden ist, wird still übernommen."
+L.HOME_BOUND = "Ruhestein an %s gebunden"
 
 -- Footsteps on the world map
 L.FOOTSTEPS = "Fußspuren"

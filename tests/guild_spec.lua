@@ -160,7 +160,7 @@ describe("guild", function()
 
     it("trace each look in developer mode", function()
         local accountDB = { schema = 1, log = {}, characters = {}, settings = { trackers = { FirstVisits = false,
-            Gold = false, Reputation = false, Gear = false, LegacyChallenges = false }, devMode = true } }
+            Gold = false, Reputation = false, Gear = false, LegacyChallenges = false, Home = false }, devMode = true } }
         start("Red Hand", { accountDB = accountDB })
         local ns = Stubs.ns
         change(true, nil)

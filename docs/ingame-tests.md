@@ -318,6 +318,19 @@ adds its checks here when it is built.
 - [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`), also when the login look reads
   `name missing`.
 
+### Home (§6.19)
+
+- [ ] **First look.** Log in. → No entry; `/ws trace` shows `bind="<inn's place>"` and `first look`
+  (or `unchanged` on a character Wayscribe already knows).
+- [ ] **New inn.** Bind the hearthstone at another innkeeper. → "Hearthstone bound to *place*" in
+  *Travel*; the trace shows `CONFIRM_BINDER` (`unchanged`), then `HEARTHSTONE_BOUND` and `moved`.
+  Note whether `HEARTHSTONE_BOUND` fires at all, and whether the place matches the hearthstone's
+  tooltip.
+- [ ] **Same inn.** Bind again at the same innkeeper. → No entry (`unchanged`).
+- [ ] **Language.** Log out, switch the client to German, log in. → No entry; the trace shows
+  `taken at login` with the German place. Switch back the same way.
+- [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
+
 ## Already verified
 
 Done on builds 70235, 70245 and 70291 (2026-10-06 to 09); no need to repeat. Details are in

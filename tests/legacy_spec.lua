@@ -247,7 +247,8 @@ describe("legacy challenges", function()
 
     it("trace each look in developer mode", function()
         local accountDB = { schema = 1, log = {}, characters = {}, settings = {
-            trackers = { FirstVisits = false, Gold = false, Reputation = false, Gear = false, Guild = false }, devMode = true } }
+            trackers = { FirstVisits = false, Gold = false, Reputation = false, Gear = false, Guild = false,
+                Home = false }, devMode = true } }
         local ns = start(nil, { accountDB = accountDB })
         earn(MULGORE)
         challenge(NOVICE).done = true

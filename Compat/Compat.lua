@@ -401,6 +401,15 @@ function Compat.GetGuild()
     return inGuild, name ~= "" and name or nil, rawIn, rawName
 end
 
+-- The place of the inn the hearthstone is bound to, in the client's language, or nil; the raw value second.
+function Compat.GetBindLocation()
+    if type(GetBindLocation) ~= "function" then return nil end
+    local ok, raw = pcall(GetBindLocation)
+    if not ok then return nil end
+    local name = Compat.Safe(raw, "string")
+    return name ~= "" and name or nil, raw
+end
+
 function Compat.GetPlayerMapID()
     if not (C_Map and C_Map.GetBestMapForUnit) then return nil end
     local mapID = Compat.Call(C_Map.GetBestMapForUnit, "player")
