@@ -273,6 +273,21 @@ adds its checks here when it is built.
 - [ ] **Your Year.** → A *Notable gear* card after *Bosses*, with the epics worn and the dates of the
   first rare and the first epic.
 
+### Legacy Challenges (§6.16)
+
+- [ ] **First look.** Log in a character above level 1 that has completed a challenge of its own.
+  → "Completed a Legacy Challenge: *name*" on the game's date, in *Progress*, without a time;
+  "Played in the WoW: Forever Beta" makes none. `/ws trace` shows `back-filled <n>` and
+  `new=` with `64283:account`.
+- [ ] **Level 1.** Log in a brand-new character. → No entry; the trace shows `first look`.
+- [ ] **Earned in play.** Complete a challenge. → The entry with its time; the trace shows
+  `earned=<id>` and `recorded 1`. Check that `ACHIEVEMENT_EARNED` fires for an account-wide one
+  (a class or profession rank), and whether it does when another character earned it first.
+- [ ] **Another character.** Complete a challenge on an alt, then log in the first character. → No
+  entry; the trace shows it `:account` (or `:other`).
+- [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
+- [ ] **Your Year.** → A *Legacy Challenges* card after *Reputation*, with the count and the latest.
+
 ## Already verified
 
 Done on builds 70235, 70245 and 70291 (2026-10-06 to 09); no need to repeat. Details are in

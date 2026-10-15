@@ -33,6 +33,8 @@ Compat.GetExploredTextureCounts() -- -> { [zoneMapID] = { textures, hover } } of
 Compat.GetMoney()                -- -> copper, or nil when missing, erroring or secret; the raw value second (trace)
 Compat.GetFactionStandings()     -- -> { [factionID] = { name, reaction } } of the reputation list, or nil; raw row count second
 Compat.GetFactionStanding(id)    -- -> name, reaction of one faction read by ID (collapsed headers), or nil
+Compat.GetLegacyChallenges()     -- -> { [id] = { name, done, day, account, byMe } }, or nil; raw category list second
+Compat.GetLegacyChallengeName(id) -- -> one challenge's name read by ID, or nil
 Compat.GetEquippedItem(slot)     -- -> itemID (false empty, nil unreadable), quality (nil until loaded); raw values third/fourth
 Compat.IsOnTaxi() / Compat.IsDeadOrGhost()
 Compat.HasWorldMapCanvas()       -- WorldMapFrame takes MapCanvas data providers

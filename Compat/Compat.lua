@@ -296,6 +296,46 @@ function Compat.GetFactionStanding(factionID)
     return name, reaction
 end
 
+-- The Legacy Challenges (Forever's achievements): { [id] = { name, done, day, account, byMe } }, or
+-- nil when the categories can't be read; the raw category list second, for the launch trace. `day`
+-- is the completion's day key (the game gives the year from 2000), `account` the account-wide flag,
+-- under which every character of the account reads the challenge as its own. A challenge that can't
+-- be read is left out.
+local ACCOUNT_WIDE = 0x20000 -- ACHIEVEMENT_FLAGS_ACCOUNT
+function Compat.GetLegacyChallenges()
+    if type(GetCategoryList) ~= "function" or type(GetCategoryNumAchievements) ~= "function"
+        or type(GetAchievementInfo) ~= "function" then
+        return nil
+    end
+    local ok, raw = pcall(GetCategoryList)
+    if not ok then return nil end
+    if Compat.Safe(raw, "table") == nil then return nil, raw end
+    local challenges = {}
+    for _, category in ipairs(raw) do
+        local count = Compat.Safe(category, "number") and Compat.Call(GetCategoryNumAchievements, category)
+        for index = 1, type(count) == "number" and count or 0 do
+            local id, name, _, done, month, day, year, _, flags, _, _, _, byMe =
+                Compat.Call(GetAchievementInfo, category, index)
+            if type(id) == "number" then
+                local dayKey
+                if done == true and type(year) == "number" and type(month) == "number" and type(day) == "number" then
+                    dayKey = (2000 + year) * 10000 + month * 100 + day
+                end
+                challenges[id] = { name = type(name) == "string" and name or nil, done = done == true, day = dayKey,
+                    account = type(flags) == "number" and math.floor(flags / ACCOUNT_WIDE) % 2 == 1,
+                    byMe = byMe }
+            end
+        end
+    end
+    return challenges, raw
+end
+
+-- One challenge's name, read by ID; nil when it can't be read.
+function Compat.GetLegacyChallengeName(id)
+    local readID, name = Compat.Call(GetAchievementInfo, id)
+    return readID == id and type(name) == "string" and name or nil
+end
+
 -- The item worn in an equipment slot and its quality (0 Poor to 7 Heirloom): the item is false for an
 -- empty slot and nil when it can't be read; the quality is nil until the client has loaded it. The
 -- raw values third and fourth, for the launch trace.

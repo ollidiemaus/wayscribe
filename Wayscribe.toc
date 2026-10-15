@@ -78,6 +78,7 @@ Trackers\FirstVisits.lua
 Trackers\Gold.lua
 Trackers\Reputation.lua
 Trackers\Gear.lua
+Trackers\LegacyChallenges.lua
 
 UI\Theme.lua
 UI\DayView.lua

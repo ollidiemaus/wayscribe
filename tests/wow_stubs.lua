@@ -703,6 +703,59 @@ function Stubs.Equip(slot, item)
     Stubs.Fire("PLAYER_EQUIPMENT_CHANGED", slot, item ~= nil)
 end
 
+-- The Legacy Challenges, a list of { id, name, category, done, date = { year, month, day }, byMe,
+-- account }: gives the game GetCategoryList, GetCategoryNumAchievements and GetAchievementInfo,
+-- which are absent until a spec sets them. `account` sets the account-wide flag; `byMe` defaults to
+-- `done`, as Forever reads it.
+local ACCOUNT_FLAG = 0x20000
+function Stubs.SetChallenges(list)
+    state.challenges = list
+    local function categories()
+        local seen, ids = {}, {}
+        for _, row in ipairs(state.challenges) do
+            if not seen[row.category] then
+                seen[row.category] = true
+                ids[#ids + 1] = row.category
+            end
+        end
+        return ids
+    end
+    local function inCategory(categoryID)
+        local rows = {}
+        for _, row in ipairs(state.challenges) do
+            if row.category == categoryID then rows[#rows + 1] = row end
+        end
+        return rows
+    end
+    local function info(row)
+        if not row then return nil end
+        local date = row.done and row.date or {}
+        local byMe = row.byMe
+        if byMe == nil then byMe = row.done or false end
+        return row.id, row.name, 10, row.done or false, date.month, date.day, date.year and date.year % 100,
+            "", row.account and ACCOUNT_FLAG or 0, 0, "", false, byMe, ""
+    end
+    _G.GetCategoryList = categories
+    _G.GetCategoryNumAchievements = function(categoryID) return #inCategory(categoryID) end
+    _G.GetAchievementInfo = function(categoryOrID, index)
+        if index then return info(inCategory(categoryOrID)[index]) end
+        for _, row in ipairs(state.challenges) do
+            if row.id == categoryOrID then return info(row) end
+        end
+    end
+end
+
+-- Completes challenge `id` today (by this character) and fires ACHIEVEMENT_EARNED for it.
+function Stubs.EarnChallenge(id, alreadyEarned)
+    local t = os.date("*t", state.now)
+    for _, row in ipairs(state.challenges) do
+        if row.id == id then
+            row.done, row.byMe, row.date = true, true, { year = t.year, month = t.month, day = t.day }
+        end
+    end
+    Stubs.Fire("ACHIEVEMENT_EARNED", id, alreadyEarned)
+end
+
 -- Where the player is: Stubs.SetInstance(389, "party", "Ragefire Chasm"); no arguments = outdoors.
 function Stubs.SetInstance(id, instanceType, name, difficulty)
     if not id then
@@ -776,7 +829,7 @@ function Stubs.Relog(opts, reload)
         onTaxi = state.onTaxi, dead = state.dead, subZone = state.subZone, bestMap = state.bestMap,
         areaNames = state.areaNames, explored = state.explored,
         spellIcons = state.spellIcons, money = state.money, factions = state.factions,
-        equipment = state.equipment,
+        equipment = state.equipment, challenges = state.challenges,
     }
     opts = opts or {}
     for key, value in pairs(saved) do
@@ -789,6 +842,7 @@ function Stubs.Relog(opts, reload)
     if state.money ~= nil then Stubs.SetMoney(state.money) end
     if state.factions ~= nil then Stubs.SetFactions(state.factions) end
     if state.equipment ~= nil then Stubs.SetEquipment(state.equipment) end
+    if state.challenges ~= nil then Stubs.SetChallenges(state.challenges) end
     local ns = {}
     for _, file in ipairs(Stubs.TocFiles()) do
         assert(loadfile(file))("Wayscribe", ns)
