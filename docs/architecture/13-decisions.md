@@ -81,6 +81,17 @@ The choices that shaped the addon, by topic. Each says what was decided and why.
   on the wrong day, and the name of home changes with the client's language.
 - **Notable gear is the first rare and every epic.** An entry for every blue item would bury the
   journal while leveling, and epics alone would leave most characters with nothing before 60.
+  Heirlooms and WoW Tokens (qualities 7 and 8) are left out: neither is gear the character found.
+- **A first from before the tracker counts** (2026-10-15). A rare or an epic worn at Notable gear's
+  first look, and a mount owned at Collections', was the character's first, so a later one isn't
+  marked as a first. Neither can be dated, so it makes no entry, and the journal's firsts stay
+  without it.
+- **Only `ACHIEVEMENT_EARNED` makes an account-wide Legacy Challenge this character's**
+  (2026-10-15, §6.16). Forever reads the account's challenges as every character's own, so a look
+  takes those silently. One this character earned while Wayscribe was off makes no entry, which is
+  cheaper than every alt claiming the account's.
+- **Collections launches with mounts only** (§6.20). The beta couldn't show whether a learned pet or
+  toy appears in its journal; a learned one in `/ws probe` after launch decides.
 - **Small trackers get no Your Year card.** First visits and flight paths are lines on the
   Footsteps card, and guild and home have none. With a card each, Your Year would grow from 12
   cards to over 20.
