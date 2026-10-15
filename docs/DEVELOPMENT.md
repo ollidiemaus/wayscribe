@@ -55,6 +55,7 @@ it in.
 |---|---|
 | `/ws dev` | Toggle developer mode: errors also go to BugSack; enables `simulate` and `backup sample`; previews this year's Your Year before December |
 | `/ws probe` | Which game APIs this client offers and what they return right now. Saved to `WayscribeDB.probe`; paste it into [forever-probe.md](forever-probe.md) |
+| `/ws trace` | The launch trace's last 20 lines; `clear` empties it. In developer mode every look by a launch tracker (ARCHITECTURE.md §6.11) adds a line: when, which tracker, the events that asked, the values it read (`missing`, `secret`) and how it ended. Kept in `WayscribeDB.trace` (500 lines), so a wrong entry comes with its evidence |
 | `/ws duellog` | The duel log's last 20 lines; `clear` empties it. In developer mode every duel event is printed with its raw values (secret ones as `<secret>`) and kept in `WayscribeDB.duelTrace` (200 lines), to learn what a duel tracker can use |
 | `/ws simulate LEVEL_UP level=12` | Add a test entry through the real write path (any record type, `key=value` fields) |
 | `/ws simulate clear` | Remove all simulated entries |
@@ -67,7 +68,7 @@ it in.
 
 | File | Holds |
 |---|---|
-| `WTF/Account/<account>/SavedVariables/Wayscribe.lua` | `WayscribeDB`: settings, error log, the last probe, the duel log, one canary per character |
+| `WTF/Account/<account>/SavedVariables/Wayscribe.lua` | `WayscribeDB`: settings, error log, the last probe, the launch trace, the duel log, one canary per character |
 | `WTF/Account/<account>/<realm>/<character>/SavedVariables/Wayscribe.lua` | `WayscribeCharDB` (the journal) and `WayscribeFootstepsDB` (the trails) |
 
 The client writes these files only on logout and `/reload`. Trails are packed strings; to decode
@@ -101,6 +102,9 @@ A feature is one file (ARCHITECTURE.md §6):
    one too; a test checks).
 3. One line in `Wayscribe.toc`, in the Trackers block.
 4. A `tests/<name>_spec.lua`, and the file in `tests/run.lua`'s list.
+5. A launch tracker (§6.11) also ends each look with one `ns.Trace:Add(self.id, event, outcome,
+   name, value, ...)`: the event that asked, how the look ended ("recorded", "known", ...) and the
+   values it read. `Trackers/FirstVisits.lua` shows the pattern, its spec is in `tests/trace_spec.lua`.
 
 Every game value goes through `Compat.Safe` or `Compat.Call` (secret values), and new APIs are
 feature-detected in `Compat`, never assumed (ARCHITECTURE.md §1, §5).

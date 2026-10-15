@@ -117,6 +117,27 @@ commands.log = function()
     end
 end
 
+-- The last 20 lines of a developer-mode trace, or why there are none.
+local function printTail(lines, emptyText, needsDevText)
+    if #lines == 0 then
+        ns.Print(ns.devMode and emptyText or needsDevText)
+        return
+    end
+    for i = math.max(1, #lines - 19), #lines do
+        ns.Print(lines[i])
+    end
+end
+
+-- The launch trace (Data/Trace.lua, developer mode): its last lines, or `clear` to start over.
+commands.trace = function(rest)
+    if rest:lower() == "clear" then
+        ns.Trace:Clear()
+        ns.Print(L.TRACE_CLEARED)
+        return
+    end
+    printTail(ns.Trace:GetLines(), L.TRACE_EMPTY, L.TRACE_NEEDS_DEV)
+end
+
 -- The duel trace (Compat/DuelTrace.lua, developer mode): its last lines, or `clear` to start over.
 commands.duellog = function(rest)
     if rest:lower() == "clear" then
@@ -124,14 +145,7 @@ commands.duellog = function(rest)
         ns.Print(L.DUEL_LOG_CLEARED)
         return
     end
-    local lines = ns.accountDB.duelTrace or {}
-    if #lines == 0 then
-        ns.Print(ns.devMode and L.DUEL_LOG_EMPTY or L.DUEL_LOG_NEEDS_DEV)
-        return
-    end
-    for i = math.max(1, #lines - 19), #lines do
-        ns.Print(lines[i])
-    end
+    printTail(ns.accountDB.duelTrace or {}, L.DUEL_LOG_EMPTY, L.DUEL_LOG_NEEDS_DEV)
 end
 
 commands.rebuild = function()

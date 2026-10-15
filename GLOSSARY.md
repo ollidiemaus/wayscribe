@@ -12,6 +12,11 @@ One feature that turns what happens in the game into journal entries, such as le
 or duels. The player can switch each one off.
 _Avoid_: Module, logger, recorder
 
+**Look**:
+One reading of the game's current state by a tracker, such as the zone the character stands in,
+which it compares with what it saw before. An event only says when to look.
+_Avoid_: Check, scan, poll
+
 **Entry**:
 One line on a day page for a moment that happens only a handful of times in a character's life, such
 as a level up, a new standing or a first visit.
@@ -60,6 +65,11 @@ _Avoid_: Tested, checked
 **Unit-tested**:
 Said of a feature whose logic is covered by the specs against the fake game API, including secret
 and missing values.
+
+**Launch trace**:
+In developer mode, one line for each look a launch tracker took: when, the event that asked, the
+values it read and how the look ended. Shown by `/ws trace`; the evidence for a wrong entry.
+_Avoid_: Debug log, duel log (the older trace of raw duel events)
 
 **Verified**:
 Said of a feature whose in-game checks have passed.

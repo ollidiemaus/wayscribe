@@ -54,6 +54,7 @@ Data\Coverage.lua
 Data\YearCards.lua
 Data\Schema.lua
 Data\Backup.lua
+Data\Trace.lua
 
 StaticData\Dungeons.lua
 StaticData\DungeonMaps.lua
