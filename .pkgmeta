@@ -11,5 +11,6 @@ ignore:
   - tests
   - tools
   - README.md
+  - GLOSSARY.md
   - Media/Icon.svg
   - Media/IconSmall.svg
