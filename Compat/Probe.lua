@@ -221,20 +221,18 @@ local function addFirstVisits(add, mapID)
         mapID = parent ~= 0 and parent or nil
         depth = depth + 1
     end
-    local counts, explored = Compat.GetExploredTextureCounts(), Compat.GetExploredZones()
-    if not (counts and explored) then
+    local counts = Compat.GetExploredTextureCounts()
+    if not counts then
         add("firstVisit.explored", "missing")
         return
     end
-    local zones, parts, counted = {}, {}, 0
+    local zones, parts = {}, {}
     for zone in pairs(counts) do zones[#zones + 1] = zone end
     table.sort(zones)
     for _, zone in ipairs(zones) do
-        if explored[zone] then counted = counted + 1 end
         parts[#parts + 1] = string.format("%d %d/%d", zone, counts[zone].textures, counts[zone].hover)
     end
-    add("firstVisit.explored", counted .. " of " .. #zones .. " zones"
-        .. (#zones > 0 and " (textures/hover-only): " .. table.concat(parts, ", ") or ""))
+    add("firstVisit.explored", #zones > 0 and table.concat(parts, ", ") .. " (textures/hover-only)" or "none")
 end
 
 -- Reputation: the rows the reputation list shows (collapsed headers hide their factions), one

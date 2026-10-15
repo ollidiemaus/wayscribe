@@ -29,7 +29,7 @@ Compat.GetMapAtWorldPos(continentID, x, y) -- -> the most detailed uiMapID there
 Compat.GetParentMap(mapID)       -- -> parentMapID
 Compat.GetZoneRects()            -- -> { { map, c, minX, maxX, minY, maxY } } of every zone map, in world yards
 Compat.GetZoneOf(mapID)          -- -> the zone a map lies in (itself, or the nearest zone above it)
-Compat.GetExploredZones()        -- -> { [zoneMapID] = true } for every zone the world map shows explored without a hover
+Compat.GetExploredZones()        -- -> { [zoneMapID] = true } for every zone with explored-area textures
 Compat.GetExploredTextureCounts() -- -> { [zoneMapID] = { textures, hover } } of every zone with explored-area textures
 Compat.GetMoney()                -- -> copper, or nil when missing, erroring or secret; the raw value second (trace)
 Compat.GetFactionStandings()     -- -> { [factionID] = { name, reaction } } of the reputation list, or nil; raw row count second

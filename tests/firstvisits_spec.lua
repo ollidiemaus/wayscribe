@@ -78,18 +78,19 @@ describe("first visits", function()
         end)
     end)
 
-    it("leave out zones whose explored areas the map only shows under the mouse", function()
+    it("count a zone whose explored areas the map only shows under the mouse", function()
         withMaps(function()
-            -- Forever's map draws a hover-only texture only while the mouse is over it.
+            -- Forever's map draws a hover-only texture only while the mouse is over it, but it is
+            -- an explored area all the same.
             local hover, shown = { isShownByMouseOver = true }, { isShownByMouseOver = false }
             local ns = start(1412, { setup = function()
                 Stubs.SetExplored({ [1411] = { hover, hover }, [1456] = { hover, shown },
                     [1412] = { { isShownByMouseOver = Stubs.SECRET } } })
             end })
-            T.same(ns.Compat.GetExploredZones(), { [1412] = true, [1456] = true })
+            T.same(ns.Compat.GetExploredZones(), { [1411] = true, [1412] = true, [1456] = true })
             walkTo(1456)
             walkTo(1411)
-            T.same(visits(ns), { 1411 })
+            T.same(visits(ns), {})
         end)
     end)
 
