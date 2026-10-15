@@ -33,6 +33,7 @@ Compat.GetExploredTextureCounts() -- -> { [zoneMapID] = { textures, hover } } of
 Compat.GetMoney()                -- -> copper, or nil when missing, erroring or secret; the raw value second (trace)
 Compat.GetFactionStandings()     -- -> { [factionID] = { name, reaction } } of the reputation list, or nil; raw row count second
 Compat.GetFactionStanding(id)    -- -> name, reaction of one faction read by ID (collapsed headers), or nil
+Compat.GetEquippedItem(slot)     -- -> itemID (false empty, nil unreadable), quality (nil until loaded); raw values third/fourth
 Compat.IsOnTaxi() / Compat.IsDeadOrGhost()
 Compat.HasWorldMapCanvas()       -- WorldMapFrame takes MapCanvas data providers
 Compat.GetProfessionSnapshot()   -- -> { [skillLineID] = { rank, max, name } }

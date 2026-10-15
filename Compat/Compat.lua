@@ -296,6 +296,23 @@ function Compat.GetFactionStanding(factionID)
     return name, reaction
 end
 
+-- The item worn in an equipment slot and its quality (0 Poor to 7 Heirloom): the item is false for an
+-- empty slot and nil when it can't be read; the quality is nil until the client has loaded it. The
+-- raw values third and fourth, for the launch trace.
+function Compat.GetEquippedItem(slot)
+    if type(GetInventoryItemID) ~= "function" then return nil end
+    local ok, rawItem = pcall(GetInventoryItemID, "player", slot)
+    if not ok then return nil end
+    if rawItem == nil then return false end
+    local item = Compat.Safe(rawItem, "number")
+    if not (item and item > 0) then return nil, nil, rawItem end
+    if type(GetInventoryItemQuality) ~= "function" then return item, nil, rawItem end
+    local okQuality, rawQuality = pcall(GetInventoryItemQuality, "player", slot)
+    if not okQuality then return item, nil, rawItem end
+    local quality = Compat.Safe(rawQuality, "number")
+    return item, quality, rawItem, rawQuality
+end
+
 function Compat.GetPlayerMapID()
     if not (C_Map and C_Map.GetBestMapForUnit) then return nil end
     local mapID = Compat.Call(C_Map.GetBestMapForUnit, "player")

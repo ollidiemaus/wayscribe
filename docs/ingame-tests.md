@@ -257,6 +257,22 @@ adds its checks here when it is built.
 - [ ] **Your Year.** → A *Reputation* card after *Quests*, with the factions at Exalted, Revered and
   Honored and the faction climbed most.
 
+### Notable gear (§6.15)
+
+- [ ] **First look.** Log in a character that wears a rare or epic item. → No entry; `/ws trace` shows
+  `first look` with `worn=` the number of items worn.
+- [ ] **The first rare.** Equip a rare (blue) item. → "Equipped your first rare item: *name*", in
+  *Progress*, with the first-time badge; the trace shows `first rare`. Equip another rare. → No entry
+  (`later rare`).
+- [ ] **Epics.** Equip an epic item, then a second one. → "Equipped your first epic item: *name*",
+  then "Equipped an epic item: *name*". Take one off and put it back on. → No entry (`known`).
+- [ ] **Quality at equip time.** Equip an item the client hasn't seen this session (just looted).
+  → The trace shows its `quality=`, not `no quality`; if it says `no quality`, the look a second
+  later (or the next loading screen) writes the entry.
+- [ ] **Bags.** Swap a bag. → No trace line.
+- [ ] **Your Year.** → A *Notable gear* card after *Bosses*, with the epics worn and the dates of the
+  first rare and the first epic.
+
 ## Already verified
 
 Done on builds 70235, 70245 and 70291 (2026-10-06 to 09); no need to repeat. Details are in

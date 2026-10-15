@@ -680,6 +680,29 @@ function Stubs.SetReaction(factionID, reaction)
     end
 end
 
+-- What the character wears, { [slot] = { id, quality } } (quality nil: not loaded yet); gives the game
+-- GetInventoryItemID and GetInventoryItemQuality, which are absent until a spec sets them.
+function Stubs.SetEquipment(slots)
+    state.equipment = slots
+    local function worn(unit, slot)
+        return unit == "player" and state.equipment[slot] or nil
+    end
+    _G.GetInventoryItemID = function(unit, slot)
+        local item = worn(unit, slot)
+        return item and item.id or nil
+    end
+    _G.GetInventoryItemQuality = function(unit, slot)
+        local item = worn(unit, slot)
+        return item and item.quality or nil
+    end
+end
+
+-- Puts `item` (or nothing) in `slot` and fires PLAYER_EQUIPMENT_CHANGED for it.
+function Stubs.Equip(slot, item)
+    state.equipment[slot] = item
+    Stubs.Fire("PLAYER_EQUIPMENT_CHANGED", slot, item ~= nil)
+end
+
 -- Where the player is: Stubs.SetInstance(389, "party", "Ragefire Chasm"); no arguments = outdoors.
 function Stubs.SetInstance(id, instanceType, name, difficulty)
     if not id then
@@ -753,6 +776,7 @@ function Stubs.Relog(opts, reload)
         onTaxi = state.onTaxi, dead = state.dead, subZone = state.subZone, bestMap = state.bestMap,
         areaNames = state.areaNames, explored = state.explored,
         spellIcons = state.spellIcons, money = state.money, factions = state.factions,
+        equipment = state.equipment,
     }
     opts = opts or {}
     for key, value in pairs(saved) do
@@ -764,6 +788,7 @@ function Stubs.Relog(opts, reload)
     for key, value in pairs(world) do state[key] = value end
     if state.money ~= nil then Stubs.SetMoney(state.money) end
     if state.factions ~= nil then Stubs.SetFactions(state.factions) end
+    if state.equipment ~= nil then Stubs.SetEquipment(state.equipment) end
     local ns = {}
     for _, file in ipairs(Stubs.TocFiles()) do
         assert(loadfile(file))("Wayscribe", ns)

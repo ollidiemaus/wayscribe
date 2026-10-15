@@ -77,6 +77,7 @@ Trackers\Duels.lua
 Trackers\FirstVisits.lua
 Trackers\Gold.lua
 Trackers\Reputation.lua
+Trackers\Gear.lua
 
 UI\Theme.lua
 UI\DayView.lua
