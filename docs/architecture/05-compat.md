@@ -37,6 +37,8 @@ Compat.GetLegacyChallenges()     -- -> { [id] = { name, done, day, account, byMe
 Compat.GetLegacyChallengeName(id) -- -> one challenge's name read by ID, or nil
 Compat.GetTaxiNodes()            -- -> { { id, name, current } } known at the open taxi map, or nil; { source, map, nodes } second
 Compat.GetMounts()               -- -> { [mountID] = { name, collected } } of the mount journal, or nil; raw ID list second
+Compat.GetPvPRank()              -- -> PvP rank (renown of faction 2800), arena season, or nil each; raw values third/fourth
+Compat.GetPvPRankTitle(rank)     -- -> the client's title of a PvP rank for the player's faction and sex, or nil
 Compat.GetBindLocation()         -- -> the hearthstone's inn, its place in the client's language, or nil; raw value second
 Compat.GetGuild()                -- -> in a guild (true/false, nil unreadable), its name (nil until loaded); raw values third/fourth
 Compat.GetEquippedItem(slot)     -- -> itemID (false empty, nil unreadable), quality (nil until loaded); raw values third/fourth

@@ -34,7 +34,7 @@ Decided on 2026-10-15. The beta ends on 2026-10-21 (PDT) and Forever launches on
   players in, or on Oct 20/21. The checklist is at the top of [ingame-tests.md](../ingame-tests.md).
 - **Built so far:** first visits (§6.12), gold (§6.13), reputation (§6.14), notable gear (§6.15),
   Legacy Challenges (§6.16), flight paths (§6.17), guild (§6.18),
-  home (§6.19), collections: mounts (§6.20).
+  home (§6.19), collections: mounts (§6.20), PvP rank (§6.21).
 - **Left out for launch:** screenshots (not wanted), talents (Retail-style trees plus Forever's
   Legacy trees, with no clear moment), learned spells (too many), honor kills (only an unloaded frame
   reads them), battlegrounds (no battleground browser in Forever's UI), and the game's "Discovered"

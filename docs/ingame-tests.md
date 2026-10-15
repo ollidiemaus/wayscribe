@@ -343,6 +343,21 @@ adds its checks here when it is built.
 - [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
 - [ ] **Your Year.** → A *Mounts* card after *Legacy Challenges*, with the count and the first mount.
 
+### PvP rank (§6.21)
+
+- [ ] **First look.** Log in. → No entry; `/ws trace` shows `rank=<n> season=<season>` and
+  `first look` (or `unchanged` on a character Wayscribe knows).
+- [ ] **New rank.** Earn honor until the rank goes up (the character frame's PvP tab). → "Reached
+  PvP rank *n*: *title*" in *PvP*, the title as the PvP tab shows it; the trace shows
+  `PLAYER_PVP_RANK_CHANGED` and/or `MAJOR_FACTION_RENOWN_LEVEL_CHANGED` (note which) and
+  `recorded <n>`.
+- [ ] **Other renown.** Complete a Legacy Challenge that raises the Legacy Track. → No PvP rank look
+  for it in the trace.
+- [ ] **Season.** Note what `GetCurrentArenaSeason()` reads at launch (the beta read 0) and whether
+  a season change resets the rank. → The first look in the new season ends `new season`, no entry.
+- [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
+- [ ] **Your Year.** → A *PvP rank* card after *Duels*, with the highest rank and its title.
+
 ## Already verified
 
 Done on builds 70235, 70245 and 70291 (2026-10-06 to 09); no need to repeat. Details are in

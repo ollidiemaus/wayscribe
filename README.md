@@ -61,6 +61,7 @@ Today · played 2 h 10 min
 - **Guild:** when you join a guild and when you leave it.
 - **Home:** each new inn you bind your hearthstone to.
 - **Collections:** each new mount you collect, your first one marked.
+- **PvP rank:** each new highest PvP rank you reach in a season, with its title.
 - **Journeys:** hearthstone, Astral Recall, mage teleports and transporters, from where to where.
 - **Distance:** how far you walked, rode and flew each day.
 

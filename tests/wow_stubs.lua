@@ -179,7 +179,7 @@ end
 local function installUnits(opts)
     state.player = {
         guid = opts.guid or "Player-1-0000AAAA", name = opts.name or "Tester", realm = opts.realm or "Forever", class = "MAGE",
-        surname = opts.surname, sex = opts.sex or 2,
+        surname = opts.surname, sex = opts.sex or 2, faction = opts.faction or "Horde",
     }
     _G.UnitGUID = unitGuid
     _G.UnitFullName = function(unit) return unitNames(unit, true) end
@@ -203,6 +203,10 @@ local function installUnits(opts)
     _G.UnitIsPlayer = function(unit) return unitMember(unit) ~= nil end
     -- 2 male, 3 female (opts.sex)
     _G.UnitSex = function(unit) return unit == "player" and state.player.sex or nil end
+    -- "Horde" or "Alliance" (opts.faction), the localized name second
+    _G.UnitFactionGroup = function(unit)
+        if unit == "player" then return state.player.faction, state.player.faction end
+    end
     _G.UnitExists = function(unit) return unitMember(unit) ~= nil end
     -- UnitPosition: x, y, z, instance (the continent); nil when no position is set.
     _G.UnitPosition = function(unit)
@@ -414,7 +418,7 @@ function Stubs.InstallScrollBox()
     }
 end
 
--- opts: now, guid, name, realm, surname, level, interface, accountDB, charDB, footstepsDB, locale, unknownEvents
+-- opts: now, guid, name, realm, surname, faction, level, interface, accountDB, charDB, footstepsDB, locale, unknownEvents
 function Stubs.Install(opts)
     opts = opts or {}
     state = {
@@ -469,6 +473,18 @@ function Stubs.Install(opts)
     _G.LOCALIZED_CLASS_NAMES_MALE = { WARRIOR = "Warrior", MAGE = "Mage", ROGUE = "Rogue", PRIEST = "Priest" }
     _G.RAID_CLASS_COLORS = { WARRIOR = { r = 0.78, g = 0.61, b = 0.43 }, MAGE = { r = 0.25, g = 0.78, b = 0.92 } }
     _G.GetLocale = function() return opts.locale or "enUS" end
+    -- The client's PvP rank titles, PVP_RANK_<5 + rank - 1>_<0 Horde, 1 Alliance>, as Forever's
+    -- GlobalStrings has them.
+    local pvpRanks = opts.locale == "deDE"
+        and { PVP_RANK_5_0 = "Späher", PVP_RANK_6_0 = "Grunzer", PVP_RANK_7_0 = "Waffenträger",
+            PVP_RANK_5_1 = "Gefreiter", PVP_RANK_6_1 = "Fußknecht", PVP_RANK_7_1 = "Landsknecht" }
+        or { PVP_RANK_5_0 = "Scout", PVP_RANK_6_0 = "Grunt", PVP_RANK_7_0 = "Sergeant", PVP_RANK_8_0 = "Senior Sergeant",
+            PVP_RANK_5_1 = "Private", PVP_RANK_6_1 = "Corporal", PVP_RANK_7_1 = "Sergeant",
+            PVP_RANK_8_1 = "Master Sergeant" }
+    for key in pairs(_G) do
+        if type(key) == "string" and key:match("^PVP_RANK_%d") then _G[key] = nil end
+    end
+    for key, title in pairs(pvpRanks) do _G[key] = title end
     _G.GetBuildInfo = function() return "1.60.1", "70009", "Oct 1 2026", opts.interface or 16001 end
     _G.WOW_PROJECT_ID, _G.WOW_PROJECT_MAINLINE = 1, 1
     installUnits(opts)
@@ -804,6 +820,28 @@ function Stubs.CollectMount(id)
     Stubs.Fire("NEW_MOUNT_ADDED", id)
 end
 
+-- The PvP rank: the renown of faction 2800 (C_MajorFactions.GetMajorFactionProgressionInfo) in arena
+-- season `season` (GetCurrentArenaSeason), both absent until a spec sets them.
+function Stubs.SetPvPRank(rank, season)
+    state.pvpRank = { rank = rank, season = season }
+    _G.C_MajorFactions = {
+        GetMajorFactionProgressionInfo = function(factionID)
+            if factionID == 2800 then
+                return { renownLevel = state.pvpRank.rank, renownReputationEarned = 0, renownLevelThreshold = 1000 }
+            end
+        end,
+    }
+    _G.GetCurrentArenaSeason = function() return state.pvpRank.season end
+end
+
+-- The character reaches PvP rank `rank` (higher or lower): the renown changes and the rank events fire.
+function Stubs.ReachPvPRank(rank)
+    local old = state.pvpRank.rank
+    state.pvpRank.rank = rank
+    Stubs.Fire("MAJOR_FACTION_RENOWN_LEVEL_CHANGED", 2800, rank, old)
+    Stubs.Fire("PLAYER_PVP_RANK_CHANGED")
+end
+
 -- Opens a flight master's taxi map on `list`, { id, name, state } with state 0 current, 1 reachable,
 -- 2 unreachable, and fires TAXIMAP_OPENED. The flight map (GetTaxiMapID gives `mapID`,
 -- C_TaxiMap.GetAllTaxiNodes the nodes) and the old taxi frame (NumTaxiNodes, TaxiNodeGetType,
@@ -914,7 +952,7 @@ function Stubs.Relog(opts, reload)
         areaNames = state.areaNames, explored = state.explored,
         spellIcons = state.spellIcons, money = state.money, factions = state.factions,
         equipment = state.equipment, challenges = state.challenges, guild = state.guild, bind = state.bind,
-        mounts = state.mounts,
+        mounts = state.mounts, pvpRank = state.pvpRank,
     }
     opts = opts or {}
     for key, value in pairs(saved) do
@@ -931,6 +969,7 @@ function Stubs.Relog(opts, reload)
     if state.guild ~= nil then Stubs.SetGuild(state.guild.inGuild, state.guild.name, state.guild.rank) end
     if state.bind ~= nil then Stubs.SetBindLocation(state.bind) end
     if state.mounts ~= nil then Stubs.SetMounts(state.mounts) end
+    if state.pvpRank ~= nil then Stubs.SetPvPRank(state.pvpRank.rank, state.pvpRank.season) end
     local ns = {}
     for _, file in ipairs(Stubs.TocFiles()) do
         assert(loadfile(file))("Wayscribe", ns)

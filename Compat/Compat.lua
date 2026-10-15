@@ -434,6 +434,42 @@ function Compat.GetMounts()
     return mounts, raw
 end
 
+-- The PvP rank: the renown level of the PvP rank faction (2800) and the current arena season, each
+-- nil when it can't be read; their raw values third and fourth, for the launch trace.
+Compat.PVP_RANK_FACTION = 2800
+function Compat.GetPvPRank()
+    local rank, rawRank, season, rawSeason
+    local factions = C_MajorFactions
+    if type(factions) == "table" and type(factions.GetMajorFactionProgressionInfo) == "function" then
+        local ok, info = pcall(factions.GetMajorFactionProgressionInfo, Compat.PVP_RANK_FACTION)
+        if ok and Compat.Safe(info, "table") then
+            rawRank = info.renownLevel
+            rank = Compat.Safe(rawRank, "number")
+        elseif ok then
+            rawRank = info
+        end
+    end
+    if type(GetCurrentArenaSeason) == "function" then
+        local ok, raw = pcall(GetCurrentArenaSeason)
+        if ok then rawSeason, season = raw, Compat.Safe(raw, "number") end
+    end
+    return rank, season, rawRank, rawSeason
+end
+
+-- The client's title for PvP rank `rank` (1 and up) for the player's faction and sex, built the way
+-- Blizzard's PVPRankFrame builds it: GetText("PVP_RANK_<Rank_1 + rank - 1>_<0 Horde, 1 Alliance>",
+-- UnitSex("player")), whose female form is the key with _FEMALE. nil when the client has none.
+function Compat.GetPvPRankTitle(rank)
+    if type(rank) ~= "number" or rank <= 0 then return nil end
+    local ranks = type(Enum) == "table" and type(Enum.PvPRanks) == "table" and Enum.PvPRanks
+    local first = ranks and Compat.Safe(ranks.Rank_1, "number") or 5
+    local faction = Compat.Call(UnitFactionGroup, "player") == "Alliance" and 1 or 0
+    local key = "PVP_RANK_" .. tostring(first + rank - 1) .. "_" .. faction
+    local title = Compat.Call(UnitSex, "player") == 3 and Compat.Safe(_G[key .. "_FEMALE"], "string")
+    title = title or Compat.Safe(_G[key], "string")
+    return title ~= "" and title or nil
+end
+
 function Compat.GetPlayerMapID()
     if not (C_Map and C_Map.GetBestMapForUnit) then return nil end
     local mapID = Compat.Call(C_Map.GetBestMapForUnit, "player")

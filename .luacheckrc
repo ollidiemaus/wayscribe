@@ -47,9 +47,9 @@ read_globals = {
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "GetLootSourceInfo", "GetMoney", "UnitSex",
     "GetInventoryItemID", "GetInventoryItemQuality", "GetCategoryList", "GetCategoryNumAchievements",
     "GetAchievementInfo", "GetTaxiMapID", "NumTaxiNodes", "TaxiNodeGetType", "TaxiNodeName", "ERR_NEWTAXIPATH",
-    "IsInGuild", "GetGuildInfo", "GetBindLocation",
+    "IsInGuild", "GetGuildInfo", "GetBindLocation", "UnitFactionGroup", "GetCurrentArenaSeason",
     -- Namespaces
-    "Enum", "C_AddOns", "C_CVar", "C_EventUtils", "C_GameRules", "C_Item", "C_Map", "C_MountJournal", "C_MapExplorationInfo", "C_QuestLine",
+    "Enum", "C_AddOns", "C_CVar", "C_EventUtils", "C_GameRules", "C_Item", "C_MajorFactions", "C_Map", "C_MountJournal", "C_MapExplorationInfo", "C_QuestLine",
     "C_QuestLog", "C_Reputation", "C_Spell", "C_TaxiMap", "C_Texture", "C_Timer", "C_TradeSkillUI", "C_XMLUtil",
     -- Libraries (optional, see embeds.xml)
     "LibStub",
