@@ -145,7 +145,8 @@ end
 -- One slot, on PLAYER_EQUIPMENT_CHANGED. Before the first look, the event asks for it instead, and
 -- so does an item whose quality isn't loaded yet, to read it again a second later.
 function Gear:PLAYER_EQUIPMENT_CHANGED(slot)
-    if type(slot) ~= "number" or slot < FIRST_SLOT or slot > LAST_SLOT then return end
+    slot = Compat.Safe(slot, "number")
+    if not slot or slot < FIRST_SLOT or slot > LAST_SLOT then return end
     local known = knownItems()
     if not known then return self:AskForLook("PLAYER_EQUIPMENT_CHANGED") end
     local item, quality, rawItem, rawQuality = Compat.GetEquippedItem(slot)
