@@ -387,6 +387,20 @@ function Compat.GetEquippedItem(slot)
     return item, quality, rawItem, rawQuality
 end
 
+-- The character's guild: whether it is in one (true or false, nil unreadable) and the guild's name
+-- (nil while it hasn't loaded, right after login); the raw values third and fourth.
+function Compat.GetGuild()
+    if type(IsInGuild) ~= "function" then return nil end
+    local ok, rawIn = pcall(IsInGuild)
+    if not ok then return nil end
+    local inGuild = Compat.Safe(rawIn, "boolean")
+    if not inGuild or type(GetGuildInfo) ~= "function" then return inGuild, nil, rawIn end
+    local okName, rawName = pcall(GetGuildInfo, "player")
+    if not okName then return inGuild, nil, rawIn end
+    local name = Compat.Safe(rawName, "string")
+    return inGuild, name ~= "" and name or nil, rawIn, rawName
+end
+
 function Compat.GetPlayerMapID()
     if not (C_Map and C_Map.GetBestMapForUnit) then return nil end
     local mapID = Compat.Call(C_Map.GetBestMapForUnit, "player")

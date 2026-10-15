@@ -304,6 +304,20 @@ adds its checks here when it is built.
 - [ ] **Relog.** Log out and in, open the map again. → Nothing repeats (`unchanged`).
 - [ ] **Your Year.** → The Footsteps card has "*n* flight paths learned".
 
+### Guild (§6.18)
+
+- [ ] **First look.** Log in a character that is in a guild. → No entry; `/ws trace` shows
+  `inGuild=true`, the guild's `name` and `first look`. Note whether the login look reads
+  `name missing` first, and whether a `retry` or a `PLAYER_GUILD_UPDATE` look then reads the name.
+- [ ] **Leave.** Leave the guild (`/gquit`). → "Left the guild <*name*>" in *Adventure*; the trace
+  shows `inGuild=false` and `left`.
+- [ ] **Join.** Accept a guild invite. → "Joined the guild <*name*>"; the trace shows `joined`.
+- [ ] **Rank.** Get promoted or demoted. → No entry; the trace shows `unchanged`.
+- [ ] **Offline change.** Leave (or join) on this character while Wayscribe is off, then log in with
+  it on. → The entries on the login day.
+- [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`), also when the login look reads
+  `name missing`.
+
 ## Already verified
 
 Done on builds 70235, 70245 and 70291 (2026-10-06 to 09); no need to repeat. Details are in

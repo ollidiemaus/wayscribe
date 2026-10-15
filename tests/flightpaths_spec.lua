@@ -217,7 +217,7 @@ describe("flight paths", function()
     end)
 
     it("trace each look in developer mode", function()
-        local accountDB = { schema = 1, log = {}, characters = {}, settings = { trackers = { FirstVisits = false,
+        local accountDB = { schema = 1, log = {}, characters = {}, settings = { trackers = { FirstVisits = false, Guild = false,
             Gold = false, Reputation = false, Gear = false, LegacyChallenges = false }, devMode = true } }
         local ns = start({ accountDB = accountDB })
         visit(OLDER)

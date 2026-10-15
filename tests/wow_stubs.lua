@@ -676,6 +676,16 @@ function Stubs.SetFactions(list)
     }
 end
 
+-- The character's guild: `inGuild` (IsInGuild), `name` (GetGuildInfo's first value, nil while it
+-- hasn't loaded) and `rank`; gives the game IsInGuild and GetGuildInfo, which are absent until a spec sets them.
+function Stubs.SetGuild(inGuild, name, rank)
+    state.guild = { inGuild = inGuild, name = name, rank = rank or "Member" }
+    _G.IsInGuild = function() return state.guild.inGuild end
+    _G.GetGuildInfo = function(unit)
+        if unit == "player" and state.guild.name ~= nil then return state.guild.name, state.guild.rank, 3, nil end
+    end
+end
+
 -- Changes one faction's reaction in the list Stubs.SetFactions gave.
 function Stubs.SetReaction(factionID, reaction)
     for _, row in ipairs(state.factions) do
@@ -868,7 +878,7 @@ function Stubs.Relog(opts, reload)
         onTaxi = state.onTaxi, dead = state.dead, subZone = state.subZone, bestMap = state.bestMap,
         areaNames = state.areaNames, explored = state.explored,
         spellIcons = state.spellIcons, money = state.money, factions = state.factions,
-        equipment = state.equipment, challenges = state.challenges,
+        equipment = state.equipment, challenges = state.challenges, guild = state.guild,
     }
     opts = opts or {}
     for key, value in pairs(saved) do
@@ -882,6 +892,7 @@ function Stubs.Relog(opts, reload)
     if state.factions ~= nil then Stubs.SetFactions(state.factions) end
     if state.equipment ~= nil then Stubs.SetEquipment(state.equipment) end
     if state.challenges ~= nil then Stubs.SetChallenges(state.challenges) end
+    if state.guild ~= nil then Stubs.SetGuild(state.guild.inGuild, state.guild.name, state.guild.rank) end
     local ns = {}
     for _, file in ipairs(Stubs.TocFiles()) do
         assert(loadfile(file))("Wayscribe", ns)

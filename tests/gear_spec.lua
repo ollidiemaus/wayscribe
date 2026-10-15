@@ -282,7 +282,8 @@ describe("gear", function()
 
     it("trace each look in developer mode", function()
         local accountDB = { schema = 1, log = {}, characters = {},
-            settings = { trackers = { FirstVisits = false, Gold = false, Reputation = false, LegacyChallenges = false }, devMode = true } }
+            settings = { trackers = { FirstVisits = false, Gold = false, Reputation = false, LegacyChallenges = false,
+                Guild = false }, devMode = true } }
         local ns = start(nil, { accountDB = accountDB })
         equip(TRINKET1, "trinket")
         equip(TRINKET2, "trinket")

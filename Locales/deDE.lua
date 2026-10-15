@@ -259,6 +259,10 @@ L.TRACKER_FLIGHT_PATHS = "Flugrouten"
 L.TRACKER_FLIGHT_PATHS_TIP = "Jeder neue Flugmeister, den dieser Charakter kennenlernt. Die Flugrouten, die er vor Wayscribe kannte, werden still übernommen."
 L.FLIGHT_PATH_NEW = "Neue Flugroute: %s"
 L.FLIGHT_PATH_NEW_UNNAMED = "Neue Flugroute"
+L.TRACKER_GUILD = "Gilde"
+L.TRACKER_GUILD_TIP = "Wann dieser Charakter einer Gilde beitritt und wann er sie verlässt. Die Gilde, in der er schon ist, wird still übernommen."
+L.GUILD_JOINED = "Der Gilde <%s> beigetreten"
+L.GUILD_LEFT = "Die Gilde <%s> verlassen"
 
 -- Footsteps on the world map
 L.FOOTSTEPS = "Fußspuren"

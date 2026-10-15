@@ -281,6 +281,10 @@ L.TRACKER_FLIGHT_PATHS = "Flight paths"
 L.TRACKER_FLIGHT_PATHS_TIP = "Each new flight master this character learns. The flight paths it knew before Wayscribe are taken silently."
 L.FLIGHT_PATH_NEW = "New flight path: %s"
 L.FLIGHT_PATH_NEW_UNNAMED = "New flight path"
+L.TRACKER_GUILD = "Guild"
+L.TRACKER_GUILD_TIP = "When this character joins a guild and when it leaves. The guild it is already in is taken silently."
+L.GUILD_JOINED = "Joined the guild <%s>"
+L.GUILD_LEFT = "Left the guild <%s>"
 
 -- Footsteps on the world map
 L.FOOTSTEPS = "Footsteps"

@@ -80,6 +80,7 @@ Trackers\Reputation.lua
 Trackers\Gear.lua
 Trackers\LegacyChallenges.lua
 Trackers\FlightPaths.lua
+Trackers\Guild.lua
 
 UI\Theme.lua
 UI\DayView.lua

@@ -36,6 +36,7 @@ Compat.GetFactionStanding(id)    -- -> name, reaction of one faction read by ID 
 Compat.GetLegacyChallenges()     -- -> { [id] = { name, done, day, account, byMe } }, or nil; raw category list second
 Compat.GetLegacyChallengeName(id) -- -> one challenge's name read by ID, or nil
 Compat.GetTaxiNodes()            -- -> { { id, name, current } } known at the open taxi map, or nil; { source, map, nodes } second
+Compat.GetGuild()                -- -> in a guild (true/false, nil unreadable), its name (nil until loaded); raw values third/fourth
 Compat.GetEquippedItem(slot)     -- -> itemID (false empty, nil unreadable), quality (nil until loaded); raw values third/fourth
 Compat.GetContinentOf(mapID)     -- -> the continent a map lies in, or nil
 Compat.IsOnTaxi() / Compat.IsDeadOrGhost()
