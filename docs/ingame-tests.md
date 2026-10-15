@@ -242,6 +242,21 @@ adds its checks here when it is built.
 - [ ] **Your Year.** → A *Gold* card before *Time played*, with earned, spent, the best day and the
   most held at once.
 
+### Reputation (§6.14)
+
+- [ ] **A new standing.** Turn in quests until a faction reaches Friendly or Honored. → One entry
+  "Reached Honored with *faction*", in *Progress*; `/ws trace` shows `changed=` and `recorded 1`.
+- [ ] **Collapsed headers.** Collapse every header in the reputation window, then gain reputation.
+  → The entry still comes; the trace's `factions` count doesn't drop.
+- [ ] **Falling.** Kill guards of a neutral town (Booty Bay, Gadgetzan) until it is Hostile. → "Fell to
+  Hostile with *faction*". Climb back to Neutral and fall again. → No second entry.
+- [ ] **A new faction.** Meet a faction for the first time (it appears in the reputation window).
+  → No entry.
+- [ ] **A female character, German client.** → The standing reads as the reputation window names
+  it.
+- [ ] **Your Year.** → A *Reputation* card after *Quests*, with the factions at Exalted, Revered and
+  Honored and the faction climbed most.
+
 ## Already verified
 
 Done on builds 70235, 70245 and 70291 (2026-10-06 to 09); no need to repeat. Details are in

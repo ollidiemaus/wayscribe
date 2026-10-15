@@ -179,7 +179,7 @@ end
 local function installUnits(opts)
     state.player = {
         guid = opts.guid or "Player-1-0000AAAA", name = opts.name or "Tester", realm = opts.realm or "Forever", class = "MAGE",
-        surname = opts.surname,
+        surname = opts.surname, sex = opts.sex or 2,
     }
     _G.UnitGUID = unitGuid
     _G.UnitFullName = function(unit) return unitNames(unit, true) end
@@ -201,6 +201,8 @@ local function installUnits(opts)
         return state.level
     end
     _G.UnitIsPlayer = function(unit) return unitMember(unit) ~= nil end
+    -- 2 male, 3 female (opts.sex)
+    _G.UnitSex = function(unit) return unit == "player" and state.player.sex or nil end
     _G.UnitExists = function(unit) return unitMember(unit) ~= nil end
     -- UnitPosition: x, y, z, instance (the continent); nil when no position is set.
     _G.UnitPosition = function(unit)
@@ -641,6 +643,43 @@ function Stubs.SetMoney(copper)
 end
 function Stubs.Printed() return state.printed end
 
+-- The reputation list, gives the game C_Reputation, which is absent until a spec sets it. A list of
+-- { factionID, name, reaction, isHeader, isHeaderWithRep, hidden }: `hidden` rows are under a
+-- collapsed header, out of the index but readable by ID.
+function Stubs.SetFactions(list)
+    state.factions = list
+    local function data(row)
+        return { factionID = row.factionID, name = row.name, reaction = row.reaction,
+            isHeader = row.isHeader or false, isHeaderWithRep = row.isHeaderWithRep or false }
+    end
+    local function shown()
+        local rows = {}
+        for _, row in ipairs(state.factions) do
+            if not row.hidden then rows[#rows + 1] = row end
+        end
+        return rows
+    end
+    _G.C_Reputation = {
+        GetNumFactions = function() return #shown() end,
+        GetFactionDataByIndex = function(index)
+            local row = shown()[index]
+            return row and data(row) or nil
+        end,
+        GetFactionDataByID = function(factionID)
+            for _, row in ipairs(state.factions) do
+                if row.factionID == factionID then return data(row) end
+            end
+        end,
+    }
+end
+
+-- Changes one faction's reaction in the list Stubs.SetFactions gave.
+function Stubs.SetReaction(factionID, reaction)
+    for _, row in ipairs(state.factions) do
+        if row.factionID == factionID then row.reaction = reaction end
+    end
+end
+
 -- Where the player is: Stubs.SetInstance(389, "party", "Ragefire Chasm"); no arguments = outdoors.
 function Stubs.SetInstance(id, instanceType, name, difficulty)
     if not id then
@@ -713,7 +752,7 @@ function Stubs.Relog(opts, reload)
         questTitles = state.questTitles, cvars = state.cvars, position = state.position,
         onTaxi = state.onTaxi, dead = state.dead, subZone = state.subZone, bestMap = state.bestMap,
         areaNames = state.areaNames, explored = state.explored,
-        spellIcons = state.spellIcons, money = state.money,
+        spellIcons = state.spellIcons, money = state.money, factions = state.factions,
     }
     opts = opts or {}
     for key, value in pairs(saved) do
@@ -724,6 +763,7 @@ function Stubs.Relog(opts, reload)
     Stubs.Install(opts)
     for key, value in pairs(world) do state[key] = value end
     if state.money ~= nil then Stubs.SetMoney(state.money) end
+    if state.factions ~= nil then Stubs.SetFactions(state.factions) end
     local ns = {}
     for _, file in ipairs(Stubs.TocFiles()) do
         assert(loadfile(file))("Wayscribe", ns)

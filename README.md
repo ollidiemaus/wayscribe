@@ -54,6 +54,7 @@ Today · played 2 h 10 min
 - **Duels:** who you dueled, their class and level, and who won, or who fled.
 - **First visits:** the first time you set foot in each zone and city.
 - **Gold:** the gold you earned and spent each day, from every source.
+- **Reputation:** the first time you reach Friendly, Honored, Revered or Exalted with a faction, or fall to Hostile or Hated.
 - **Journeys:** hearthstone, Astral Recall, mage teleports and transporters, from where to where.
 - **Distance:** how far you walked, rode and flew each day.
 

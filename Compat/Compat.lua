@@ -258,6 +258,44 @@ function Compat.GetMoney()
     return money and money >= 0 and math.floor(money) == money and money or nil, raw
 end
 
+-- A faction's standing from C_Reputation's faction data: id, name, reaction (1 Hated to 8 Exalted),
+-- or nil for a header without reputation, a secret or an odd value.
+local function factionStanding(data)
+    if type(data) ~= "table" then return nil end
+    if Compat.Safe(data.isHeader) == true and Compat.Safe(data.isHeaderWithRep) ~= true then return nil end
+    local id, reaction = Compat.Safe(data.factionID, "number"), Compat.Safe(data.reaction, "number")
+    if not (id and id > 0 and reaction and reaction >= 1 and reaction <= 8 and math.floor(reaction) == reaction) then
+        return nil
+    end
+    return id, Compat.Safe(data.name, "string"), reaction
+end
+
+-- The factions the reputation list shows: { [factionID] = { name, reaction } }, or nil without the
+-- list; the number of rows second (raw, for the launch trace). A collapsed header hides its
+-- factions, so read the known ones with Compat.GetFactionStanding too.
+function Compat.GetFactionStandings()
+    local api = C_Reputation
+    if not (api and api.GetNumFactions and api.GetFactionDataByIndex) then return nil end
+    local ok, raw = pcall(api.GetNumFactions)
+    local rows = ok and Compat.Safe(raw, "number") or nil
+    if not rows then return nil, ok and raw or nil end
+    local standings = {}
+    for index = 1, rows do
+        local id, name, reaction = factionStanding(Compat.Call(api.GetFactionDataByIndex, index))
+        if id then standings[id] = { name = name, reaction = reaction } end
+    end
+    return standings, raw
+end
+
+-- One faction's name and reaction, read by ID; nil when it can't be read.
+function Compat.GetFactionStanding(factionID)
+    local api = C_Reputation
+    if not (api and api.GetFactionDataByID) then return nil end
+    local id, name, reaction = factionStanding(Compat.Call(api.GetFactionDataByID, factionID))
+    if id ~= factionID then return nil end
+    return name, reaction
+end
+
 function Compat.GetPlayerMapID()
     if not (C_Map and C_Map.GetBestMapForUnit) then return nil end
     local mapID = Compat.Call(C_Map.GetBestMapForUnit, "player")

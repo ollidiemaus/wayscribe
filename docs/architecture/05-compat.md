@@ -31,6 +31,8 @@ Compat.GetZoneOf(mapID)          -- -> the zone a map lies in (itself, or the ne
 Compat.GetExploredZones()        -- -> { [zoneMapID] = true } for every zone the world map shows explored without a hover
 Compat.GetExploredTextureCounts() -- -> { [zoneMapID] = { textures, hover } } of every zone with explored-area textures
 Compat.GetMoney()                -- -> copper, or nil when missing, erroring or secret; the raw value second (trace)
+Compat.GetFactionStandings()     -- -> { [factionID] = { name, reaction } } of the reputation list, or nil; raw row count second
+Compat.GetFactionStanding(id)    -- -> name, reaction of one faction read by ID (collapsed headers), or nil
 Compat.IsOnTaxi() / Compat.IsDeadOrGhost()
 Compat.HasWorldMapCanvas()       -- WorldMapFrame takes MapCanvas data providers
 Compat.GetProfessionSnapshot()   -- -> { [skillLineID] = { rank, max, name } }
