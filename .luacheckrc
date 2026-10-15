@@ -46,8 +46,8 @@ read_globals = {
     "GetSpellInfo", "GetSpellTexture", "GetSubZoneText", "GetAddOnMetadata", "GetCVar",
     "GetNumLootItems", "GetLootSlotLink", "GetLootSlotInfo", "GetLootSourceInfo",
     -- Namespaces
-    "Enum", "C_AddOns", "C_CVar", "C_EventUtils", "C_GameRules", "C_Item", "C_Map", "C_QuestLine", "C_QuestLog", "C_Spell", "C_Texture",
-    "C_Timer", "C_TradeSkillUI", "C_XMLUtil",
+    "Enum", "C_AddOns", "C_CVar", "C_EventUtils", "C_GameRules", "C_Item", "C_Map", "C_MapExplorationInfo", "C_QuestLine",
+    "C_QuestLog", "C_Spell", "C_Texture", "C_Timer", "C_TradeSkillUI", "C_XMLUtil",
     -- Libraries (optional, see embeds.xml)
     "LibStub",
 }

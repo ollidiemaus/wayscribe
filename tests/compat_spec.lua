@@ -195,6 +195,7 @@ describe("capabilities", function()
     it("probe reads what the launch trackers rely on, and names what is missing or secret", function()
         local ns = Stubs.LoadAddon()
         _G.C_Map.GetBestMapForUnit = function() return 1412 end
+        Stubs.SetExplored({ [1412] = true })
         _G.GetMoney = function() return 12345 end
         _G.C_Reputation = {
             GetNumFactions = function() return 3 end,
@@ -225,6 +226,8 @@ describe("capabilities", function()
         _G.FACTION_STANDING_LABEL5, _G.FACTION_STANDING_LABEL5_FEMALE = nil, nil
         T.truthy(found["event.PLAYER_MONEY = true"])
         T.truthy(found["firstVisit.map.0 = 1412 Mulgore (type 3)"])
+        T.truthy(found["firstVisit.zone = 1412"])
+        T.truthy(found["firstVisit.explored = 1 zones: 1412"])
         T.truthy(found["gold.money = 12345"])
         T.truthy(found["rep.list = 2 factions, 1 headers (1 collapsed)"])
         T.truthy(found["rep.sample = 81 Thunder Bluff, reaction 5 Friendly / Friendly"])

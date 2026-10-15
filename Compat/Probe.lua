@@ -18,7 +18,7 @@ local EVENTS = {
     "PLAYER_MONEY", "UPDATE_FACTION", "PLAYER_EQUIPMENT_CHANGED", "ACHIEVEMENT_EARNED", "TAXIMAP_OPENED",
     "UI_INFO_MESSAGE", "PLAYER_GUILD_UPDATE", "HEARTHSTONE_BOUND", "CONFIRM_BINDER", "NEW_MOUNT_ADDED",
     "COMPANION_LEARNED", "NEW_PET_ADDED", "NEW_TOY_ADDED", "PLAYER_PVP_RANK_CHANGED",
-    "MAJOR_FACTION_RENOWN_LEVEL_CHANGED",
+    "MAJOR_FACTION_RENOWN_LEVEL_CHANGED", "PLAYER_CONTROL_GAINED",
 }
 
 local LIBRARIES = { "LibStub", "CallbackHandler-1.0", "LibDataBroker-1.1", "LibDBIcon-1.0" }
@@ -205,8 +205,10 @@ local function gameRule(name)
     return rule and call("C_GameRules.IsGameRuleActive", rule)
 end
 
--- First visits: the best map and the maps above it, with their types (3 = zone, 2 = continent).
+-- First visits: the best map and the maps above it, with their types (3 = zone, 2 = continent),
+-- the zone the tracker takes from them, and the zones the world map shows explored.
 local function addFirstVisits(add, mapID)
+    add("firstVisit.zone", Compat.GetZoneOf(mapID))
     local depth = 0
     while mapID and depth < 4 do
         local info = call("C_Map.GetMapInfo", mapID)
@@ -217,6 +219,15 @@ local function addFirstVisits(add, mapID)
         mapID = parent ~= 0 and parent or nil
         depth = depth + 1
     end
+    local explored = Compat.GetExploredZones()
+    if not explored then
+        add("firstVisit.explored", "missing")
+        return
+    end
+    local zones = {}
+    for zone in pairs(explored) do zones[#zones + 1] = zone end
+    table.sort(zones)
+    add("firstVisit.explored", #zones .. " zones" .. (#zones > 0 and ": " .. table.concat(zones, " ") or ""))
 end
 
 -- Reputation: the rows the reputation list shows (collapsed headers hide their factions), one

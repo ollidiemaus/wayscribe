@@ -112,6 +112,9 @@ function Compat:Detect()
     has.worldMapCanvas = self.HasWorldMapCanvas()
     -- 0.5: the zone maps the coverage stat measures against, and the journal's tabs.
     has.mapChildren = has.mapWorldPos and C_Map.GetMapChildrenInfo ~= nil
+    -- 1.0: the zones the world map shows explored (First visits' first look).
+    has.mapExploration = has.mapChildren and C_MapExplorationInfo ~= nil
+        and C_MapExplorationInfo.GetExploredMapTextures ~= nil
     has.panelTabs = self.HasTemplate("PanelTabButtonTemplate") == true and type(PanelTemplates_SetNumTabs) == "function"
         and type(PanelTemplates_SetTab) == "function"
     -- Forever's characters have a first name and a surname, and the unit name functions return the
@@ -334,6 +337,23 @@ end
 local ZONE_MAP_TYPE = 3 -- Enum.UIMapType.Zone
 local AZEROTH = 947      -- the top of Forever's maps (UiMap.db2 of build 70235)
 
+local function zoneType()
+    return type(Enum) == "table" and type(Enum.UIMapType) == "table" and Enum.UIMapType.Zone or ZONE_MAP_TYPE
+end
+
+-- The zone a map lies in: the map itself or the nearest parent of the zone type, or nil (a
+-- continent, an unknown map). Cities are zones of their own (Thunder Bluff is not in Mulgore), and
+-- a dungeon's map lies in the zone of its entrance.
+function Compat.GetZoneOf(mapID)
+    for _ = 1, MAX_MAP_DEPTH do
+        local info = mapID and C_Map and C_Map.GetMapInfo and Compat.Call(C_Map.GetMapInfo, mapID)
+        if type(info) ~= "table" then return nil end
+        if Compat.Safe(info.mapType, "number") == zoneType() then return mapID end
+        mapID = Compat.GetParentMap(mapID)
+    end
+    return nil
+end
+
 -- The top of the player's chain of maps (the world), or nil before the player's map is known.
 local function worldRoot()
     local root = Compat.GetPlayerMapID()
@@ -391,8 +411,7 @@ function Compat.GetZoneRects()
     if not Compat.has.mapChildren then return nil end
     local root = worldRoot()
     if not root then return nil end
-    local zoneType = type(Enum) == "table" and type(Enum.UIMapType) == "table" and Enum.UIMapType.Zone or ZONE_MAP_TYPE
-    local children = Compat.Call(C_Map.GetMapChildrenInfo, root, zoneType, true)
+    local children = Compat.Call(C_Map.GetMapChildrenInfo, root, zoneType(), true)
     if type(children) ~= "table" then return nil end
     local rects = {}
     for _, info in ipairs(children) do
@@ -407,6 +426,24 @@ function Compat.GetZoneRects()
         end
     end
     return rects
+end
+
+-- The zones whose map the character has uncovered (any explored area), as { [uiMapID] = true }:
+-- where the character has been (First visits, docs/ARCHITECTURE.md §6.12). A zone without areas to
+-- uncover is never in it. nil without the API.
+function Compat.GetExploredZones()
+    if not Compat.has.mapExploration then return nil end
+    local children = Compat.Call(C_Map.GetMapChildrenInfo, worldRoot() or AZEROTH, zoneType(), true)
+    if type(children) ~= "table" then return nil end
+    local explored = {}
+    for _, info in ipairs(children) do
+        local mapID = type(info) == "table" and Compat.Safe(info.mapID, "number")
+        local textures = mapID and Compat.Call(C_MapExplorationInfo.GetExploredMapTextures, mapID)
+        if type(textures) == "table" and next(textures) ~= nil then
+            explored[mapID] = true
+        end
+    end
+    return explored
 end
 
 function Compat.IsOnTaxi()

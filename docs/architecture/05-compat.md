@@ -16,6 +16,7 @@ Compat.has = {
     taxiState       = …,   -- UnitOnTaxi
     worldMapCanvas  = …,   -- the world map's data provider extension point
     mapChildren     = …,   -- C_Map.GetMapChildrenInfo: the zone maps coverage counts against
+    mapExploration  = …,   -- C_MapExplorationInfo.GetExploredMapTextures: the zones explored (first visits)
     panelTabs       = …,   -- PanelTabButtonTemplate + PanelTemplates_*: the journal's tabs
     surnames        = …,   -- characters have a surname, returned where other clients return the realm
 }
@@ -26,6 +27,8 @@ Compat.GetWorldPosFromMapPos(mapID, u, v) -- -> continentID, x, y of a map point
 Compat.GetMapAtWorldPos(continentID, x, y) -- -> the most detailed uiMapID there
 Compat.GetParentMap(mapID)       -- -> parentMapID
 Compat.GetZoneRects()            -- -> { { map, c, minX, maxX, minY, maxY } } of every zone map, in world yards
+Compat.GetZoneOf(mapID)          -- -> the zone a map lies in (itself, or the nearest zone above it)
+Compat.GetExploredZones()        -- -> { [zoneMapID] = true } for every zone the world map shows explored
 Compat.IsOnTaxi() / Compat.IsDeadOrGhost()
 Compat.HasWorldMapCanvas()       -- WorldMapFrame takes MapCanvas data providers
 Compat.GetProfessionSnapshot()   -- -> { [skillLineID] = { rank, max, name } }

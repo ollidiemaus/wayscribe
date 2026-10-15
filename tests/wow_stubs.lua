@@ -299,6 +299,12 @@ end
 
 local function installWorld()
     installMaps()
+    -- Zones with explored areas, set with Stubs.SetExplored.
+    _G.C_MapExplorationInfo = {
+        GetExploredMapTextures = function(mapID)
+            return state.explored and state.explored[mapID] and { { fileDataIDs = { 1 } } } or {}
+        end,
+    }
     _G.GetInstanceInfo = function()
         local i = state.instance
         return i.name, i.type, i.difficulty, "", 5, 0, false, i.id, 0, nil
@@ -646,6 +652,8 @@ function Stubs.SetTaxi(onTaxi) state.onTaxi = onTaxi end
 -- The map C_Map.GetBestMapForUnit reports (default 1411), and GetSubZoneText (default "").
 function Stubs.SetBestMap(mapID) state.bestMap = mapID end
 function Stubs.SetSubZone(name) state.subZone = name end
+-- The zones the world map shows explored: { [uiMapID] = true }.
+function Stubs.SetExplored(zones) state.explored = zones end
 function Stubs.SetAreaName(areaID, name)
     state.areaNames = state.areaNames or {}
     state.areaNames[areaID] = name
@@ -696,7 +704,7 @@ function Stubs.Relog(opts, reload)
         spellNames = state.spellNames, itemNames = state.itemNames, itemClasses = state.itemClasses,
         questTitles = state.questTitles, cvars = state.cvars, position = state.position,
         onTaxi = state.onTaxi, dead = state.dead, subZone = state.subZone, bestMap = state.bestMap,
-        areaNames = state.areaNames,
+        areaNames = state.areaNames, explored = state.explored,
         spellIcons = state.spellIcons,
     }
     opts = opts or {}
