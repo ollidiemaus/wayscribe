@@ -619,12 +619,22 @@ function Stubs.TocFiles()
 end
 
 -- Loads every file in TOC order into a fresh namespace, like the client does.
+-- opts.only (a tracker id): every other tracker is switched off in opts.accountDB, so a spec sees
+-- only that tracker's entries and trace lines, however many trackers there are.
 function Stubs.LoadAddon(opts)
     Stubs.Install(opts)
     local ns = {}
     for _, file in ipairs(Stubs.TocFiles()) do
         local chunk = assert(loadfile(file))
         chunk("Wayscribe", ns)
+    end
+    if opts and opts.only then
+        assert(ns.Trackers:Get(opts.only), "no tracker " .. tostring(opts.only))
+        local settings = assert(opts.accountDB, "opts.only needs opts.accountDB").settings
+        settings.trackers = settings.trackers or {}
+        for _, tracker in ipairs(ns.Trackers.list) do
+            if tracker.id ~= opts.only then settings.trackers[tracker.id] = false end
+        end
     end
     Stubs.ns = ns
     return ns

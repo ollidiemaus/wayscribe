@@ -148,9 +148,9 @@ describe("gold", function()
     end)
 
     it("trace each look in developer mode", function()
-        local accountDB = { schema = 1, settings = { trackers = { FirstVisits = false }, devMode = true }, log = {},
+        local accountDB = { schema = 1, settings = { devMode = true }, log = {},
             characters = {} }
-        local ns = start(10000, { accountDB = accountDB })
+        local ns = start(10000, { accountDB = accountDB, only = "Gold" })
         change(12000)
         change(12000)
         Stubs.SetMoney(Stubs.SECRET)

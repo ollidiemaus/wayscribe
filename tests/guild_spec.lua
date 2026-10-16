@@ -159,10 +159,8 @@ describe("guild", function()
     end)
 
     it("trace each look in developer mode", function()
-        local accountDB = { schema = 1, log = {}, characters = {}, settings = { trackers = { FirstVisits = false,
-            Gold = false, Reputation = false, Gear = false, LegacyChallenges = false, Home = false,
-            Collections = false, PvPRank = false }, devMode = true } }
-        start("Red Hand", { accountDB = accountDB })
+        local accountDB = { schema = 1, log = {}, characters = {}, settings = { devMode = true } }
+        start("Red Hand", { accountDB = accountDB, only = "Guild" })
         local ns = Stubs.ns
         change(true, nil)
         Stubs.Advance(5)

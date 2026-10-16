@@ -279,9 +279,8 @@ describe("reputation", function()
 
     it("trace each look in developer mode", function()
         local accountDB = { schema = 1, log = {}, characters = {},
-            settings = { trackers = { FirstVisits = false, Gold = false, Gear = false, LegacyChallenges = false,
-                Guild = false, Home = false, Collections = false, PvPRank = false }, devMode = true } }
-        local ns = start(nil, { accountDB = accountDB })
+            settings = { devMode = true } }
+        local ns = start(nil, { accountDB = accountDB, only = "Reputation" })
         reach(BLUFF, HONORED)
         Stubs.Fire("UPDATE_FACTION")
         Stubs.Fire("PLAYER_ENTERING_WORLD", false, false)

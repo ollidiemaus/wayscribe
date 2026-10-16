@@ -17,12 +17,11 @@ local function withMaps(fn)
 end
 
 -- Logs in on Mulgore, developer mode on or off, and lets First visits take its first look. The other
--- launch trackers are switched off, so the trace holds only First visits' looks.
+-- trackers are switched off, so the trace holds only First visits' looks.
 local function start(devMode, opts)
     opts = opts or {}
-    local trackers = { Gold = false, Reputation = false, Gear = false, LegacyChallenges = false, Guild = false, Home = false,
-        Collections = false, PvPRank = false }
-    opts.accountDB = { schema = 1, settings = { trackers = trackers, devMode = devMode or nil }, log = {}, characters = {} }
+    opts.only = "FirstVisits"
+    opts.accountDB = { schema = 1, settings = { devMode = devMode or nil }, log = {}, characters = {} }
     local ns = Stubs.LoadAddon(opts)
     Stubs.SetBestMap(1412)
     if opts.setup then opts.setup() end

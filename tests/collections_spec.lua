@@ -208,9 +208,8 @@ describe("collections", function()
 
     it("trace each look in developer mode", function()
         local accountDB = { schema = 1, log = {}, characters = {}, settings = {
-            trackers = { FirstVisits = false, Gold = false, Reputation = false, Gear = false, LegacyChallenges = false,
-                Guild = false, Home = false, PvPRank = false }, devMode = true } }
-        local ns = start(nil, { accountDB = accountDB })
+            devMode = true } }
+        local ns = start(nil, { accountDB = accountDB, only = "Collections" })
         collect(PINTO)
         mount(WOLF).collected = true
         mount(RAPTOR).collected = true
