@@ -56,7 +56,9 @@ describe("guild", function()
         Stubs.Fire("PLAYER_GUILD_UPDATE", "player")
         Stubs.Advance(1)
         Stubs.state.guild.name = "Bloodfang" -- loaded without another event
-        Stubs.Advance(5)
+        Stubs.Advance(4.75)
+        T.same(entries(ns), {}, "the retry waits its own delay, not the look delay")
+        Stubs.Advance(0.25)
         T.same(entries(ns), { "Left the guild <Red Hand>", "Joined the guild <Bloodfang>" })
     end)
 

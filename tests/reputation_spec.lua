@@ -277,6 +277,71 @@ describe("reputation", function()
         T.same(entries(ns), { "Reached Honored with Thunder Bluff" })
     end)
 
+    -- Logs in with only Reputation on, in developer mode; returns the trace lines from now on,
+    -- without their time, as a function.
+    local function traceFromNow()
+        local ns = start(nil, { accountDB = { schema = 1, log = {}, characters = {}, settings = { devMode = true } },
+            only = "Reputation" })
+        local from = #ns.Trace:GetLines()
+        return ns, function()
+            local traced = {}
+            for i, line in ipairs(ns.Trace:GetLines()) do
+                if i > from then traced[#traced + 1] = line:gsub("^%S+ %S+ ", "") end
+            end
+            return traced
+        end
+    end
+
+    it("take one look for a burst of events, one look delay after the last, on one timer", function()
+        local ns, traced = traceFromNow()
+        local armed = Stubs.state.timersArmed
+        Stubs.SetReaction(BLUFF, HONORED)
+        for _ = 1, 20 do Stubs.Fire("UPDATE_FACTION") end
+        T.eq(Stubs.state.timersArmed - armed, 1, "one timer for twenty events")
+        Stubs.Advance(0.75)
+        T.same(traced(), {}, "no look before the look delay")
+        Stubs.Advance(0.25)
+        T.same(traced(), { 'Reputation UPDATE_FACTION: rows=5 factions=3 changed="81:5>6" -> recorded 1' })
+        T.same(entries(ns), { "Reached Honored with Thunder Bluff" })
+        Stubs.Advance(5)
+        T.eq(#traced(), 1, "and only one")
+    end)
+
+    it("take one look for events spread over time, one look delay after the last", function()
+        local _, traced = traceFromNow()
+        local armed = Stubs.state.timersArmed
+        for _ = 1, 4 do
+            Stubs.Fire("UPDATE_FACTION")
+            Stubs.Advance(0.25)
+        end
+        Stubs.Advance(0.5)
+        T.same(traced(), {}, "not a look delay after the first event")
+        Stubs.Advance(0.25)
+        T.same(traced(), { "Reputation UPDATE_FACTION: rows=5 factions=3 -> unchanged" })
+        T.eq(Stubs.state.timersArmed - armed, 2, "one timer more than a burst at one instant")
+    end)
+
+    it("take one look when time jumps past the look", function()
+        local _, traced = traceFromNow()
+        Stubs.Fire("UPDATE_FACTION")
+        Stubs.Advance(0.5)
+        for _ = 1, 20 do Stubs.Fire("UPDATE_FACTION") end
+        Stubs.Advance(30)
+        T.same(traced(), { "Reputation UPDATE_FACTION: rows=5 factions=3 -> unchanged" }, "in that step")
+        Stubs.Advance(30)
+        T.eq(#traced(), 1, "and only then")
+    end)
+
+    it("drop a look asked for just before the tracker is switched off", function()
+        local ns, traced = traceFromNow()
+        Stubs.SetReaction(BLUFF, HONORED)
+        Stubs.Fire("UPDATE_FACTION")
+        ns.Trackers:SetWanted("Reputation", false)
+        Stubs.Advance(5)
+        T.same(traced(), {})
+        T.same(entries(ns), {})
+    end)
+
     it("trace each look in developer mode", function()
         local accountDB = { schema = 1, log = {}, characters = {},
             settings = { devMode = true } }

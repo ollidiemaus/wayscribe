@@ -37,7 +37,12 @@ Part of the [Wayscribe architecture](../ARCHITECTURE.md); other sections are lis
 - UI refresh is **coalesced**: a pending flag plus one `C_Timer.After(0, ...)`, so 20 loot events
   produce one redraw.
 - Noisy events (`SKILL_LINES_CHANGED` and friends) are **debounced** (`Module:Debounce`): one snapshot,
-  ~0.5 s after the burst.
+  ~0.5 s after the burst, on **one timer per burst**. A request arms a timer only when none armed
+  for its key fires by the request's due time; a timer that fires early (asked again since) arms one
+  more for the rest. So requests that keep coming for longer than the delay arm about one timer per
+  delay, not one per request. The last request's delay counts, longer or shorter, and switching the
+  module off drops the work, even if it is switched on again before it was due. The launch
+  trackers' looks are debounced too (`AskForLook`, §6.11).
 - Long work (drawing trails, measuring coverage, making or checking a backup) runs in a coroutine with
   a budget of 4 to 10 ms per frame, so it never stalls the game.
 

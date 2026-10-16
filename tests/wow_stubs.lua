@@ -425,6 +425,7 @@ function Stubs.Install(opts)
         now = opts.now or os.time({ year = 2026, month = 10, day = 3, hour = 12 }),
         frames = {},
         timers = {},
+        timersArmed = 0, -- C_Timer.After calls, for specs that count the timers a burst arms
         printed = {},
         level = opts.level or 10,
         unknownEvents = opts.unknownEvents or {},
@@ -491,6 +492,7 @@ function Stubs.Install(opts)
     installWorld()
     _G.C_Timer = {
         After = function(seconds, fn)
+            state.timersArmed = state.timersArmed + 1
             state.timers[#state.timers + 1] = { at = state.now + seconds, fn = fn }
         end,
         -- Fires once per Advance at most; advance in steps of `seconds` to see every tick.
