@@ -311,9 +311,12 @@ adds its checks here when it is built.
 - [ ] **First look.** Log in a character that is in a guild. → No entry; `/ws trace` shows
   `inGuild=true`, the guild's `name` and `first look`. Note whether the login look reads
   `name missing` first, and whether a `retry` or a `PLAYER_GUILD_UPDATE` look then reads the name.
-- [ ] **Leave.** Leave the guild (`/gquit`). → "Left the guild <*name*>" in *Adventure*; the trace
-  shows `inGuild=false` and `left`.
-- [ ] **Join.** Accept a guild invite. → "Joined the guild <*name*>"; the trace shows `joined`.
+- [ ] **Leave.** Leave the guild (`/gquit`). → "Left the guild <*name*>" in *Adventure* right away;
+  the trace shows `Guild PLAYER_GUILD_UPDATE: inGuild=false -> left`. If the entry waits for the
+  next loading screen instead, Forever fires the event without the `player` unit (§6.18).
+- [ ] **Join.** Accept a guild invite. → "Joined the guild <*name*>"; the trace shows
+  `Guild PLAYER_GUILD_UPDATE: ... -> joined`.
+- [ ] **Nearby players.** Stand next to a player who leaves or joins a guild. → No `Guild` trace line.
 - [ ] **Rank.** Get promoted or demoted. → No entry; the trace shows `unchanged`.
 - [ ] **Offline change.** Leave (or join) on this character while Wayscribe is off, then log in with
   it on. → The entries on the login day.

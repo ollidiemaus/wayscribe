@@ -47,6 +47,20 @@ describe("error boundary", function()
         T.falsy(module:TryRegisterEvent("LFG_COMPLETION_REWARD"))
         T.truthy(module:TryRegisterEvent("ENCOUNTER_END"))
     end)
+
+    it("TryRegisterUnitEvent survives unknown events and hears only its units", function()
+        local ns = Stubs.LoadAddon({ unknownEvents = { LFG_COMPLETION_REWARD = true } })
+        local module = ns.NewModule("optional")
+        module.enabled = true
+        local heard = {}
+        function module:UNIT_HEALTH(unit) heard[#heard + 1] = unit end
+        T.falsy(module:TryRegisterUnitEvent("LFG_COMPLETION_REWARD", "player"))
+        T.truthy(module:TryRegisterUnitEvent("UNIT_HEALTH", "player"))
+        Stubs.Fire("UNIT_HEALTH", "party1")
+        Stubs.Fire("UNIT_HEALTH")
+        Stubs.Fire("UNIT_HEALTH", "player")
+        T.same(heard, { "player" })
+    end)
 end)
 
 describe("tracker settings", function()

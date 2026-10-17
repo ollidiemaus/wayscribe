@@ -43,6 +43,12 @@ function Module:TryRegisterEvent(event)
     return (pcall(frame.RegisterEvent, frame, event))
 end
 
+-- TryRegisterEvent for a unit event: the client delivers it only for the given units.
+function Module:TryRegisterUnitEvent(event, ...)
+    local frame = self:GetFrame()
+    return (pcall(frame.RegisterUnitEvent, frame, event, ...))
+end
+
 function Module:UnregisterEvent(event)
     if self.frame then
         self.frame:UnregisterEvent(event)
