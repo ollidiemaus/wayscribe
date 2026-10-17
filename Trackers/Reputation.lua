@@ -7,7 +7,7 @@ local L, Compat, Store, Trace, YearCards = ns.L, ns.Compat, ns.Store, ns.Trace, 
 -- { r = reaction, hi = highest, lo = lowest } }, so a missed event is caught at the next look, and
 -- climbing back to a standing held before is no entry. Meeting a faction is no entry, and the first
 -- look is silent. "Reached before" is also the journal's own firsts (REP:<faction>:<standing>), so
--- a restored journal never repeats one.
+-- a restored journal never repeats one. A look that finds nothing changed copies and saves nothing.
 local ICON = "Interface\\Icons\\Achievement_Reputation_01"
 local FRIENDLY, HOSTILE, HONORED, EXALTED = 5, 2, 6, 8
 -- Forever's progress tracks are factions too (PvP Rank Points, Legacy Track), but not standings.
@@ -134,10 +134,22 @@ local function newStandings(known, reaction)
     return passed
 end
 
+-- True when every faction read is in the saved snapshot with the same reaction: the look has
+-- nothing to copy, write or save.
+local function unchanged(standings, saved)
+    if type(saved) ~= "table" then return false end
+    for id, now in pairs(standings) do
+        local before = saved[id]
+        if type(before) ~= "table" or before.r ~= now.reaction then return false end
+    end
+    return true
+end
+
 -- Compares the standings with the snapshot and writes an entry for each new one; returns how the
--- look ended and what changed, for the trace.
-local function compare(standings)
+-- look ended and what changed, for the trace. `current` is the saved snapshot, uncopied.
+local function compare(standings, current)
     if not Store:IsWritable() then return "read-only", {} end
+    if unchanged(standings, current) then return "unchanged", {} end
     local saved = Store:CopyState("reputation")
     local first = type(saved) ~= "table"
     local known = {}
@@ -175,7 +187,7 @@ function Reputation:Look()
     local outcome, changed, count = "no factions", nil, 0
     for _ in pairs(standings or {}) do count = count + 1 end
     if count > 0 then
-        outcome, changed = compare(standings)
+        outcome, changed = compare(standings, saved)
         table.sort(changed)
     end
     local anyChange = changed and #changed > 0

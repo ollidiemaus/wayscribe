@@ -342,6 +342,35 @@ describe("reputation", function()
         T.same(entries(ns), {})
     end)
 
+    it("end an unchanged look as unchanged and leave the saved snapshot as it was", function()
+        local accountDB = { schema = 1, log = {}, characters = {}, settings = { devMode = true } }
+        local ns = start(nil, { accountDB = accountDB, only = "Reputation" })
+        local saved = ns.Store:GetState("reputation")
+        local before = ns.Store:CopyState("reputation")
+        Stubs.Fire("UPDATE_FACTION")
+        Stubs.Advance(1)
+        T.truthy(ns.Store:GetState("reputation") == saved, "the snapshot was not replaced")
+        T.same(ns.Store:GetState("reputation"), before)
+        local lines = ns.Trace:GetLines()
+        T.eq(lines[#lines]:gsub("^%S+ %S+ ", ""), "Reputation UPDATE_FACTION: rows=5 factions=3 -> unchanged")
+        T.same(entries(ns), {})
+    end)
+
+    it("make no more garbage for an unchanged look however many factions the snapshot knows", function()
+        local function look(hidden)
+            local ns = start()
+            local saved = ns.Store:GetState("reputation")
+            -- Factions the list no longer shows, and the client doesn't know by ID.
+            for id = 1, hidden do saved[100000 + id] = { r = NEUTRAL, hi = NEUTRAL, lo = NEUTRAL } end
+            Stubs.Fire("UPDATE_FACTION")
+            local made = T.garbage(function() Stubs.Advance(1) end)
+            T.same(entries(ns), {})
+            return made
+        end
+        local small, large = look(0), look(800)
+        T.truthy(large - small < 4, string.format("%.1f KB for 3 factions, %.1f KB for 803", small, large))
+    end)
+
     it("trace each look in developer mode", function()
         local accountDB = { schema = 1, log = {}, characters = {},
             settings = { devMode = true } }
