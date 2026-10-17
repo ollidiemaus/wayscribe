@@ -47,6 +47,20 @@ describe("error boundary", function()
         T.falsy(module:TryRegisterEvent("LFG_COMPLETION_REWARD"))
         T.truthy(module:TryRegisterEvent("ENCOUNTER_END"))
     end)
+
+    it("TryRegisterUnitEvent survives unknown events and hears only its units", function()
+        local ns = Stubs.LoadAddon({ unknownEvents = { LFG_COMPLETION_REWARD = true } })
+        local module = ns.NewModule("optional")
+        module.enabled = true
+        local heard = {}
+        function module:UNIT_HEALTH(unit) heard[#heard + 1] = unit end
+        T.falsy(module:TryRegisterUnitEvent("LFG_COMPLETION_REWARD", "player"))
+        T.truthy(module:TryRegisterUnitEvent("UNIT_HEALTH", "player"))
+        Stubs.Fire("UNIT_HEALTH", "party1")
+        Stubs.Fire("UNIT_HEALTH")
+        Stubs.Fire("UNIT_HEALTH", "player")
+        T.same(heard, { "player" })
+    end)
 end)
 
 describe("tracker settings", function()
@@ -76,5 +90,100 @@ describe("tracker settings", function()
         for _, frame in ipairs(Stubs.state.frames) do
             T.falsy(frame:IsEventRegistered("COMBAT_LOG_EVENT_UNFILTERED"))
         end
+    end)
+end)
+
+describe("debounce", function()
+    -- A switched-on module whose debounced work notes when it ran.
+    local function noisy()
+        local ns = Stubs.LoadAddon()
+        local module = ns.NewModule("noisy")
+        module.runs = {}
+        function module:Work() self.runs[#self.runs + 1] = Stubs.Now() end
+        module:Enable()
+        return module, ns
+    end
+
+    it("runs the work once per burst, on one timer", function()
+        local module = noisy()
+        local start, armed = Stubs.Now(), Stubs.state.timersArmed
+        for _ = 1, 20 do module:Debounce("work", 1, module.Work) end
+        T.eq(Stubs.state.timersArmed - armed, 1, "one timer for twenty requests")
+        Stubs.Advance(1)
+        T.same(module.runs, { start + 1 })
+        Stubs.Advance(5)
+        T.eq(#module.runs, 1, "and only once")
+    end)
+
+    it("counts the delay from the last request, on one timer more for a burst spread over time", function()
+        local module = noisy()
+        local start, armed = Stubs.Now(), Stubs.state.timersArmed
+        for _ = 1, 4 do
+            module:Debounce("work", 1, module.Work)
+            Stubs.Advance(0.25)
+        end
+        Stubs.Advance(0.5)
+        T.same(module.runs, {}, "not a delay after the first request")
+        Stubs.Advance(0.25)
+        T.same(module.runs, { start + 1.75 }, "a delay after the last one, at 0.75")
+        T.eq(Stubs.state.timersArmed - armed, 2)
+    end)
+
+    it("runs the work once when time jumps past its due time", function()
+        local module = noisy()
+        for _ = 1, 4 do
+            module:Debounce("work", 1, module.Work)
+            Stubs.Advance(0.25)
+        end
+        Stubs.Advance(30)
+        T.eq(#module.runs, 1, "in that step")
+        Stubs.Advance(30)
+        T.eq(#module.runs, 1, "and only then")
+    end)
+
+    it("drops the work when the module is switched off before it runs, even if switched on again", function()
+        local module = noisy()
+        module:Debounce("work", 1, module.Work)
+        module:Disable()
+        Stubs.Advance(1)
+        T.same(module.runs, {}, "off when it was due")
+        module:Enable()
+        module:Debounce("work", 1, module.Work)
+        module:Disable()
+        module:Enable()
+        Stubs.Advance(5)
+        T.same(module.runs, {}, "on again when it was due")
+        module:Debounce("work", 1, module.Work)
+        Stubs.Advance(1)
+        T.eq(#module.runs, 1, "a request after that runs")
+    end)
+
+    it("waits the last request's delay, longer or shorter than the one before", function()
+        local module = noisy()
+        local start = Stubs.Now()
+        module:Debounce("work", 1, module.Work)
+        module:Debounce("work", 5, module.Work)
+        Stubs.Advance(4)
+        T.same(module.runs, {}, "the longer delay wins")
+        Stubs.Advance(1)
+        T.same(module.runs, { start + 5 })
+
+        module:Debounce("work", 5, module.Work)
+        Stubs.Advance(1)
+        module:Debounce("work", 1, module.Work)
+        Stubs.Advance(1)
+        T.same(module.runs, { start + 5, start + 7 }, "the shorter one too")
+        Stubs.Advance(5)
+        T.eq(#module.runs, 2, "and the longer request's timer runs nothing")
+    end)
+
+    it("keeps each key apart, and catches the work's errors", function()
+        local module, ns = noisy()
+        function module:Fail() error("bug in work") end
+        module:Debounce("work", 1, module.Work)
+        module:Debounce("fail", 1, module.Fail)
+        Stubs.Advance(1)
+        T.eq(#module.runs, 1)
+        T.truthy(ns.Log:GetEntries()[1].message:find("timer: .*bug in work"))
     end)
 end)

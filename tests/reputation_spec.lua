@@ -277,11 +277,104 @@ describe("reputation", function()
         T.same(entries(ns), { "Reached Honored with Thunder Bluff" })
     end)
 
+    -- Logs in with only Reputation on, in developer mode; returns the trace lines from now on,
+    -- without their time, as a function.
+    local function traceFromNow()
+        local ns = start(nil, { accountDB = { schema = 1, log = {}, characters = {}, settings = { devMode = true } },
+            only = "Reputation" })
+        local from = #ns.Trace:GetLines()
+        return ns, function()
+            local traced = {}
+            for i, line in ipairs(ns.Trace:GetLines()) do
+                if i > from then traced[#traced + 1] = line:gsub("^%S+ %S+ ", "") end
+            end
+            return traced
+        end
+    end
+
+    it("take one look for a burst of events, one look delay after the last, on one timer", function()
+        local ns, traced = traceFromNow()
+        local armed = Stubs.state.timersArmed
+        Stubs.SetReaction(BLUFF, HONORED)
+        for _ = 1, 20 do Stubs.Fire("UPDATE_FACTION") end
+        T.eq(Stubs.state.timersArmed - armed, 1, "one timer for twenty events")
+        Stubs.Advance(0.75)
+        T.same(traced(), {}, "no look before the look delay")
+        Stubs.Advance(0.25)
+        T.same(traced(), { 'Reputation UPDATE_FACTION: rows=5 factions=3 changed="81:5>6" -> recorded 1' })
+        T.same(entries(ns), { "Reached Honored with Thunder Bluff" })
+        Stubs.Advance(5)
+        T.eq(#traced(), 1, "and only one")
+    end)
+
+    it("take one look for events spread over time, one look delay after the last", function()
+        local _, traced = traceFromNow()
+        local armed = Stubs.state.timersArmed
+        for _ = 1, 4 do
+            Stubs.Fire("UPDATE_FACTION")
+            Stubs.Advance(0.25)
+        end
+        Stubs.Advance(0.5)
+        T.same(traced(), {}, "not a look delay after the first event")
+        Stubs.Advance(0.25)
+        T.same(traced(), { "Reputation UPDATE_FACTION: rows=5 factions=3 -> unchanged" })
+        T.eq(Stubs.state.timersArmed - armed, 2, "one timer more than a burst at one instant")
+    end)
+
+    it("take one look when time jumps past the look", function()
+        local _, traced = traceFromNow()
+        Stubs.Fire("UPDATE_FACTION")
+        Stubs.Advance(0.5)
+        for _ = 1, 20 do Stubs.Fire("UPDATE_FACTION") end
+        Stubs.Advance(30)
+        T.same(traced(), { "Reputation UPDATE_FACTION: rows=5 factions=3 -> unchanged" }, "in that step")
+        Stubs.Advance(30)
+        T.eq(#traced(), 1, "and only then")
+    end)
+
+    it("drop a look asked for just before the tracker is switched off", function()
+        local ns, traced = traceFromNow()
+        Stubs.SetReaction(BLUFF, HONORED)
+        Stubs.Fire("UPDATE_FACTION")
+        ns.Trackers:SetWanted("Reputation", false)
+        Stubs.Advance(5)
+        T.same(traced(), {})
+        T.same(entries(ns), {})
+    end)
+
+    it("end an unchanged look as unchanged and leave the saved snapshot as it was", function()
+        local accountDB = { schema = 1, log = {}, characters = {}, settings = { devMode = true } }
+        local ns = start(nil, { accountDB = accountDB, only = "Reputation" })
+        local saved = ns.Store:GetState("reputation")
+        local before = ns.Store:CopyState("reputation")
+        Stubs.Fire("UPDATE_FACTION")
+        Stubs.Advance(1)
+        T.truthy(ns.Store:GetState("reputation") == saved, "the snapshot was not replaced")
+        T.same(ns.Store:GetState("reputation"), before)
+        local lines = ns.Trace:GetLines()
+        T.eq(lines[#lines]:gsub("^%S+ %S+ ", ""), "Reputation UPDATE_FACTION: rows=5 factions=3 -> unchanged")
+        T.same(entries(ns), {})
+    end)
+
+    it("make no more garbage for an unchanged look however many factions the snapshot knows", function()
+        local function look(hidden)
+            local ns = start()
+            local saved = ns.Store:GetState("reputation")
+            -- Factions the list no longer shows, and the client doesn't know by ID.
+            for id = 1, hidden do saved[100000 + id] = { r = NEUTRAL, hi = NEUTRAL, lo = NEUTRAL } end
+            Stubs.Fire("UPDATE_FACTION")
+            local made = T.garbage(function() Stubs.Advance(1) end)
+            T.same(entries(ns), {})
+            return made
+        end
+        local small, large = look(0), look(800)
+        T.truthy(large - small < 4, string.format("%.1f KB for 3 factions, %.1f KB for 803", small, large))
+    end)
+
     it("trace each look in developer mode", function()
         local accountDB = { schema = 1, log = {}, characters = {},
-            settings = { trackers = { FirstVisits = false, Gold = false, Gear = false, LegacyChallenges = false,
-                Guild = false, Home = false, Collections = false, PvPRank = false }, devMode = true } }
-        local ns = start(nil, { accountDB = accountDB })
+            settings = { devMode = true } }
+        local ns = start(nil, { accountDB = accountDB, only = "Reputation" })
         reach(BLUFF, HONORED)
         Stubs.Fire("UPDATE_FACTION")
         Stubs.Fire("PLAYER_ENTERING_WORLD", false, false)

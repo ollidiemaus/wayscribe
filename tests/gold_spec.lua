@@ -147,10 +147,28 @@ describe("gold", function()
             "the best day comes back from the counters")
     end)
 
+    it("keep the earlier day as the best on a tie, in a month and across months", function()
+        local ns = start(100000)
+        change(150000)  -- Oct 3: 5g earned
+        Stubs.Advance(86400)
+        change(200000)  -- Oct 4: 5g earned, then 20g spent
+        change(0)
+        Stubs.SetTime(os.time({ year = 2026, month = 11, day = 2, hour = 12 }))
+        change(50000)   -- Nov 2: 5g earned
+        local function bestDay()
+            for _, built in ipairs(ns.YearCards:Build(2026)) do
+                if built.id == "gold" then return built.lines[2] end
+            end
+        end
+        T.eq(bestDay(), "Best day: Saturday, October 3, 2026 (5g earned)")
+        ns.Store:Rebuild()
+        T.eq(bestDay(), "Best day: Saturday, October 3, 2026 (5g earned)", "and after a rebuild")
+    end)
+
     it("trace each look in developer mode", function()
-        local accountDB = { schema = 1, settings = { trackers = { FirstVisits = false }, devMode = true }, log = {},
+        local accountDB = { schema = 1, settings = { devMode = true }, log = {},
             characters = {} }
-        local ns = start(10000, { accountDB = accountDB })
+        local ns = start(10000, { accountDB = accountDB, only = "Gold" })
         change(12000)
         change(12000)
         Stubs.SetMoney(Stubs.SECRET)

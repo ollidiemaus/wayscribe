@@ -217,10 +217,8 @@ describe("flight paths", function()
     end)
 
     it("trace each look in developer mode", function()
-        local accountDB = { schema = 1, log = {}, characters = {}, settings = { trackers = { FirstVisits = false, Guild = false,
-            Gold = false, Reputation = false, Gear = false, LegacyChallenges = false, Home = false,
-            Collections = false, PvPRank = false }, devMode = true } }
-        local ns = start({ accountDB = accountDB })
+        local accountDB = { schema = 1, log = {}, characters = {}, settings = { devMode = true } }
+        local ns = start({ accountDB = accountDB, only = "FlightPaths" })
         visit(OLDER)
         Stubs.OpenTaxiMap(nodes({ [TB] = REACHABLE, [CROSSROADS] = REACHABLE, [ORGRIMMAR] = REACHABLE,
             [RATCHET] = CURRENT }), KALIMDOR)

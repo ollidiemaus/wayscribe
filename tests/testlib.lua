@@ -74,6 +74,18 @@ function T.errors(fn, pattern)
     end
 end
 
+-- The garbage fn makes, in KB, with the collector stopped so none of it is collected meanwhile.
+function T.garbage(fn)
+    collectgarbage("collect")
+    collectgarbage("stop")
+    local before = collectgarbage("count")
+    local ok, err = pcall(fn)
+    local made = collectgarbage("count") - before
+    collectgarbage("restart")
+    if not ok then error(err, 0) end
+    return made
+end
+
 function T.report()
     for _, failure in ipairs(T.failures) do
         print("FAIL " .. failure)

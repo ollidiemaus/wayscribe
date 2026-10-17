@@ -93,20 +93,44 @@ were placed. `python3 tools/dungeonmaps/build.py 389 43` builds only those revie
 
 ## Adding a tracker
 
-A feature is one file (ARCHITECTURE.md §6):
+A feature is one file (ARCHITECTURE.md §6), plus these places. A tracker commit touches all of
+them; this list is complete, so there's no need to read an earlier tracker's commit for it.
+
+Code:
 
 1. `Trackers/<Name>.lua`: its record types (`ns.RecordTypes:Register`) or counters
    (`RegisterCounter`), the tracker (`ns.Trackers:New`) with its events, and its Your Year card
    (`ns.YearCards:Register`), if it has one.
-2. Its strings in both `Locales/enUS.lua` and `Locales/deDE.lua` (every `_ONE` pattern needs a German
-   one too; a test checks).
-3. One line in `Wayscribe.toc`, in the Trackers block.
-4. A `tests/<name>_spec.lua`, and the file in `tests/run.lua`'s list.
-5. A launch tracker (§6.11) has its events call `self:AskForLook(event)` and does its reading in
+2. A launch tracker (§6.11) has its events call `self:AskForLook(event)` and does its reading in
    `self:Look()`, a second later (`lookDelay` in `ns.Trackers:New`'s options changes that). Each look
    ends with one `ns.Trace:Add(self.id, self:TakeAsked(), outcome, name, value, ...)`: the events
    that asked, how the look ended ("recorded", "known", ...) and the values it read.
-   `Trackers/FirstVisits.lua` shows the pattern, its spec is in `tests/trace_spec.lua`.
+   `Trackers/FirstVisits.lua` shows the pattern.
+3. The game reads in `Compat/Compat.lua` (a `Compat.Get<Thing>()` that feature-detects the API and
+   passes every value through `Compat.Safe`/`Compat.Call`), each listed in
+   `docs/architecture/05-compat.md`. An API Forever hasn't been probed for also goes in
+   `Compat/Probe.lua` (`/ws probe`).
+4. Every new WoW global the code reads in `.luacheckrc`'s `read_globals` (luacheck fails on it
+   otherwise).
+5. Its strings in both `Locales/enUS.lua` and `Locales/deDE.lua` (every `_ONE` pattern needs a German
+   one too; a test checks).
+6. One line in `Wayscribe.toc`, in the Trackers block.
+
+Tests:
+
+7. A `tests/<name>_spec.lua`, and the file in `tests/run.lua`'s list. The game APIs it reads go in
+   `tests/wow_stubs.lua` (a setter such as `Stubs.SetMoney`, reset in `Stubs.Install`).
+8. Its trace test loads with `Stubs.LoadAddon({ accountDB = ..., only = "<Id>" })`, which switches
+   every other tracker off; other specs need no change. `tests/secrets_spec.lua` fires the new
+   events with secret arguments on its own.
+
+Docs:
+
+9. Its section under §6 (`docs/architecture/06.11-launch-trackers.md` for a launch tracker), the
+   file in the `Trackers/` line of `docs/architecture/09-repository-layout.md`, and its place in
+   `docs/architecture/11-roadmap.md`.
+10. One line in `README.md`'s list of what the journal records.
+11. Its in-game checks in `docs/ingame-tests.md`, under a heading named after the §6 section.
 
 Every game value goes through `Compat.Safe` or `Compat.Call` (secret values), and new APIs are
 feature-detected in `Compat`, never assumed (ARCHITECTURE.md §1, §5).

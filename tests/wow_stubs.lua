@@ -43,16 +43,23 @@ end
 
 local function newFrame(frameType, name, parent, template)
     local frame = {
-        events = {}, scripts = {}, shown = true, width = 0, height = 0, regions = {}, name = name,
+        events = {}, units = {}, scripts = {}, shown = true, width = 0, height = 0, regions = {}, name = name,
         frameType = frameType, template = template, parent = parent,
     }
     function frame:RegisterEvent(event)
         if state.unknownEvents[event] then error("Attempt to register unknown event \"" .. event .. "\"") end
         self.events[event] = true
+        self.units[event] = nil
     end
-    function frame:RegisterUnitEvent(event) self:RegisterEvent(event) end
-    function frame:UnregisterEvent(event) self.events[event] = nil end
-    function frame:UnregisterAllEvents() self.events = {} end
+    -- Like the client: the event reaches this frame only when its first argument is one of the units.
+    function frame:RegisterUnitEvent(event, ...)
+        self:RegisterEvent(event)
+        local units = {}
+        for i = 1, select("#", ...) do units[select(i, ...)] = true end
+        self.units[event] = units
+    end
+    function frame:UnregisterEvent(event) self.events[event], self.units[event] = nil, nil end
+    function frame:UnregisterAllEvents() self.events, self.units = {}, {} end
     function frame:IsEventRegistered(event) return self.events[event] == true end
     function frame:SetScript(script, fn) self.scripts[script] = fn end
     function frame:GetScript(script) return self.scripts[script] end
@@ -425,6 +432,8 @@ function Stubs.Install(opts)
         now = opts.now or os.time({ year = 2026, month = 10, day = 3, hour = 12 }),
         frames = {},
         timers = {},
+        delivered = {}, -- event -> times Fire delivered it to a frame, for Stubs.Delivered
+        timersArmed = 0, -- C_Timer.After calls, for specs that count the timers a burst arms
         printed = {},
         level = opts.level or 10,
         unknownEvents = opts.unknownEvents or {},
@@ -491,6 +500,7 @@ function Stubs.Install(opts)
     installWorld()
     _G.C_Timer = {
         After = function(seconds, fn)
+            state.timersArmed = state.timersArmed + 1
             state.timers[#state.timers + 1] = { at = state.now + seconds, fn = fn }
         end,
         -- Fires once per Advance at most; advance in steps of `seconds` to see every tick.
@@ -619,6 +629,8 @@ function Stubs.TocFiles()
 end
 
 -- Loads every file in TOC order into a fresh namespace, like the client does.
+-- opts.only (a tracker id): every other tracker is switched off in opts.accountDB, so a spec sees
+-- only that tracker's entries and trace lines, however many trackers there are.
 function Stubs.LoadAddon(opts)
     Stubs.Install(opts)
     local ns = {}
@@ -626,17 +638,34 @@ function Stubs.LoadAddon(opts)
         local chunk = assert(loadfile(file))
         chunk("Wayscribe", ns)
     end
+    if opts and opts.only then
+        assert(ns.Trackers:Get(opts.only), "no tracker " .. tostring(opts.only))
+        local settings = assert(opts.accountDB, "opts.only needs opts.accountDB").settings
+        settings.trackers = settings.trackers or {}
+        for _, tracker in ipairs(ns.Trackers.list) do
+            if tracker.id ~= opts.only then settings.trackers[tracker.id] = false end
+        end
+    end
     Stubs.ns = ns
     return ns
 end
 
--- Delivers a game event to every frame registered for it, in creation order.
+-- Delivers a game event to every frame registered for it, in creation order; a frame that registered
+-- it for units gets it only when the first argument is one of them.
 function Stubs.Fire(event, ...)
+    local unit = ...
     for _, frame in ipairs(state.frames) do
-        if frame.events[event] and frame.scripts.OnEvent then
+        local units = frame.units[event]
+        if frame.events[event] and frame.scripts.OnEvent and (not units or (unit ~= nil and units[unit])) then
+            state.delivered[event] = (state.delivered[event] or 0) + 1
             frame.scripts.OnEvent(frame, event, ...)
         end
     end
+end
+
+-- How many times Fire delivered `event` to a frame since Install.
+function Stubs.Delivered(event)
+    return state.delivered[event] or 0
 end
 
 function Stubs.Advance(seconds)

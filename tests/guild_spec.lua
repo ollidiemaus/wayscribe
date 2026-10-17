@@ -56,7 +56,9 @@ describe("guild", function()
         Stubs.Fire("PLAYER_GUILD_UPDATE", "player")
         Stubs.Advance(1)
         Stubs.state.guild.name = "Bloodfang" -- loaded without another event
-        Stubs.Advance(5)
+        Stubs.Advance(4.75)
+        T.same(entries(ns), {}, "the retry waits its own delay, not the look delay")
+        Stubs.Advance(0.25)
         T.same(entries(ns), { "Left the guild <Red Hand>", "Joined the guild <Bloodfang>" })
     end)
 
@@ -67,6 +69,24 @@ describe("guild", function()
         Stubs.Fire("PLAYER_GUILD_UPDATE", "party1")
         Stubs.Advance(1)
         T.same(entries(ns), {})
+    end)
+
+    it("hear only the player's own guild updates, the game filtering other units", function()
+        start("Red Hand")
+        Stubs.Fire("PLAYER_GUILD_UPDATE", "party1")
+        T.eq(Stubs.Delivered("PLAYER_GUILD_UPDATE"), 0, "another unit's update")
+        Stubs.Fire("PLAYER_GUILD_UPDATE", "player")
+        T.eq(Stubs.Delivered("PLAYER_GUILD_UPDATE"), 1, "the player's own")
+    end)
+
+    it("still look at loading screens on a client without PLAYER_GUILD_UPDATE", function()
+        local ns = start("Red Hand", { unknownEvents = { PLAYER_GUILD_UPDATE = true } })
+        Stubs.SetGuild(false, nil)
+        Stubs.Fire("PLAYER_ENTERING_WORLD", false, false)
+        Stubs.Advance(1)
+        T.same(entries(ns), { "Left the guild <Red Hand>" })
+        T.eq(#ns.Log:GetEntries(), 0)
+        T.truthy(ns.Trackers:Get("Guild").enabled)
     end)
 
     it("record joining a first guild", function()
@@ -159,10 +179,8 @@ describe("guild", function()
     end)
 
     it("trace each look in developer mode", function()
-        local accountDB = { schema = 1, log = {}, characters = {}, settings = { trackers = { FirstVisits = false,
-            Gold = false, Reputation = false, Gear = false, LegacyChallenges = false, Home = false,
-            Collections = false, PvPRank = false }, devMode = true } }
-        start("Red Hand", { accountDB = accountDB })
+        local accountDB = { schema = 1, log = {}, characters = {}, settings = { devMode = true } }
+        start("Red Hand", { accountDB = accountDB, only = "Guild" })
         local ns = Stubs.ns
         change(true, nil)
         Stubs.Advance(5)

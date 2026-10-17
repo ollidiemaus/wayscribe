@@ -133,10 +133,8 @@ describe("home", function()
     end)
 
     it("trace each look in developer mode", function()
-        local accountDB = { schema = 1, log = {}, characters = {}, settings = { trackers = { FirstVisits = false,
-            Gold = false, Reputation = false, Gear = false, LegacyChallenges = false, Guild = false,
-            Collections = false, PvPRank = false }, devMode = true } }
-        start("Camp Narache", { accountDB = accountDB })
+        local accountDB = { schema = 1, log = {}, characters = {}, settings = { devMode = true } }
+        start("Camp Narache", { accountDB = accountDB, only = "Home" })
         local ns = Stubs.ns
         bind("Bloodhoof Village")
         _G.GetBindLocation = function() return Stubs.SECRET end

@@ -98,11 +98,20 @@ function Gear:PLAYER_ENTERING_WORLD()
     self:AskForLook("PLAYER_ENTERING_WORLD")
 end
 
--- The snapshot, as a copy, so a look that stops at a failed write leaves the state as it was; nil
--- before the first look.
-local function snapshot()
-    local saved = Store:CopyState("gear")
-    return type(saved) == "table" and type(saved.items) == "table" and saved or nil
+-- The value if it is a snapshot, else nil (before the first look).
+local function asSnapshot(value)
+    return type(value) == "table" and type(value.items) == "table" and value or nil
+end
+
+-- The saved snapshot itself, for one slot, which reads it without copying it: consider takes a
+-- notable item only once its entry is written, so a failed write changes nothing in it either.
+local function savedSnapshot()
+    return asSnapshot(Store:GetState("gear"))
+end
+
+-- The snapshot, as a copy, so a look that stops at a failed write leaves the state as it was.
+local function snapshotCopy()
+    return asSnapshot(Store:CopyState("gear"))
 end
 
 -- The first look's snapshot of a journal that has entries but no state (a backup restored without
@@ -117,7 +126,8 @@ local function journalSnapshot()
 end
 
 -- Takes one worn item into the snapshot and writes its entry if it is notable; returns how it
--- ended, then true when it wrote the entry and false when the write failed.
+-- ended, then true when it wrote the entry and false when the write failed. A notable item is taken
+-- only once its entry is written, so a failed write leaves the snapshot as it was.
 local function consider(item, quality, snap)
     local known = snap.items
     if known[item] then return "known" end
@@ -141,12 +151,14 @@ local function save(snap)
     return Store:SetState("gear", snap)
 end
 
--- One slot, on PLAYER_EQUIPMENT_CHANGED. Before the first look, the event asks for it instead, and
--- so does an item whose quality isn't loaded yet, to read it again a second later.
+-- One slot, on PLAYER_EQUIPMENT_CHANGED. It changes the saved snapshot in place, never a copy, and
+-- an item seen before ends at once without saving it, however many items the snapshot holds.
+-- Before the first look, the event asks for one instead, and so does an item whose quality isn't
+-- loaded yet, to read it again a second later.
 function Gear:PLAYER_EQUIPMENT_CHANGED(slot)
     slot = Compat.Safe(slot, "number")
     if not slot or slot < FIRST_SLOT or slot > LAST_SLOT then return end
-    local snap = snapshot()
+    local snap = savedSnapshot()
     if not snap then return self:AskForLook("PLAYER_EQUIPMENT_CHANGED") end
     local item, quality, rawItem, rawQuality = Compat.GetEquippedItem(slot)
     local outcome
@@ -155,13 +167,13 @@ function Gear:PLAYER_EQUIPMENT_CHANGED(slot)
     elseif item == false then
         outcome = "empty"
     elseif not Store:IsWritable() then
-        outcome = "read-only"
+        outcome = "read-only" -- checked first: the snapshot consider changes is the saved one
     else
         outcome = consider(item, quality, snap)
-        if not save(snap) then
-            outcome = "read-only"
-        elseif quality == nil and not snap.items[item] then
+        if outcome == "no quality" then
             self:AskForLook("PLAYER_EQUIPMENT_CHANGED") -- its quality wasn't loaded yet
+        elseif outcome ~= "known" then
+            save(snap)
         end
     end
     Trace:Add(self.id, "PLAYER_EQUIPMENT_CHANGED", outcome, "slot", slot, "item", rawItem, "quality", rawQuality)
@@ -171,7 +183,7 @@ end
 -- look catches what an event missed.
 local function compare(worn)
     if not Store:IsWritable() then return "read-only", {} end
-    local snap = snapshot()
+    local snap = snapshotCopy()
     if not snap then
         snap = journalSnapshot()
         for _, slot in ipairs(worn) do

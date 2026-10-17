@@ -43,6 +43,12 @@ function Module:TryRegisterEvent(event)
     return (pcall(frame.RegisterEvent, frame, event))
 end
 
+-- TryRegisterEvent for a unit event: the client delivers it only for the given units.
+function Module:TryRegisterUnitEvent(event, ...)
+    local frame = self:GetFrame()
+    return (pcall(frame.RegisterUnitEvent, frame, event, ...))
+end
+
 function Module:UnregisterEvent(event)
     if self.frame then
         self.frame:UnregisterEvent(event)
@@ -73,28 +79,65 @@ function Module:OnError(where, err)
     end
 end
 
+local function runTimer(module, fn)
+    local ok, err = pcall(fn, module)
+    if not ok then
+        module:OnError("timer", err)
+    end
+end
+
 -- Runs fn(self) later through the error boundary, unless the module was disabled meanwhile.
 function Module:After(seconds, fn)
     C_Timer.After(seconds, function()
-        if not self.enabled then return end
-        local ok, err = pcall(fn, self)
-        if not ok then
-            self:OnError("timer", err)
-        end
+        if self.enabled then runTimer(self, fn) end
     end)
 end
 
--- Runs fn(self) once, `seconds` after the last call with this key: a burst of noisy events
--- (SKILL_LINES_CHANGED, BAG_UPDATE) costs one piece of work (docs/ARCHITECTURE.md §3.3).
+-- A debounce key's timers: pending.firesAt holds when each armed one fires, latest first. A timer is
+-- armed only when none fires by `due`, so it fires before all the others: the last one fires next.
+local function armUnlessOneFiresBy(pending, due, seconds)
+    local firesAt = pending.firesAt
+    if not firesAt[1] or firesAt[#firesAt] > due then
+        firesAt[#firesAt + 1] = due
+        C_Timer.After(seconds, pending.fire)
+    end
+end
+
+local function fireDebounce(module, pending)
+    local firesAt = pending.firesAt
+    firesAt[#firesAt] = nil
+    if not module.enabled then pending.due = nil end -- asked while switched off
+    local due = pending.due
+    if not due then return end
+    local now = GetTime()
+    if now < due then
+        -- Asked again since this timer was armed: wait out the rest.
+        armUnlessOneFiresBy(pending, due, due - now)
+        return
+    end
+    pending.due = nil
+    runTimer(module, pending.fn)
+end
+
+-- Runs fn(self) once, `seconds` after the last call with this key, unless the module was switched
+-- off meanwhile: a burst of noisy events (SKILL_LINES_CHANGED, UPDATE_FACTION) costs one piece of
+-- work and one timer (docs/ARCHITECTURE.md §3.3). A call arms a timer only when none armed for this
+-- key fires by its due time; one that fires early arms one more for the rest.
 function Module:Debounce(key, seconds, fn)
-    self.debounced = self.debounced or {}
-    local generation = (self.debounced[key] or 0) + 1
-    self.debounced[key] = generation
-    self:After(seconds, function(module)
-        if module.debounced[key] == generation then
-            fn(module)
-        end
-    end)
+    local debounced = self.debounced
+    if not debounced then
+        debounced = {}
+        self.debounced = debounced
+    end
+    local pending = debounced[key]
+    if not pending then
+        pending = { firesAt = {} }
+        pending.fire = function() fireDebounce(self, pending) end
+        debounced[key] = pending
+    end
+    local due = GetTime() + seconds
+    pending.due, pending.fn = due, fn
+    armUnlessOneFiresBy(pending, due, seconds)
 end
 
 function Module:Enable()
@@ -116,6 +159,11 @@ function Module:Disable()
     if not self.enabled then return end
     self.enabled = false
     self:UnregisterAllEvents()
+    if self.debounced then
+        for _, pending in pairs(self.debounced) do
+            pending.due = nil -- its armed timers run nothing
+        end
+    end
     if self.OnDisable then
         local ok, err = pcall(self.OnDisable, self)
         if not ok then

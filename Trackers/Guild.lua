@@ -2,11 +2,11 @@ local _, ns = ...
 local L, Compat, Store, Trace = ns.L, ns.Compat, ns.Store, ns.Trace
 
 -- Guild (docs/ARCHITECTURE.md §6.18): an entry when the character joins a guild, with its name, and
--- when it leaves. PLAYER_GUILD_UPDATE and the login ask for a look, which compares the guild with
--- the saved snapshot, state.guild = { name = guild's name or false }, so a change made while
--- Wayscribe was off is caught at the next look. Right after login the name can still be missing, so
--- only "not in a guild" means the character left. Rank changes are no entries, and the first look is
--- silent.
+-- when it leaves. PLAYER_GUILD_UPDATE (registered for the player only) and every loading screen ask
+-- for a look, which compares the guild with the saved snapshot, state.guild = { name = guild's name
+-- or false }, so a change made while Wayscribe was off is caught at the next look. Right after login
+-- the name can still be missing, so only "not in a guild" means the character left. Rank changes are
+-- no entries, and the first look is silent.
 local RETRY = 5    -- seconds before another look while the guild's name hasn't loaded
 local RETRIES = 3
 
@@ -26,7 +26,7 @@ local Guild = ns.Trackers:New("Guild", {
 
 function Guild:OnEnable()
     self.retries = 0
-    self:TryRegisterEvent("PLAYER_GUILD_UPDATE")
+    self:TryRegisterUnitEvent("PLAYER_GUILD_UPDATE", "player")
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
     self:AskForLook("enable")
 end

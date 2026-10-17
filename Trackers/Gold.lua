@@ -50,8 +50,9 @@ ns.RecordTypes:RegisterCounter("gold", {
     end,
     -- The month's day with the most earned (the earlier one on a tie).
     rollup = function(rollup, key, dayAmount, dayKey)
+        if key ~= "earned" then return end
         local day = { earned = dayAmount, day = dayKey }
-        if key == "earned" and beats(day, rollup.goldBest) then rollup.goldBest = day end
+        if beats(day, rollup.goldBest) then rollup.goldBest = day end
     end,
     merge = function(target, source)
         local other = source.goldBest
