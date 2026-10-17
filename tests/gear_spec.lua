@@ -326,6 +326,40 @@ describe("gear", function()
             "*Equipped your first epic item: Hand of Justice" })
     end)
 
+    it("change nothing in memory for a new item while the journal is read-only", function()
+        local ns = start()
+        local before = ns.Store:CopyState("gear")
+        ns.SetSafeMode("test")
+        equip(MAIN_HAND, "green")
+        equip(TRINKET1, "trinket")
+        equip(HEAD, "helm", false)
+        T.same(ns.Store:GetState("gear"), before)
+        T.same(entries(ns), {})
+    end)
+
+    it("make no more garbage for a set swap of known items however many items it knows", function()
+        -- Every gear slot but the shirt, the ranged slot and the tabard.
+        local slots = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 }
+        local function swap(known)
+            local ns = start()
+            local set = {}
+            for i, slot in ipairs(slots) do set[slot] = { id = 20000 + i, quality = 4 } end
+            local gear = ns.Store:GetState("gear")
+            for _, piece in pairs(set) do gear.items[piece.id] = true end
+            local count = 0
+            for _ in pairs(gear.items) do count = count + 1 end
+            for id = 1, known - count do gear.items[100000 + id] = true end
+            local made = T.garbage(function()
+                for _, slot in ipairs(slots) do Stubs.Equip(slot, set[slot]) end
+            end)
+            T.same(entries(ns), {}, "every item was known")
+            return made
+        end
+        local small, large = swap(20), swap(800)
+        -- Copying the snapshot for every slot made 600 KB more at 800 items than at 20.
+        T.truthy(large - small < 4, string.format("%.1f KB for 20 items, %.1f KB for 800", small, large))
+    end)
+
     it("trace each look in developer mode", function()
         local accountDB = { schema = 1, log = {}, characters = {},
             settings = { devMode = true } }
