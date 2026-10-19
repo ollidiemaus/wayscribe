@@ -118,6 +118,8 @@ function Compat:Detect()
     has.itemInfoInstant = C_Item ~= nil and C_Item.GetItemInfoInstant ~= nil
     has.spellNames = (C_Spell ~= nil and C_Spell.GetSpellName ~= nil) or type(GetSpellInfo) == "function"
     has.tradeSkillNames = C_TradeSkillUI ~= nil and C_TradeSkillUI.GetTradeSkillDisplayName ~= nil
+    -- 1.0: the Skills tab's lines, for the weapon skills.
+    has.weaponSkills = C_SkillInfo ~= nil and C_SkillInfo.GetNumSkillLines ~= nil and C_SkillInfo.GetSkillLineInfo ~= nil
     has.taxiState = type(UnitOnTaxi) == "function"
     has.worldMapCanvas = self.HasWorldMapCanvas()
     -- 0.5: the zone maps the coverage stat measures against, and the journal's tabs.
@@ -746,6 +748,44 @@ function Compat.GetProfessionSnapshot()
             if type(skillLine) == "number" and type(rank) == "number" then
                 snapshot[skillLine] = { rank = rank, max = type(maxRank) == "number" and maxRank or nil, name = text(name) }
             end
+        end
+    end
+    return snapshot
+end
+
+-- The Skills tab's Weapon Skills category, and its lines in Forever's SkillLine table (build 70450)
+-- but Dual Wield (118), which never rises.
+local WEAPON_SKILL_CATEGORY = 6
+local WEAPON_SKILL_LINES = {
+    43, 44, 45, 46, 54, 55, 95, 136, 160, 162, 172, 173, 176, 226, 228, 229, 473, 3014,
+}
+
+local function addWeaponSkill(snapshot, info)
+    if type(info) ~= "table" or Compat.Safe(info.isHeader) ~= false then return end
+    if Compat.Safe(info.skillLineCategoryID, "number") ~= WEAPON_SKILL_CATEGORY then return end
+    local id, rank, max = Compat.Safe(info.skillID, "number"), Compat.Safe(info.rank, "number"),
+        Compat.Safe(info.maxRank, "number")
+    -- A max rank of 1 is a line that never rises (Dual Wield).
+    if not (id and rank and max and max > 1) then return end
+    snapshot[id] = { rank = rank, max = max, name = text(Compat.Safe(info.name, "string")) }
+end
+
+-- { [skillLineID] = { rank, max, name } } for the weapon skill lines, Defense included, or nil
+-- without the skill API. `rank` is the trained points: a racial bonus (`modifier`) or a buff
+-- (`tempPoints`) is left out. A collapsed header hides its lines from the index walk, so every known
+-- weapon skill line is also asked for by ID, which answers whatever the player collapsed; the reader
+-- never expands or collapses a header itself.
+function Compat.GetWeaponSkills()
+    if not Compat.has.weaponSkills then return nil end
+    local api = C_SkillInfo
+    local snapshot = {}
+    local rows = Compat.Call(api.GetNumSkillLines)
+    for index = 1, type(rows) == "number" and rows or 0 do
+        addWeaponSkill(snapshot, Compat.Call(api.GetSkillLineInfo, index))
+    end
+    if api.GetSkillLineInfoByID then
+        for _, id in ipairs(WEAPON_SKILL_LINES) do
+            if not snapshot[id] then addWeaponSkill(snapshot, Compat.Call(api.GetSkillLineInfoByID, id)) end
         end
     end
     return snapshot

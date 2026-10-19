@@ -47,7 +47,7 @@ an inn, then the capital, for example Northshire, Goldshire and Stormwind, or Ca
 Village and Thunder Bluff. The texts below are the expected meaning, not the exact wording.
 
 - [ ] **The probe**, right after logging in: `/ws probe`. → Lines starting with `firstVisit.`, `gold.`,
-  `rep.`, `gear.`, `legacy.`, `flightPaths.`, `guild.`, `home.`, `collections.` and `pvpRank.`. None
+  `rep.`, `gear.`, `legacy.`, `flightPaths.`, `guild.`, `home.`, `collections.`, `pvpRank.` and `weaponSkill.`. None
   says "error". The probe is saved with the game's files, so nothing needs copying.
 - [ ] **The starting zone.** → Today's page starts with the first visit to the starting zone.
 - [ ] **Gear.** Equip a quest reward. → No entry unless it is blue or better, but `/ws trace` lists
@@ -63,6 +63,11 @@ Village and Thunder Bluff. The texts below are the expected meaning, not the exa
 - [ ] **A flight path.** Talk to the capital's flight master, and with the taxi map open, type
   `/ws probe` again. → An entry for the new flight path, and the probe's `flightPaths.` lines count
   the known nodes.
+- [ ] **Weapon skills.** Open Character > Skills and type `/ws probe` with the *Weapon Skills*
+  header open, then again with it closed. → Both times the same `weaponSkill.` lines, one for each
+  weapon skill the tab lists, Defense included, no Dual Wield and no weapon the character hasn't
+  learned, each with the rank/max the tab shows without the racial bonus. Hit a few mobs until your
+  weapon skill gains a point, probe again. → Its rank is one higher.
 - [ ] **At the end:** `/ws log` says "No errors recorded.", and `/ws trace` shows what each tracker saw.
 
 ## Dungeons and bosses

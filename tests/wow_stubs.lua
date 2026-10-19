@@ -333,6 +333,44 @@ local function installWorld()
         if p then return p.name, 0, p.rank, p.max, 0, 0, p.skillLine end
     end
     _G.C_TradeSkillUI = nil
+    -- The Skills tab's list (Stubs.SetSkillLines): a collapsed header hides the lines under it from
+    -- the index walk, as in the client, while GetSkillLineInfoByID still finds them.
+    local function skillInfo(line)
+        return {
+            skillID = line.id, name = line.name, isHeader = line.header == true, isCollapsed = line.collapsed == true,
+            rank = line.rank or 0, maxRank = line.max or 0, modifier = line.modifier or 0, tempPoints = line.temp or 0,
+            skillLineCategoryID = line.category or 0, parentSkillLineID = 0,
+        }
+    end
+    local function shownSkillLines()
+        local shown, hidden = {}, false
+        for _, line in ipairs(state.skillLines) do
+            if line.header then hidden = line.collapsed == true end
+            if line.header or not hidden then shown[#shown + 1] = line end
+        end
+        return shown
+    end
+    _G.C_SkillInfo = {
+        GetNumSkillLines = function() return #shownSkillLines() end,
+        GetSkillLineInfo = function(index)
+            local line = shownSkillLines()[index]
+            return line and skillInfo(line)
+        end,
+        GetSkillLineInfoByID = function(id)
+            for _, line in ipairs(state.skillLines) do
+                if line.id == id and not line.header then return skillInfo(line) end
+            end
+        end,
+        -- Counted in state.headerToggles: only the player opens and closes the tab's headers.
+        ExpandSkillHeader = function(index)
+            state.headerToggles = state.headerToggles + 1
+            shownSkillLines()[index].collapsed = false
+        end,
+        CollapseSkillHeader = function(index)
+            state.headerToggles = state.headerToggles + 1
+            shownSkillLines()[index].collapsed = true
+        end,
+    }
     _G.C_Spell = {
         GetSpellName = function(spellID) return state.spellNames[spellID] end,
         GetSpellTexture = function(spellID) return state.spellIcons[spellID] end,
@@ -440,6 +478,8 @@ function Stubs.Install(opts)
         instance = { id = 1, type = "none", difficulty = 0, name = "Kalimdor" },
         group = {},
         professions = {},
+        skillLines = {},
+        headerToggles = 0, -- ExpandSkillHeader/CollapseSkillHeader calls
         spellNames = {},
         spellIcons = {},
         itemNames = {},
@@ -946,6 +986,16 @@ function Stubs.SetUnit(unit, member) state.units[unit] = member end
 -- Learned professions: list of { skillLine, name, rank, max } (slots prof1, prof2).
 function Stubs.SetProfessions(list) state.professions = list end
 
+-- The Skills tab's lines, top to bottom: { id, name, header, collapsed, category, rank, max,
+-- modifier, temp }. A header's id is its category; the lines under it follow until the next header.
+function Stubs.SetSkillLines(list) state.skillLines = list end
+
+-- The lines change (a point gained, a skill learned) and the client fires SKILL_LINES_CHANGED.
+function Stubs.ChangeSkillLines(list)
+    state.skillLines = list
+    Stubs.Fire("SKILL_LINES_CHANGED")
+end
+
 -- An open loot window: { source = guid, items = { { id = itemID, quantity = n }, ... } } or nil.
 function Stubs.SetLoot(loot) state.loot = loot end
 
@@ -974,7 +1024,7 @@ function Stubs.Relog(opts, reload)
         footstepsDB = serialize.RoundTrip(_G.WayscribeFootstepsDB),
     }
     local world = {
-        instance = state.instance, group = state.group, professions = state.professions,
+        instance = state.instance, group = state.group, professions = state.professions, skillLines = state.skillLines,
         spellNames = state.spellNames, itemNames = state.itemNames, itemClasses = state.itemClasses,
         questTitles = state.questTitles, cvars = state.cvars, position = state.position,
         onTaxi = state.onTaxi, dead = state.dead, subZone = state.subZone, bestMap = state.bestMap,

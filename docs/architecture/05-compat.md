@@ -48,6 +48,7 @@ Compat.GetContinentOf(mapID)     -- -> the continent a map lies in, or nil
 Compat.IsOnTaxi() / Compat.IsDeadOrGhost()
 Compat.HasWorldMapCanvas()       -- WorldMapFrame takes MapCanvas data providers
 Compat.GetProfessionSnapshot()   -- -> { [skillLineID] = { rank, max, name } }
+Compat.GetWeaponSkills()         -- -> { [skillLineID] = { rank, max, name } } of the Weapon Skills lines (trained points), or nil
 Compat.GetInstance()             -- -> instanceID, type, difficultyID, name
 Compat.GetGroupMembers()         -- -> array of { guid, name, realm, class }; with surnames: "First Surname", no realm
 Compat.GetLootSlots()            -- -> { [slot] = { itemID, quantity } }, sourceGUID
