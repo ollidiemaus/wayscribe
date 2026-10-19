@@ -1,5 +1,5 @@
 local _, ns = ...
-local L, Compat, Store, Trace = ns.L, ns.Compat, ns.Store, ns.Trace
+local L, Compat, Store, Trace, YearCards = ns.L, ns.Compat, ns.Store, ns.Trace, ns.YearCards
 
 -- Weapon skills (docs/ARCHITECTURE.md §6.22): the points gained in each weapon skill, Defense
 -- included, as one counter line on the day page, and entries for a skill learned or mastered.
@@ -14,6 +14,7 @@ local MASTERED = 300
 local SETTLE = 0.5
 -- The Skills tab can still be loading right after login.
 local FIRST_LOOK_DELAY = 3
+local ICON = "Interface\\Icons\\INV_Sword_04"
 
 local function skillName(skillLine)
     local name = Compat.GetWeaponSkillName(skillLine)
@@ -76,6 +77,47 @@ ns.RecordTypes:RegisterCounter("weaponSkill", {
         end
         table.sort(parts)
         return L.COUNTER_WEAPON_SKILL:format(table.concat(parts, L.LIST_SEPARATOR))
+    end,
+})
+
+-- The skill names of a rollup set, sorted.
+local function namesOf(set)
+    local names = {}
+    for skillLine in pairs(set or {}) do names[#names + 1] = skillName(skillLine) end
+    table.sort(names)
+    return names
+end
+
+-- "255 weapon skill points gained. Learned Axes. Swords mastered. Most practised: Swords +250, Defense +5"
+YearCards:Register({
+    id = "weaponSkills",
+    order = 72,
+    build = function(summary)
+        local rollup = summary.rollup
+        local gained = rollup.counters.weaponSkill
+        local points = YearCards.Sum(gained)
+        local learned, mastered = namesOf(rollup.weaponSkillsLearned), namesOf(rollup.weaponSkillsMastered)
+        if points == 0 and #learned == 0 then return nil end
+        local card = { title = L.CARD_WEAPON_SKILLS, icon = ICON, lines = {} }
+        if points > 0 then
+            card.big, card.caption = YearCards.Number(points), YearCards.Plural("CARD_WEAPON_SKILLS_POINTS", points)
+        else
+            card.big, card.caption = YearCards.Number(#learned), YearCards.Plural("CARD_WEAPON_SKILLS_LEARNED_COUNT", #learned)
+        end
+        if #learned > 0 then
+            card.lines[#card.lines + 1] = L.WEAPON_SKILL_LEARNED:format(YearCards.List(learned))
+        end
+        if #mastered > 0 then
+            card.lines[#card.lines + 1] = L.WEAPON_SKILL_MASTERED:format(YearCards.List(mastered))
+        end
+        if points > 0 then
+            local parts = {}
+            for i, skillLine in ipairs(YearCards.Ranked(gained)) do
+                parts[i] = L.SKILL_GAIN:format(skillName(skillLine), gained[skillLine])
+            end
+            card.lines[#card.lines + 1] = L.CARD_WEAPON_SKILLS_GAINS:format(table.concat(parts, L.LIST_SEPARATOR))
+        end
+        return card
     end,
 })
 

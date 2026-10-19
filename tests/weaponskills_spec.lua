@@ -388,3 +388,47 @@ describe("weapon skills tracker", function()
         })
     end)
 end)
+
+-- The Weapon skills card of 2026 as { title, big, caption, lines... }, or nil.
+local function card(ns)
+    for _, built in ipairs(ns.YearCards:Build(2026)) do
+        if built.id == "weaponSkills" then
+            local flat = { built.title, built.big, built.caption }
+            for _, line in ipairs(built.lines) do flat[#flat + 1] = line end
+            return flat
+        end
+    end
+end
+
+describe("weapon skills card", function()
+    it("tells the points gained, the skills learned and mastered, and the gains per skill", function()
+        local ns = start()
+        learn({ id = 44, name = "Axes", category = 6, rank = 1, max = 60 })
+        train(300, 60)
+        T.same(card(ns), {
+            "Weapon skills", "255", "weapon skill points gained", "Learned Axes", "Swords mastered",
+            "Most practised: Swords +250, Defense +5",
+        })
+    end)
+
+    it("leaves out a year without points gained or skills learned", function()
+        local ns = start()
+        train(50, 55)
+        T.eq(card(ns), nil)
+    end)
+
+    it("counts the skills learned when no points were gained", function()
+        local ns = start()
+        learn({ id = 44, name = "Axes", category = 6, rank = 1, max = 60 })
+        T.same(card(ns), { "Weapon skills", "1", "weapon skill learned", "Learned Axes" })
+    end)
+
+    it("reads in German", function()
+        local ns = start(nil, { locale = "deDE" })
+        learn({ id = 44, name = "Axes", category = 6, rank = 1, max = 60 })
+        train(51, 55)
+        T.same(card(ns), {
+            "Waffenfertigkeiten", "1", "Waffenfertigkeitspunkt gewonnen", "Axes erlernt", "Am meisten geübt: Swords +1",
+        })
+    end)
+end)

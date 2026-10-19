@@ -394,6 +394,8 @@ adds its checks here when it is built.
   mastered"; reaching a lower level's cap writes none.
 - [ ] **Offline and relog.** Log out, log in. → No second count; the next day's login recap shows
   the line.
+- [ ] **Your Year.** → A *Weapon skills* card after *Professions*: the points gained, the weapons
+  learned and mastered, and the gains per skill.
 
 ## Already verified
 
