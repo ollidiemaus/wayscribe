@@ -776,8 +776,8 @@ end
 -- weapon skill line is also asked for by ID, which answers whatever the player collapsed; the reader
 -- never expands or collapses a header itself.
 function Compat.GetWeaponSkills()
-    if not Compat.has.weaponSkills then return nil end
     local api = C_SkillInfo
+    if not Compat.has.weaponSkills or type(api) ~= "table" then return nil end
     local snapshot = {}
     local rows = Compat.Call(api.GetNumSkillLines)
     for index = 1, type(rows) == "number" and rows or 0 do
@@ -789,6 +789,13 @@ function Compat.GetWeaponSkills()
         end
     end
     return snapshot
+end
+
+-- A skill line's name by ID from the Skills tab, or nil.
+function Compat.GetWeaponSkillName(skillLine)
+    local api = C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID
+    local info = Compat.Call(api, skillLine)
+    return type(info) == "table" and text(Compat.Safe(info.name, "string")) or nil
 end
 
 function Compat.GetSkillLineName(skillLine)

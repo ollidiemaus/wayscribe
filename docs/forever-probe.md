@@ -536,3 +536,22 @@ Notes:
   tell an account's challenges from the character's.
 - `rep.*` reads as on Scoopz (4 factions under 1 header, Darkspear Trolls Friendly), and
   `collections.*` too (pets and toys `0 of 0`, no toy). The error log has nothing new.
+
+## Client 1.60.1, build 70450, weapon skills (2026-10-19)
+
+Scoopz, a level 3 Tauren Druid, with `0.0.6-37-g06ec9c2`. Two runs, the same lines both times:
+
+```text
+has.weaponSkills = true
+weaponSkills = 5 lines
+weaponSkill.54 = Maces, category 6, 1/15
+weaponSkill.95 = Defense, category 6, 11/15
+weaponSkill.136 = Staves, category 6, 9/15
+weaponSkill.162 = Unarmed, category 6, 1/15
+weaponSkill.3014 = Feral Combat, category 6, 1/15
+```
+
+Notes:
+- The cap is five points per level (15 at level 3), and the ranks are the trained points: no
+  Tauren line carries a racial bonus, so the modifier stays untested.
+- Dual Wield, which a Druid doesn't have, and weapons the character hasn't learned aren't listed.

@@ -296,6 +296,10 @@ L.TRACKER_PVPRANK = "PvP rank"
 L.TRACKER_PVPRANK_TIP = "Each new highest PvP rank this character reaches in a season. The rank it has when Wayscribe first looks, losing a rank and a new season are no entry."
 L.PVP_RANK_REACHED = "Reached PvP rank %d: %s"
 L.PVP_RANK_REACHED_NUMBER = "Reached PvP rank %d"
+L.TRACKER_WEAPONSKILLS = "Weapon skills"
+L.TRACKER_WEAPONSKILLS_TIP = "Weapon skill points gained per day, Defense included, apart from professions. The points a skill has when Wayscribe first looks are no gain."
+L.COUNTER_WEAPON_SKILL = "Weapon skills: %s"
+L.UNKNOWN_WEAPON_SKILL = "unknown skill (%d)"
 
 -- Footsteps on the world map
 L.FOOTSTEPS = "Footsteps"

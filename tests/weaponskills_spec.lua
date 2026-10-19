@@ -103,3 +103,192 @@ describe("/ws probe weapon skills", function()
         T.truthy(found["weaponSkills = nil"])
     end)
 end)
+
+-- Login with the given Skills tab plus the delayed first look.
+local function start(lines, opts)
+    local ns = Stubs.LoadAddon(opts)
+    Stubs.SetSkillLines(lines or skillsTab())
+    Stubs.Login()
+    Stubs.Advance(3)
+    return ns
+end
+
+-- Swords (line 6) and Defense (line 7) at new ranks, settled.
+local function train(swords, defense)
+    local lines = skillsTab()
+    lines[6].rank, lines[7].rank = swords or 50, defense or 55
+    Stubs.ChangeSkillLines(lines)
+    Stubs.Advance(1)
+    return lines
+end
+
+local function counterLines(ns, day)
+    local stored = ns.Store:GetDay(day or 20261003)
+    return ns.RecordTypes:RenderCounters(stored and stored.counters or {})
+end
+
+describe("weapon skills tracker", function()
+    it("takes the first look silently", function()
+        local ns = start()
+        T.eq(#ns.Store:GetDayRecords(20261003), 0)
+        T.same(counterLines(ns), {})
+        T.same(ns.Store:GetState("weaponSkills"), WEAPON_SKILLS)
+    end)
+
+    it("counts the points gained as one line on the day page, apart from profession gains", function()
+        local ns = start()
+        train(52, 56)
+        train(53, 56)
+        ns.Store:Count("skill", 186, 4)
+        T.eq(#ns.Store:GetDayRecords(20261003), 0)
+        T.same(ns.Store:GetDay(20261003).counters.weaponSkill, { [43] = 3, [95] = 1 })
+        local texts = counterLines(ns)
+        local found = {}
+        for _, text in ipairs(texts) do found[text] = true end
+        T.truthy(found["Weapon skills: Defense +1, Swords +3"])
+        T.eq(#texts, 2)
+    end)
+
+    it("looks once per burst of SKILL_LINES_CHANGED", function()
+        local ns = start()
+        local calls = 0
+        local original = ns.Compat.GetWeaponSkills
+        ns.Compat.GetWeaponSkills = function() calls = calls + 1 return original() end
+        local lines = skillsTab()
+        lines[6].rank = 51
+        Stubs.ChangeSkillLines(lines)
+        Stubs.Fire("SKILL_LINES_CHANGED")
+        Stubs.Fire("SKILL_LINES_CHANGED")
+        Stubs.Advance(1)
+        T.eq(calls, 1)
+        T.eq(ns.Store:GetDay(20261003).counters.weaponSkill[43], 1)
+    end)
+
+    it("records nothing for a modifier change or a lower rank", function()
+        local ns = start()
+        local lines = skillsTab()
+        lines[6].modifier, lines[6].temp = 15, 10
+        Stubs.ChangeSkillLines(lines)
+        Stubs.Advance(1)
+        train(40, 55)
+        T.same(counterLines(ns), {})
+        train(41, 55)
+        T.same(ns.Store:GetDay(20261003).counters.weaponSkill, { [43] = 1 })
+    end)
+
+    it("takes a newly learned weapon skill silently", function()
+        local ns = start()
+        local lines = skillsTab()
+        table.insert(lines, 7, { id = 44, name = "Axes", category = 6, rank = 1, max = 60 })
+        Stubs.ChangeSkillLines(lines)
+        Stubs.Advance(1)
+        T.same(counterLines(ns), {})
+        T.eq(ns.Store:GetState("weaponSkills")[44].rank, 1)
+    end)
+
+    it("keeps a line missing from a look", function()
+        local ns = start()
+        local lines = skillsTab()
+        table.remove(lines, 7)
+        Stubs.ChangeSkillLines(lines)
+        Stubs.Advance(1)
+        T.eq(ns.Store:GetState("weaponSkills")[95].rank, 55)
+        train(50, 57)
+        T.same(ns.Store:GetDay(20261003).counters.weaponSkill, { [95] = 2 })
+    end)
+
+    it("counts gains made while the addon was off once, on the login day, and shows them in the recap", function()
+        start()
+        Stubs.Advance(3600)
+        local lines = skillsTab()
+        lines[6].rank, lines[7].rank = 60, 58
+        Stubs.SetSkillLines(lines)
+        local tomorrow = 20261004
+        local ns = Stubs.Relog({ now = Stubs.Now() + 86400 })
+        Stubs.Advance(3)
+        T.same(ns.Store:GetDay(tomorrow).counters.weaponSkill, { [43] = 10, [95] = 3 })
+        ns = Stubs.Relog()
+        Stubs.Advance(3)
+        T.same(ns.Store:GetDay(tomorrow).counters.weaponSkill, { [43] = 10, [95] = 3 })
+        Stubs.Advance(600)
+        ns = Stubs.Relog({ now = Stubs.Now() + 86400 })
+        Stubs.Advance(3)
+        local recap = ns.LoginRecap:Collect(true)
+        local found = {}
+        for _, text in ipairs(recap and recap.lines or {}) do found[text] = true end
+        T.truthy(found["Weapon skills: Defense +3, Swords +10"])
+    end)
+
+    it("records nothing and raises nothing without the API or with secret values", function()
+        local ns = start()
+        local lines = skillsTab()
+        lines[6].rank, lines[7].rank = Stubs.SECRET, 60
+        lines[7].max = Stubs.SECRET
+        Stubs.ChangeSkillLines(lines)
+        Stubs.Advance(1)
+        _G.C_SkillInfo.GetNumSkillLines = function() error("boom") end
+        _G.C_SkillInfo.GetSkillLineInfoByID = function() return Stubs.SECRET end
+        Stubs.Fire("SKILL_LINES_CHANGED")
+        Stubs.Advance(1)
+        T.same(counterLines(ns), {})
+        T.eq(#ns.Log:GetEntries(), 0)
+
+        ns = Stubs.LoadAddon()
+        _G.C_SkillInfo = nil
+        Stubs.Login()
+        Stubs.Fire("SKILL_LINES_CHANGED")
+        Stubs.Advance(3)
+        T.eq(ns.Store:GetState("weaponSkills"), nil)
+
+        ns = Stubs.LoadAddon()
+        Stubs.SetSkillLines({})
+        Stubs.Login()
+        Stubs.Advance(3)
+        T.eq(ns.Store:GetState("weaponSkills"), nil, "an empty read is no baseline")
+        T.eq(#ns.Log:GetEntries(), 0)
+    end)
+
+    it("is switched off by its own setting, without touching Professions", function()
+        local ns = start()
+        T.eq(ns.Trackers:Get("WeaponSkills").default, true)
+        ns.Trackers:SetWanted("WeaponSkills", false)
+        train(55, 55)
+        T.same(counterLines(ns), {})
+        T.truthy(ns.Trackers:Get("Professions").enabled)
+        ns.Trackers:SetWanted("WeaponSkills", true)
+        Stubs.Advance(3)
+        T.same(ns.Store:GetDay(20261003).counters.weaponSkill, { [43] = 5 })
+    end)
+
+    it("names a skill by the game, then by the saved name, then as unknown", function()
+        local ns = start()
+        train(51, 55)
+        ns.Store:Count("weaponSkill", 999, 2)
+        _G.C_SkillInfo.GetSkillLineInfoByID = function() return nil end
+        T.same(counterLines(ns), { "Weapon skills: Swords +1, unknown skill (999) +2" })
+    end)
+
+    it("reads in German", function()
+        local ns = start(nil, { locale = "deDE" })
+        ns.Store:Count("weaponSkill", 999, 2)
+        T.same(counterLines(ns), { "Waffenfertigkeiten: unbekannte Fertigkeit (999) +2" })
+    end)
+
+    it("traces each look in developer mode", function()
+        local accountDB = { schema = 1, log = {}, characters = {}, settings = { devMode = true } }
+        local ns = start(nil, { accountDB = accountDB, only = "WeaponSkills" })
+        train(52, 56)
+        train(52, 56)
+        _G.C_SkillInfo = nil
+        Stubs.Fire("SKILL_LINES_CHANGED")
+        Stubs.Advance(1)
+        local traced = {}
+        for i, line in ipairs(ns.Trace:GetLines()) do traced[i] = line:gsub("^%S+ %S+ ", "") end
+        T.same(traced, {
+            "WeaponSkills enable: lines=3 -> first look",
+            "WeaponSkills SKILL_LINES_CHANGED: lines=3 -> counted 43+2,95+1",
+            "WeaponSkills SKILL_LINES_CHANGED: lines=3 -> unchanged",
+            "WeaponSkills SKILL_LINES_CHANGED: lines=missing -> unreadable",
+        })
+    end)
+end)

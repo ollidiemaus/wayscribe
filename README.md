@@ -62,6 +62,8 @@ Today · played 2 h 10 min
 - **Home:** each new inn you bind your hearthstone to.
 - **Collections:** each new mount you collect, your first one marked.
 - **PvP rank:** each new highest PvP rank you reach in a season, with its title.
+- **Weapon skills:** the weapon skill and Defense points you gain each day, in one line apart from
+  your professions.
 - **Journeys:** hearthstone, Astral Recall, mage teleports and transporters, from where to where.
 - **Distance:** how far you walked, rode and flew each day.
 

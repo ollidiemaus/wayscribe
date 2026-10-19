@@ -24,7 +24,7 @@ _Avoid_: Event, log line
 
 **Counter**:
 A daily total of something that happens many times a day, shown as one line on the day page, such as
-skill points gained or gold earned.
+profession skill points, weapon skill points or gold earned.
 _Avoid_: Stat, tally
 
 **First**:
@@ -45,6 +45,11 @@ _Avoid_: Loot, epic loot (what was looted is not tracked)
 
 **Collection**:
 What the character owns in Forever's Collections window: mounts, pets and toys.
+
+**Weapon skill**:
+A combat skill in the game's Weapon Skills list, Defense included, that rises by use up to five
+points per character level. Separate from professions.
+_Avoid_: Weapon proficiency, combat skill
 
 **Legacy Challenge**:
 Forever's own milestone, shown in place of achievements, which the game dates when it is completed.

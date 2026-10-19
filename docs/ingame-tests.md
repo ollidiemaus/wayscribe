@@ -68,6 +68,13 @@ Village and Thunder Bluff. The texts below are the expected meaning, not the exa
   weapon skill the tab lists, Defense included, no Dual Wield and no weapon the character hasn't
   learned, each with the rank/max the tab shows without the racial bonus. Hit a few mobs until your
   weapon skill gains a point, probe again. → Its rank is one higher.
+  *2026-10-19, build 70450, a level 3 Tauren Druid:* two runs read the same five lines (Maces 1/15,
+  Defense 11/15, Staves 9/15, Unarmed 1/15, Feral Combat 1/15), no Dual Wield. Whether one of them
+  had the header closed, and a rank rising between probes, are still open.
+- [ ] **The weapon skills tracker** (§6.22). On the fresh character, fight until the chat says a
+  weapon skill or Defense increased. → Today's page has one line "Weapon skills: Defense +1, …" apart
+  from any "Skill gains" line, and `/ws trace` shows a `WeaponSkills` look "first look" at login and
+  "counted …" after the gain. `/reload`. → The same line, the same numbers.
 - [ ] **At the end:** `/ws log` says "No errors recorded.", and `/ws trace` shows what each tracker saw.
 
 ## Dungeons and bosses
@@ -370,6 +377,18 @@ adds its checks here when it is built.
   a season change resets the rank. → The first look in the new season ends `new season`, no entry.
 - [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
 - [ ] **Your Year.** → A *PvP rank* card after *Duels*, with the highest rank and its title.
+
+### Weapon skills (§6.22)
+
+- [ ] **First look.** Log in on a character Wayscribe doesn't know yet. → No line; `/ws trace` shows
+  `WeaponSkills enable: lines=<n> -> first look`, *n* the weapon skills on the Skills tab.
+- [ ] **Gains.** Fight until weapon skill and Defense points come up. → One "Weapon skills: …" line
+  under *Progress*, apart from "Skill gains"; its numbers match the Skills tab's rise.
+- [ ] **Racial bonus.** On a Human (Swords, Maces) or Orc (Axes), equip and unequip the weapon. →
+  No gain from the bonus.
+- [ ] **New weapon.** Train a weapon skill. → No gain for it until it rises.
+- [ ] **Offline and relog.** Log out, log in. → No second count; the next day's login recap shows
+  the line.
 
 ## Already verified
 

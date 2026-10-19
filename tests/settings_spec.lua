@@ -65,7 +65,7 @@ describe("settings page", function()
         local ns, api = start()
         T.eq(api.registered, api.category)
         T.eq(api.category.name, "Wayscribe")
-        for _, id in ipairs({ "Level", "Professions", "Gathering", "Bosses", "Dungeons" }) do
+        for _, id in ipairs({ "Level", "Professions", "Gathering", "Bosses", "Dungeons", "WeaponSkills" }) do
             local setting = api.settings["Wayscribe_Tracker_" .. id]
             T.truthy(setting, id)
             T.eq(setting.control, "checkbox")
