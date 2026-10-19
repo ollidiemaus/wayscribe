@@ -74,7 +74,9 @@ Village and Thunder Bluff. The texts below are the expected meaning, not the exa
 - [ ] **The weapon skills tracker** (§6.22). On the fresh character, fight until the chat says a
   weapon skill or Defense increased. → Today's page has one line "Weapon skills: Defense +1, …" apart
   from any "Skill gains" line, and `/ws trace` shows a `WeaponSkills` look "first look" at login and
-  "counted …" after the gain. `/reload`. → The same line, the same numbers.
+  "counted …" after the gain. `/reload`. → The same line, the same numbers. If you can, train a new
+  weapon at a weapon master. → An entry "Learned <weapon>" marked First, and the trace says
+  "learned <id>". No "Learned" entry for a weapon the character had at login.
 - [ ] **At the end:** `/ws log` says "No errors recorded.", and `/ws trace` shows what each tracker saw.
 
 ## Dungeons and bosses
@@ -386,7 +388,10 @@ adds its checks here when it is built.
   under *Progress*, apart from "Skill gains"; its numbers match the Skills tab's rise.
 - [ ] **Racial bonus.** On a Human (Swords, Maces) or Orc (Axes), equip and unequip the weapon. →
   No gain from the bonus.
-- [ ] **New weapon.** Train a weapon skill. → No gain for it until it rises.
+- [ ] **New weapon.** Train a weapon skill. → An entry "Learned <weapon>" marked First, and no
+  gain for it until it rises.
+- [ ] **Mastered.** On a level 60, raise a weapon skill from 299 to 300. → An entry "<weapon>
+  mastered"; reaching a lower level's cap writes none.
 - [ ] **Offline and relog.** Log out, log in. → No second count; the next day's login recap shows
   the line.
 

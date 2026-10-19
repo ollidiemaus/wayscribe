@@ -98,10 +98,12 @@ The choices that shaped the addon, by topic. Each says what was decided and why.
 - **Weapon skills are a tracker of their own, not part of Professions** (§6.22). They rise by the
   dozen in a day of fighting, so their own counter line keeps the profession gains readable, and a
   player who doesn't want them switches them off without losing professions. A count and no rank
-  entries: a weapon skill's cap rises with the level, so "Swords reached 75" means little.
-- **Weapon skills start silent per line** (§6.22). A character's first look and a weapon trained
-  later save their points and count nothing, so a new character's starting weapons and a level 30's
-  existing skills don't show up as a day's gains.
+  entries: a weapon skill's cap rises with the level, so "Swords reached 75" means little. Only
+  learning a weapon and reaching 300, the level-60 cap, are entries.
+- **Weapon skills start silent** (§6.22). A character's first look saves its points and records
+  nothing, so a new character's starting weapons and a level 30's existing skills don't show up as
+  a day's gains or as learned. A weapon trained later is "learned", but its starting points are no
+  gain.
 - **No screenshot tracker.** It was on the idea list and dropped in planning: not wanted.
 
 ## UI

@@ -760,13 +760,15 @@ local WEAPON_SKILL_LINES = {
     43, 44, 45, 46, 54, 55, 95, 136, 160, 162, 172, 173, 176, 226, 228, 229, 473, 3014,
 }
 
-local function addWeaponSkill(snapshot, info)
+local function addWeaponSkill(snapshot, info, unread)
     if type(info) ~= "table" or Compat.Safe(info.isHeader) ~= false then return end
     if Compat.Safe(info.skillLineCategoryID, "number") ~= WEAPON_SKILL_CATEGORY then return end
     local id, rank, max = Compat.Safe(info.skillID, "number"), Compat.Safe(info.rank, "number"),
         Compat.Safe(info.maxRank, "number")
+    if id and not (rank and max) then unread[id] = true end
     -- A max rank of 1 is a line that never rises (Dual Wield).
     if not (id and rank and max and max > 1) then return end
+    unread[id] = nil
     snapshot[id] = { rank = rank, max = max, name = text(Compat.Safe(info.name, "string")) }
 end
 
@@ -774,21 +776,22 @@ end
 -- without the skill API. `rank` is the trained points: a racial bonus (`modifier`) or a buff
 -- (`tempPoints`) is left out. A collapsed header hides its lines from the index walk, so every known
 -- weapon skill line is also asked for by ID, which answers whatever the player collapsed; the reader
--- never expands or collapses a header itself.
+-- never expands or collapses a header itself. The second result is the set of weapon lines whose
+-- rank or cap read secret, which the snapshot leaves out.
 function Compat.GetWeaponSkills()
     local api = C_SkillInfo
     if not Compat.has.weaponSkills or type(api) ~= "table" then return nil end
-    local snapshot = {}
+    local snapshot, unread = {}, {}
     local rows = Compat.Call(api.GetNumSkillLines)
     for index = 1, type(rows) == "number" and rows or 0 do
-        addWeaponSkill(snapshot, Compat.Call(api.GetSkillLineInfo, index))
+        addWeaponSkill(snapshot, Compat.Call(api.GetSkillLineInfo, index), unread)
     end
     if api.GetSkillLineInfoByID then
         for _, id in ipairs(WEAPON_SKILL_LINES) do
-            if not snapshot[id] then addWeaponSkill(snapshot, Compat.Call(api.GetSkillLineInfoByID, id)) end
+            if not snapshot[id] then addWeaponSkill(snapshot, Compat.Call(api.GetSkillLineInfoByID, id), unread) end
         end
     end
-    return snapshot
+    return snapshot, unread
 end
 
 -- A skill line's name by ID from the Skills tab, or nil.

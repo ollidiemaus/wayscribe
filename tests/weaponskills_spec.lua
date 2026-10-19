@@ -122,6 +122,28 @@ local function train(swords, defense)
     return lines
 end
 
+-- The Skills tab with `line` added to the weapon skills, settled.
+local function learn(line)
+    local lines = skillsTab()
+    table.insert(lines, 7, line)
+    Stubs.ChangeSkillLines(lines)
+    Stubs.Advance(1)
+    return lines
+end
+
+-- The weapon skill entries, oldest first, a First marked "*".
+local function entries(ns)
+    local texts = {}
+    for _, typeName in ipairs({ "WEAPON_SKILL_LEARNED", "WEAPON_SKILL_MASTERED" }) do
+        for _, record in ipairs(ns.Store:GetRecordsOfType(typeName)) do
+            texts[#texts + 1] = { record.id, (record.first and "*" or "") .. ns.RecordTypes:Render(record) }
+        end
+    end
+    table.sort(texts, function(a, b) return a[1] < b[1] end)
+    for i, pair in ipairs(texts) do texts[i] = pair[2] end
+    return texts
+end
+
 local function counterLines(ns, day)
     local stored = ns.Store:GetDay(day or 20261003)
     return ns.RecordTypes:RenderCounters(stored and stored.counters or {})
@@ -176,14 +198,51 @@ describe("weapon skills tracker", function()
         T.same(ns.Store:GetDay(20261003).counters.weaponSkill, { [43] = 1 })
     end)
 
-    it("takes a newly learned weapon skill silently", function()
+    it("records a newly learned weapon skill as a First, without counting its points", function()
+        local ns = start()
+        learn({ id = 44, name = "Axes", category = 6, rank = 1, max = 60 })
+        T.same(entries(ns), { "*Learned Axes" })
+        T.same(counterLines(ns), {})
+        learn({ id = 44, name = "Axes", category = 6, rank = 3, max = 60 })
+        T.same(entries(ns), { "*Learned Axes" })
+        T.same(ns.Store:GetDay(20261003).counters.weaponSkill, { [44] = 2 })
+    end)
+
+    it("makes no entry for the first look or a rankless line", function()
+        local ns = start()
+        learn({ id = 118, name = "Dual Wield", category = 6, rank = 1, max = 1 })
+        T.same(entries(ns), {})
+    end)
+
+    it("learns nothing from a line that read secret at the first look", function()
+        local lines = skillsTab()
+        table.insert(lines, 7, { id = 44, name = "Axes", category = 6, rank = Stubs.SECRET, max = 60 })
+        local ns = start(lines)
+        learn({ id = 44, name = "Axes", category = 6, rank = 12, max = 60 })
+        learn({ id = 44, name = "Axes", category = 6, rank = 13, max = 60 })
+        T.same(entries(ns), {})
+        T.same(ns.Store:GetDay(20261003).counters.weaponSkill, { [44] = 1 })
+    end)
+
+    it("records a skill reaching 300 as mastered, once", function()
+        local ns = start()
+        train(299, 55)
+        T.same(entries(ns), {})
+        train(300, 55)
+        T.same(entries(ns), { "*Swords mastered" })
+        train(300, 56)
+        T.same(entries(ns), { "*Swords mastered" })
+        T.same(ns.Store:GetDay(20261003).counters.weaponSkill, { [43] = 250, [95] = 1 })
+    end)
+
+    it("makes no entry for reaching the cap of the current level", function()
         local ns = start()
         local lines = skillsTab()
-        table.insert(lines, 7, { id = 44, name = "Axes", category = 6, rank = 1, max = 60 })
+        lines[6].rank, lines[6].max = 60, 60
         Stubs.ChangeSkillLines(lines)
         Stubs.Advance(1)
-        T.same(counterLines(ns), {})
-        T.eq(ns.Store:GetState("weaponSkills")[44].rank, 1)
+        T.same(entries(ns), {})
+        T.same(ns.Store:GetDay(20261003).counters.weaponSkill, { [43] = 10 })
     end)
 
     it("keeps a line missing from a look", function()
@@ -217,6 +276,39 @@ describe("weapon skills tracker", function()
         local found = {}
         for _, text in ipairs(recap and recap.lines or {}) do found[text] = true end
         T.truthy(found["Weapon skills: Defense +3, Swords +10"])
+    end)
+
+    it("records a skill learned while the addon was off on the login day", function()
+        start()
+        local lines = skillsTab()
+        table.insert(lines, 7, { id = 44, name = "Axes", category = 6, rank = 4, max = 60 })
+        Stubs.SetSkillLines(lines)
+        local ns = Stubs.Relog({ now = Stubs.Now() + 86400 })
+        Stubs.Advance(3)
+        T.same(entries(ns), { "*Learned Axes" })
+        T.eq(#ns.Store:GetDayRecords(20261004), 1)
+    end)
+
+    it("marks no First twice after a backup is restored", function()
+        local ns = start()
+        train(300, 55)
+        learn({ id = 44, name = "Axes", category = 6, rank = 1, max = 60 })
+        local text
+        ns.Backup:Make({}, function(result) text = result end)
+        T.truthy(ns.Schema:ResetCharacter())
+        ns = Stubs.Relog(nil, true)
+        local found
+        ns.Backup:Read(text, function(result) found = result end)
+        T.truthy(ns.Backup:Restore(found))
+        ns = Stubs.Relog(nil, true)
+        Stubs.Advance(3)
+        T.same(entries(ns), { "*Swords mastered", "*Learned Axes" })
+        -- A snapshot that lost Axes sees it learned again, but not for the first time.
+        local known = ns.Store:GetState("weaponSkills")
+        known[44] = nil
+        ns.Store:SetState("weaponSkills", known)
+        learn({ id = 44, name = "Axes", category = 6, rank = 2, max = 60 })
+        T.same(entries(ns), { "*Swords mastered", "*Learned Axes", "Learned Axes" })
     end)
 
     it("records nothing and raises nothing without the API or with secret values", function()
@@ -279,6 +371,8 @@ describe("weapon skills tracker", function()
         local ns = start(nil, { accountDB = accountDB, only = "WeaponSkills" })
         train(52, 56)
         train(52, 56)
+        train(300, 56)
+        learn({ id = 44, name = "Axes", category = 6, rank = 1, max = 60 })
         _G.C_SkillInfo = nil
         Stubs.Fire("SKILL_LINES_CHANGED")
         Stubs.Advance(1)
@@ -288,6 +382,8 @@ describe("weapon skills tracker", function()
             "WeaponSkills enable: lines=3 -> first look",
             "WeaponSkills SKILL_LINES_CHANGED: lines=3 -> counted 43+2,95+1",
             "WeaponSkills SKILL_LINES_CHANGED: lines=3 -> unchanged",
+            "WeaponSkills SKILL_LINES_CHANGED: lines=3 -> counted 43+248; mastered 43",
+            "WeaponSkills SKILL_LINES_CHANGED: lines=4 -> learned 44",
             "WeaponSkills SKILL_LINES_CHANGED: lines=missing -> unreadable",
         })
     end)

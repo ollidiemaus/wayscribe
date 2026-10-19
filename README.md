@@ -63,7 +63,7 @@ Today · played 2 h 10 min
 - **Collections:** each new mount you collect, your first one marked.
 - **PvP rank:** each new highest PvP rank you reach in a season, with its title.
 - **Weapon skills:** the weapon skill and Defense points you gain each day, in one line apart from
-  your professions.
+  your professions, and each weapon skill you learn or master (300).
 - **Journeys:** hearthstone, Astral Recall, mage teleports and transporters, from where to where.
 - **Distance:** how far you walked, rode and flew each day.
 

@@ -275,9 +275,11 @@ L.TRACKER_PVPRANK_TIP = "Jeder neue höchste PvP-Rang, den dieser Charakter in e
 L.PVP_RANK_REACHED = "PvP-Rang %d erreicht: %s"
 L.PVP_RANK_REACHED_NUMBER = "PvP-Rang %d erreicht"
 L.TRACKER_WEAPONSKILLS = "Waffenfertigkeiten"
-L.TRACKER_WEAPONSKILLS_TIP = "Waffenfertigkeitspunkte pro Tag, Verteidigung eingeschlossen, getrennt von den Berufen. Die Punkte, die eine Fertigkeit hat, wenn Wayscribe zum ersten Mal nachsieht, zählen nicht."
+L.TRACKER_WEAPONSKILLS_TIP = "Waffenfertigkeitspunkte pro Tag, Verteidigung eingeschlossen, getrennt von den Berufen, und jede erlernte oder gemeisterte (300) Waffenfertigkeit. Die Punkte, die eine Fertigkeit hat, wenn Wayscribe zum ersten Mal nachsieht, zählen nicht."
 L.COUNTER_WEAPON_SKILL = "Waffenfertigkeiten: %s"
 L.UNKNOWN_WEAPON_SKILL = "unbekannte Fertigkeit (%d)"
+L.WEAPON_SKILL_LEARNED = "%s erlernt"
+L.WEAPON_SKILL_MASTERED = "%s gemeistert"
 
 -- Footsteps on the world map
 L.FOOTSTEPS = "Fußspuren"
