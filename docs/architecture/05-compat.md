@@ -46,6 +46,7 @@ Compat.GetGuild()                -- -> in a guild (true/false, nil unreadable), 
 Compat.GetEquippedItem(slot)     -- -> itemID (false empty, nil unreadable), quality (nil until loaded); raw values third/fourth
 Compat.GetContinentOf(mapID)     -- -> the continent a map lies in, or nil
 Compat.IsOnTaxi() / Compat.IsDeadOrGhost()
+Compat.IsFalling() / Compat.IsSwimming() / Compat.IsFlying() / Compat.IsInVehicle() -- the player's, false when secret or missing (jumps)
 Compat.HasWorldMapCanvas()       -- WorldMapFrame takes MapCanvas data providers
 Compat.GetProfessionSnapshot()   -- -> { [skillLineID] = { rank, max, name } }
 Compat.GetWeaponSkills()         -- -> { [skillLineID] = { rank, max, name } } of the Weapon Skills lines (trained points), or nil; then the set of lines that read secret

@@ -397,6 +397,23 @@ adds its checks here when it is built.
 - [ ] **Your Year.** → A *Weapon skills* card after *Professions*: the points gained, the weapons
   learned and mastered, and the gains per skill.
 
+### Jumps (§6.23)
+
+Added after the beta: nothing about it was seen in Forever yet. Turn on developer mode first.
+- [ ] **Ground jumps.** Jump 10 times on flat ground, a second apart, and wait a minute. →
+  `/ws trace` shows `Jumps minute: counted=10 skipped=0 -> written`. Many `falling` skips here mean
+  `IsFalling()` reads true on the press that starts a jump: switch to a cooldown (§6.23).
+- [ ] **Mid-air and held.** Press Jump twice per jump, the second in the air, 5 times; then hold the
+  key for 5 seconds. → `counted=6` (5 + 1 held) and `falling=5`.
+- [ ] **Water, taxi.** Press Jump while swimming, then on a flight path. → Only `swimming=` and
+  `taxi=` skips, no jumps.
+- [ ] **Mount, form, ghost.** Jump on a ground mount, in Cat or Bear form or Ghost Wolf, and as a
+  ghost. → Each counted.
+- [ ] **Relog.** Jump, then `/reload` within the minute. → `Jumps PLAYER_LOGOUT: counted=<n>`, and
+  the jumps are in Your Year after the reload.
+- [ ] **Your Year.** → A *Jumps* card after *Footsteps*: the total, the bounciest day and the
+  average per day played. No "Jumps" line on the day page.
+
 ## Already verified
 
 Done on builds 70235, 70245 and 70291 (2026-10-06 to 09); no need to repeat. Details are in

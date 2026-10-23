@@ -15,7 +15,7 @@ game is in [ingame-tests.md](../ingame-tests.md).
 | **0.6 Backup** | A restorable backup string, and restoring it into an empty or missing journal (§4.8). | A simulated year survives backup, wipe and restore (unit test); a missing journal restored in game. |
 | **0.7 Notes** | The player's own notes: a Notes tab in the journal, whose `/way` lines are markers on the world map (Alt+click, `/ws mark`), carried by the backup (§4.9, §7.9). | Notes survive relog, backup and restore, and a missing journal with only notes is guarded (unit tests); Alt+click places a note in game, with no taint error. |
 | **0.9 Duels** | Duels in the journal, a Duels tab (all duels, by class, each opponent) and a Your Year card, from the challenge (`StartDuel` hook, `DUEL_REQUESTED`) and the client's result line (§6.10). | Win, loss, flight, a declined challenge and German lines (unit tests); duels in game (open, [ingame-tests.md](../ingame-tests.md#duels)). |
-| **1.0 Launch** (in progress) | Trackers for Forever's launch (§6.11–6.22): first visits, gold, reputation, notable gear, Legacy Challenges, flight paths, guild, home, collections, PvP rank (stretch), weapon skills. The launch probe in `/ws probe`, a dev-mode trace (`/ws trace`). | Probed and unit-tested, and each fails silent (§6.11); a short beta session on a fresh character; the rest in game after launch ([ingame-tests.md](../ingame-tests.md)). |
+| **1.0 Launch** (in progress) | Trackers for Forever's launch (§6.11–6.23): first visits, gold, reputation, notable gear, Legacy Challenges, flight paths, guild, home, collections, PvP rank (stretch), weapon skills, jumps. The launch probe in `/ws probe`, a dev-mode trace (`/ws trace`). | Probed and unit-tested, and each fails silent (§6.11); a short beta session on a fresh character; the rest in game after launch ([ingame-tests.md](../ingame-tests.md)). |
 
 ## 1.0 Launch plan
 
@@ -34,7 +34,8 @@ Decided on 2026-10-15. The beta ends on 2026-10-21 (PDT) and Forever launches on
   players in, or on Oct 20/21. The checklist is at the top of [ingame-tests.md](../ingame-tests.md).
 - **Built so far:** first visits (§6.12), gold (§6.13), reputation (§6.14), notable gear (§6.15),
   Legacy Challenges (§6.16), flight paths (§6.17), guild (§6.18),
-  home (§6.19), collections: mounts (§6.20), PvP rank (§6.21), weapon skills (§6.22).
+  home (§6.19), collections: mounts (§6.20), PvP rank (§6.21), weapon skills (§6.22), and jumps
+  (§6.23), added after the freeze and checked on launch day.
 - **Left out for launch:** screenshots (not wanted), talents (Retail-style trees plus Forever's
   Legacy trees, with no clear moment), learned spells (too many), honor kills (only an unloaded frame
   reads them), battlegrounds (no battleground browser in Forever's UI), pets and toys (the beta

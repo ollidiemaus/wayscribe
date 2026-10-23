@@ -11,6 +11,12 @@ local state
 
 local function noop() end
 
+-- A yes/no the game reports: true or false, or the secret itself.
+local function flag(value)
+    if value == Stubs.SECRET then return value end
+    return value == true
+end
+
 -- Regions accept any widget method (unknown ones do nothing), so UI code runs in tests. Methods
 -- whose results the code uses are implemented; fields stay plain (an unknown field is nil).
 local function permissive(region)
@@ -513,6 +519,13 @@ function Stubs.Install(opts)
         end
     end
     _G.StartDuel = function() end
+    -- The Jump key binding's call (Stubs.Jump); the movement states are what the player is doing now.
+    _G.JumpOrAscendStart = function() end
+    _G.IsFalling = function() return flag(state.falling) end
+    _G.IsSwimming = function() return flag(state.swimming) end
+    _G.IsFlying = function() return flag(state.flying) end
+    _G.IsMounted = function() return flag(state.mounted) end
+    _G.UnitInVehicle = function() return flag(state.inVehicle) end
     _G.DUEL_WINNER_KNOCKOUT = "%1$s has defeated %2$s in a duel"
     _G.DUEL_WINNER_RETREAT = "%2$s has fled from %1$s in a duel"
     _G.DUEL_COUNTDOWN = "Duel starting: %d"
@@ -973,6 +986,16 @@ function Stubs.SetAreaName(areaID, name)
     state.areaNames[areaID] = name
 end
 function Stubs.SetDead(dead) state.dead = dead end
+-- A press of the Jump key, `times` times (once by default): the game calls JumpOrAscendStart.
+function Stubs.Jump(times)
+    for _ = 1, times or 1 do JumpOrAscendStart() end
+end
+-- In mid-air, in water, flying, on a mount or in a vehicle; a secret (Stubs.SECRET) reads as such.
+function Stubs.SetFalling(falling) state.falling = falling end
+function Stubs.SetSwimming(swimming) state.swimming = swimming end
+function Stubs.SetFlying(flying) state.flying = flying end
+function Stubs.SetMounted(mounted) state.mounted = mounted end
+function Stubs.SetVehicle(inVehicle) state.inVehicle = inVehicle end
 function Stubs.SetCombat(inCombat) state.combat = inCombat end
 -- Modifier keys held down: { alt = true, ctrl = true, shift = true }; no argument = none.
 function Stubs.SetKeys(keys) state.keys = keys or {} end

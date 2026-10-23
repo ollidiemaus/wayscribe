@@ -15,10 +15,7 @@ function DayView.HasVisible(dayKey, isVisible)
         if isVisible(RecordTypes:CategoryOf(record.type)) and RecordTypes:IsShown(record.type) then return true end
     end
     for path, bucket in pairs(day.counters) do
-        if RecordTypes.counters[path] and type(bucket) == "table" and next(bucket) ~= nil
-            and isVisible(RecordTypes:CounterCategory(path)) then
-            return true
-        end
+        if RecordTypes:CounterShows(path, bucket, isVisible) then return true end
     end
     return false
 end

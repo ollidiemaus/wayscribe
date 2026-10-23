@@ -708,6 +708,23 @@ function Compat.IsDeadOrGhost()
     return Compat.Call(UnitIsDeadOrGhost, "player") == true
 end
 
+-- What a press of the Jump key reads (§6.23): a secret, missing or failing value is false.
+function Compat.IsFalling()
+    return Compat.Call(IsFalling) == true
+end
+
+function Compat.IsSwimming()
+    return Compat.Call(IsSwimming) == true
+end
+
+function Compat.IsFlying()
+    return Compat.Call(IsFlying) == true
+end
+
+function Compat.IsInVehicle()
+    return Compat.Call(UnitInVehicle, "player") == true
+end
+
 ------------------------------------------------------------------------------------------------
 -- Instances, groups, professions, spells and items
 

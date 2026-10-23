@@ -397,6 +397,11 @@ local function addLaunchTrackers(add, mapID)
     add("pvpRank.level", type(rank) == "table" and Compat.Safe(rank.renownLevel)
         or probeValue("C_MajorFactions.GetMajorFactionProgressionInfo", Compat.PVP_RANK_FACTION))
     add("pvpRank.season", probeValue("GetCurrentArenaSeason"))
+    add("jumps.hook", type(hooksecurefunc) == "function" and type(JumpOrAscendStart) == "function")
+    add("jumps.falling", probeValue("IsFalling"))
+    add("jumps.swimming", probeValue("IsSwimming"))
+    add("jumps.flying", probeValue("IsFlying"))
+    add("jumps.vehicle", probeValue("UnitInVehicle", "player"))
 end
 
 local function collect()

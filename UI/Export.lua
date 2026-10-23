@@ -82,12 +82,13 @@ local function noteLines(out, fromDay, toDay)
     end
 end
 
--- The text of a range ("month", "year" or "all") and the number of days in it.
+-- The text of a range ("month", "year" or "all") and the number of days in it: the days the
+-- journal lists, so not a day of only jumps.
 function Export.BuildText(range)
     local fromDay, toDay = Export.Range(range)
     local days = {}
     for _, dayKey in ipairs(Store:GetDayKeys()) do -- newest first
-        if (not fromDay or dayKey >= fromDay) and (not toDay or dayKey <= toDay) then
+        if (not fromDay or dayKey >= fromDay) and (not toDay or dayKey <= toDay) and DayView.HasVisible(dayKey, everything) then
             table.insert(days, 1, dayKey)
         end
     end

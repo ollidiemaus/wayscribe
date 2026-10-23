@@ -9,7 +9,7 @@ local SPECS = {
     "journal", "footstepsmap", "loginrecap", "settings", "lifecycle",
     "yearcards", "coverage", "youryear", "export", "backup", "notes", "dungeonmaps", "dueltrace", "duels",
     "firstvisits", "trace", "gold", "reputation", "gear", "legacy", "flightpaths", "guild", "home", "collections", "pvprank", "secrets",
-    "weaponskills",
+    "weaponskills", "jumps",
 }
 
 for _, name in ipairs(SPECS) do

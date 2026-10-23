@@ -291,10 +291,20 @@ local function showPageControls(page, count, canGoBack, canGoOn)
     ui.newer:SetEnabled(canGoOn == true)
 end
 
+local function everything() return true end
+
+-- Whether the journal has a day to show without filters: a day of only jumps is none (§6.23).
+local function hasDays()
+    if #state.days > 0 then return true end
+    for _, dayKey in ipairs(Store.db and Store:GetDayKeys() or {}) do
+        if DayView.HasVisible(dayKey, everything) then return true end
+    end
+    return false
+end
+
 local function showPage()
     local page = state.selected and DayView.Build(state.selected, visibilityFilter())
-    local hasDays = Store.db ~= nil and #Store:GetDayKeys() > 0
-    DayView:Show(page, ui.paperWidth, hasDays and L.JOURNAL_NOTHING_SHOWN or L.JOURNAL_EMPTY)
+    DayView:Show(page, ui.paperWidth, hasDays() and L.JOURNAL_NOTHING_SHOWN or L.JOURNAL_EMPTY)
     -- Page 1 is the oldest day, like the first page of a diary.
     local index = indexOf(state.days, state.selected)
     showPageControls(index and #state.days - index + 1, #state.days, index ~= nil and index < #state.days,
