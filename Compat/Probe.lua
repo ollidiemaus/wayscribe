@@ -361,7 +361,28 @@ local function addCollections(add)
     add("collections.onlyShowCollected", probeValue("C_CVar.GetCVar", "onlyShowCollectedItemsInJournal"))
 end
 
+-- Each weapon skill line Compat reads, with the category the game gives it by ID.
+local function addWeaponSkills(add)
+    local skills = Compat.GetWeaponSkills()
+    if not skills then
+        add("weaponSkills", nil)
+        return
+    end
+    local ids = {}
+    for id in pairs(skills) do ids[#ids + 1] = id end
+    table.sort(ids)
+    add("weaponSkills", #ids .. " lines")
+    for _, id in ipairs(ids) do
+        local skill = skills[id]
+        local info = C_SkillInfo.GetSkillLineInfoByID and Compat.Call(C_SkillInfo.GetSkillLineInfoByID, id)
+        local category = type(info) == "table" and Compat.Safe(info.skillLineCategoryID) or nil
+        add("weaponSkill." .. id, describe(skill.name) .. ", category " .. describe(category) .. ", "
+            .. describe(skill.rank) .. "/" .. describe(skill.max))
+    end
+end
+
 local function addLaunchTrackers(add, mapID)
+    addWeaponSkills(add)
     addFirstVisits(add, mapID)
     add("gold.money", probeValue("GetMoney"))
     addReputation(add)
@@ -376,6 +397,11 @@ local function addLaunchTrackers(add, mapID)
     add("pvpRank.level", type(rank) == "table" and Compat.Safe(rank.renownLevel)
         or probeValue("C_MajorFactions.GetMajorFactionProgressionInfo", Compat.PVP_RANK_FACTION))
     add("pvpRank.season", probeValue("GetCurrentArenaSeason"))
+    add("jumps.hook", type(hooksecurefunc) == "function" and type(JumpOrAscendStart) == "function")
+    add("jumps.falling", probeValue("IsFalling"))
+    add("jumps.swimming", probeValue("IsSwimming"))
+    add("jumps.flying", probeValue("IsFlying"))
+    add("jumps.vehicle", probeValue("UnitInVehicle", "player"))
 end
 
 local function collect()

@@ -84,6 +84,8 @@ Trackers\Guild.lua
 Trackers\Home.lua
 Trackers\Collections.lua
 Trackers\PvPRank.lua
+Trackers\WeaponSkills.lua
+Trackers\Jumps.lua
 
 UI\Theme.lua
 UI\DayView.lua

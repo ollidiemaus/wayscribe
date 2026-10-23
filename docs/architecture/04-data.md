@@ -126,6 +126,8 @@ The Store uses `fields` to validate (types, missing and unknown fields, no secre
 file can't hold), plus `firstKey` and `rollup` to maintain indexes. The UI uses `render`. Neither
 layer has a per-type `if/else`. Counters register the same way (`RecordTypes:RegisterCounter(path,
 { order, category, render, rollup?, merge? })`), so the day page can show each one as a summary line.
+A counter without `render` is shown only in Your Year (jumps, §6.23): it has no line, no filter
+category, and a day holding only it is no day in the journal's list or the export.
 A counter's `rollup(monthRollup, key, dayAmount, dayKey)` runs after each count with the day's new
 total, and at a rebuild once per day with its total, so a month can keep a per-day best (gold's best
 day, §6.13); `merge` combines that field into the year.

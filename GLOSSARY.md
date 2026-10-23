@@ -23,8 +23,9 @@ as a level up, a new standing or a first visit.
 _Avoid_: Event, log line
 
 **Counter**:
-A daily total of something that happens many times a day, shown as one line on the day page, such as
-skill points gained or gold earned.
+A daily total of something that happens many times a day, such as profession skill points, weapon
+skill points or gold earned. Most are shown as one line on the day page; jumps are shown only in Your
+Year.
 _Avoid_: Stat, tally
 
 **First**:
@@ -45,6 +46,16 @@ _Avoid_: Loot, epic loot (what was looted is not tracked)
 
 **Collection**:
 What the character owns in Forever's Collections window: mounts, pets and toys.
+
+**Weapon skill**:
+A combat skill in the game's Weapon Skills list, Defense included, that rises by use up to five
+points per character level. Separate from professions.
+_Avoid_: Weapon proficiency, combat skill
+
+**Jump**:
+A press of the Jump key that lifts the character off the ground. Swimming or flying up, a press in
+mid-air and the repeat hops of a held key are not jumps.
+_Avoid_: Hop, bounce
 
 **Legacy Challenge**:
 Forever's own milestone, shown in place of achievements, which the game dates when it is completed.

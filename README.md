@@ -62,6 +62,10 @@ Today · played 2 h 10 min
 - **Home:** each new inn you bind your hearthstone to.
 - **Collections:** each new mount you collect, your first one marked.
 - **PvP rank:** each new highest PvP rank you reach in a season, with its title.
+- **Weapon skills:** the weapon skill and Defense points you gain each day, in one line apart from
+  your professions, and each weapon skill you learn or master (300), with a card in Your Year.
+- **Jumps:** every time you jump, counted for a card in Your Year with your bounciest day. Not on
+  the day pages.
 - **Journeys:** hearthstone, Astral Recall, mage teleports and transporters, from where to where.
 - **Distance:** how far you walked, rode and flew each day.
 
@@ -111,8 +115,8 @@ Every tracker can be turned off in the settings.
 
 The journal's last tab looks back on your year with a card for each part of it: the year at a
 glance, levels, dungeons and raids, bosses, your most frequent companions, deaths and the most
-dangerous place, duels, gathering, professions, quests and quest chains, footsteps (with how much of
-Azeroth you walked), and time played.
+dangerous place, duels, gathering, professions, weapon skills, quests and quest chains, footsteps
+(with how much of Azeroth you walked), jumps, and time played.
 
 A year opens on December 1, with a "Your 2026 is ready!" message at your first login. Past years
 open any time.

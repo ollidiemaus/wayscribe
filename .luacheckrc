@@ -39,6 +39,8 @@ read_globals = {
     "GetBuildInfo", "GetLocale", "GetRealmName", "WOW_PROJECT_ID",
     "UnitGUID", "UnitFullName", "UnitName", "UnitClass", "UnitLevel", "UnitPosition", "UnitOnTaxi", "UnitIsDeadOrGhost",
     "IsInRaid", "GetNumGroupMembers", "GetNumSubgroupMembers", "GetTime",
+    -- Jumps
+    "JumpOrAscendStart", "IsFalling", "IsSwimming", "IsFlying", "UnitInVehicle",
     -- Duels and other players
     "StartDuel", "UnitExists", "GetUnitName", "UnitRace", "UnitCanAttack", "UnitHealth", "UnitHealthMax",
     "UnitIsPlayer", "LOCALIZED_CLASS_NAMES_MALE", "RAID_CLASS_COLORS",
@@ -50,7 +52,7 @@ read_globals = {
     "IsInGuild", "GetGuildInfo", "GetBindLocation", "UnitFactionGroup", "GetCurrentArenaSeason",
     -- Namespaces
     "Enum", "C_AddOns", "C_CVar", "C_EventUtils", "C_GameRules", "C_Item", "C_MajorFactions", "C_Map", "C_MountJournal", "C_MapExplorationInfo", "C_QuestLine",
-    "C_QuestLog", "C_Reputation", "C_Spell", "C_TaxiMap", "C_Texture", "C_Timer", "C_TradeSkillUI", "C_XMLUtil",
+    "C_QuestLog", "C_Reputation", "C_SkillInfo", "C_Spell", "C_TaxiMap", "C_Texture", "C_Timer", "C_TradeSkillUI", "C_XMLUtil",
     -- Libraries (optional, see embeds.xml)
     "LibStub",
 }

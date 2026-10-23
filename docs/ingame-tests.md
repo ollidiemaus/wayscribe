@@ -47,7 +47,7 @@ an inn, then the capital, for example Northshire, Goldshire and Stormwind, or Ca
 Village and Thunder Bluff. The texts below are the expected meaning, not the exact wording.
 
 - [ ] **The probe**, right after logging in: `/ws probe`. → Lines starting with `firstVisit.`, `gold.`,
-  `rep.`, `gear.`, `legacy.`, `flightPaths.`, `guild.`, `home.`, `collections.` and `pvpRank.`. None
+  `rep.`, `gear.`, `legacy.`, `flightPaths.`, `guild.`, `home.`, `collections.`, `pvpRank.` and `weaponSkill.`. None
   says "error". The probe is saved with the game's files, so nothing needs copying.
 - [ ] **The starting zone.** → Today's page starts with the first visit to the starting zone.
 - [ ] **Gear.** Equip a quest reward. → No entry unless it is blue or better, but `/ws trace` lists
@@ -63,6 +63,20 @@ Village and Thunder Bluff. The texts below are the expected meaning, not the exa
 - [ ] **A flight path.** Talk to the capital's flight master, and with the taxi map open, type
   `/ws probe` again. → An entry for the new flight path, and the probe's `flightPaths.` lines count
   the known nodes.
+- [ ] **Weapon skills.** Open Character > Skills and type `/ws probe` with the *Weapon Skills*
+  header open, then again with it closed. → Both times the same `weaponSkill.` lines, one for each
+  weapon skill the tab lists, Defense included, no Dual Wield and no weapon the character hasn't
+  learned, each with the rank/max the tab shows without the racial bonus. Hit a few mobs until your
+  weapon skill gains a point, probe again. → Its rank is one higher.
+  *2026-10-19, build 70450, a level 3 Tauren Druid:* two runs read the same five lines (Maces 1/15,
+  Defense 11/15, Staves 9/15, Unarmed 1/15, Feral Combat 1/15), no Dual Wield. Whether one of them
+  had the header closed, and a rank rising between probes, are still open.
+- [ ] **The weapon skills tracker** (§6.22). On the fresh character, fight until the chat says a
+  weapon skill or Defense increased. → Today's page has one line "Weapon skills: Defense +1, …" apart
+  from any "Skill gains" line, and `/ws trace` shows a `WeaponSkills` look "first look" at login and
+  "counted …" after the gain. `/reload`. → The same line, the same numbers. If you can, train a new
+  weapon at a weapon master. → An entry "Learned <weapon>" marked First, and the trace says
+  "learned <id>". No "Learned" entry for a weapon the character had at login.
 - [ ] **At the end:** `/ws log` says "No errors recorded.", and `/ws trace` shows what each tracker saw.
 
 ## Dungeons and bosses
@@ -365,6 +379,40 @@ adds its checks here when it is built.
   a season change resets the rank. → The first look in the new season ends `new season`, no entry.
 - [ ] **Relog.** Log out and in. → Nothing repeats (`unchanged`).
 - [ ] **Your Year.** → A *PvP rank* card after *Duels*, with the highest rank and its title.
+
+### Weapon skills (§6.22)
+
+- [ ] **First look.** Log in on a character Wayscribe doesn't know yet. → No line; `/ws trace` shows
+  `WeaponSkills enable: lines=<n> -> first look`, *n* the weapon skills on the Skills tab.
+- [ ] **Gains.** Fight until weapon skill and Defense points come up. → One "Weapon skills: …" line
+  under *Progress*, apart from "Skill gains"; its numbers match the Skills tab's rise.
+- [ ] **Racial bonus.** On a Human (Swords, Maces) or Orc (Axes), equip and unequip the weapon. →
+  No gain from the bonus.
+- [ ] **New weapon.** Train a weapon skill. → An entry "Learned <weapon>" marked First, and no
+  gain for it until it rises.
+- [ ] **Mastered.** On a level 60, raise a weapon skill from 299 to 300. → An entry "<weapon>
+  mastered"; reaching a lower level's cap writes none.
+- [ ] **Offline and relog.** Log out, log in. → No second count; the next day's login recap shows
+  the line.
+- [ ] **Your Year.** → A *Weapon skills* card after *Professions*: the points gained, the weapons
+  learned and mastered, and the gains per skill.
+
+### Jumps (§6.23)
+
+Added after the beta: nothing about it was seen in Forever yet. Turn on developer mode first.
+- [ ] **Ground jumps.** Jump 10 times on flat ground, a second apart, and wait a minute. →
+  `/ws trace` shows `Jumps minute: counted=10 skipped=0 -> written`. Many `falling` skips here mean
+  `IsFalling()` reads true on the press that starts a jump: switch to a cooldown (§6.23).
+- [ ] **Mid-air and held.** Press Jump twice per jump, the second in the air, 5 times; then hold the
+  key for 5 seconds. → `counted=6` (5 + 1 held) and `falling=5`.
+- [ ] **Water, taxi.** Press Jump while swimming, then on a flight path. → Only `swimming=` and
+  `taxi=` skips, no jumps.
+- [ ] **Mount, form, ghost.** Jump on a ground mount, in Cat or Bear form or Ghost Wolf, and as a
+  ghost. → Each counted.
+- [ ] **Relog.** Jump, then `/reload` within the minute. → `Jumps PLAYER_LOGOUT: counted=<n>`, and
+  the jumps are in Your Year after the reload.
+- [ ] **Your Year.** → A *Jumps* card after *Footsteps*: the total, the bounciest day and the
+  average per day played. No "Jumps" line on the day page.
 
 ## Already verified
 

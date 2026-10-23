@@ -11,6 +11,12 @@ local state
 
 local function noop() end
 
+-- A yes/no the game reports: true or false, or the secret itself.
+local function flag(value)
+    if value == Stubs.SECRET then return value end
+    return value == true
+end
+
 -- Regions accept any widget method (unknown ones do nothing), so UI code runs in tests. Methods
 -- whose results the code uses are implemented; fields stay plain (an unknown field is nil).
 local function permissive(region)
@@ -333,6 +339,44 @@ local function installWorld()
         if p then return p.name, 0, p.rank, p.max, 0, 0, p.skillLine end
     end
     _G.C_TradeSkillUI = nil
+    -- The Skills tab's list (Stubs.SetSkillLines): a collapsed header hides the lines under it from
+    -- the index walk, as in the client, while GetSkillLineInfoByID still finds them.
+    local function skillInfo(line)
+        return {
+            skillID = line.id, name = line.name, isHeader = line.header == true, isCollapsed = line.collapsed == true,
+            rank = line.rank or 0, maxRank = line.max or 0, modifier = line.modifier or 0, tempPoints = line.temp or 0,
+            skillLineCategoryID = line.category or 0, parentSkillLineID = 0,
+        }
+    end
+    local function shownSkillLines()
+        local shown, hidden = {}, false
+        for _, line in ipairs(state.skillLines) do
+            if line.header then hidden = line.collapsed == true end
+            if line.header or not hidden then shown[#shown + 1] = line end
+        end
+        return shown
+    end
+    _G.C_SkillInfo = {
+        GetNumSkillLines = function() return #shownSkillLines() end,
+        GetSkillLineInfo = function(index)
+            local line = shownSkillLines()[index]
+            return line and skillInfo(line)
+        end,
+        GetSkillLineInfoByID = function(id)
+            for _, line in ipairs(state.skillLines) do
+                if line.id == id and not line.header then return skillInfo(line) end
+            end
+        end,
+        -- Counted in state.headerToggles: only the player opens and closes the tab's headers.
+        ExpandSkillHeader = function(index)
+            state.headerToggles = state.headerToggles + 1
+            shownSkillLines()[index].collapsed = false
+        end,
+        CollapseSkillHeader = function(index)
+            state.headerToggles = state.headerToggles + 1
+            shownSkillLines()[index].collapsed = true
+        end,
+    }
     _G.C_Spell = {
         GetSpellName = function(spellID) return state.spellNames[spellID] end,
         GetSpellTexture = function(spellID) return state.spellIcons[spellID] end,
@@ -440,6 +484,8 @@ function Stubs.Install(opts)
         instance = { id = 1, type = "none", difficulty = 0, name = "Kalimdor" },
         group = {},
         professions = {},
+        skillLines = {},
+        headerToggles = 0, -- ExpandSkillHeader/CollapseSkillHeader calls
         spellNames = {},
         spellIcons = {},
         itemNames = {},
@@ -473,6 +519,13 @@ function Stubs.Install(opts)
         end
     end
     _G.StartDuel = function() end
+    -- The Jump key binding's call (Stubs.Jump); the movement states are what the player is doing now.
+    _G.JumpOrAscendStart = function() end
+    _G.IsFalling = function() return flag(state.falling) end
+    _G.IsSwimming = function() return flag(state.swimming) end
+    _G.IsFlying = function() return flag(state.flying) end
+    _G.IsMounted = function() return flag(state.mounted) end
+    _G.UnitInVehicle = function() return flag(state.inVehicle) end
     _G.DUEL_WINNER_KNOCKOUT = "%1$s has defeated %2$s in a duel"
     _G.DUEL_WINNER_RETREAT = "%2$s has fled from %1$s in a duel"
     _G.DUEL_COUNTDOWN = "Duel starting: %d"
@@ -933,6 +986,16 @@ function Stubs.SetAreaName(areaID, name)
     state.areaNames[areaID] = name
 end
 function Stubs.SetDead(dead) state.dead = dead end
+-- A press of the Jump key, `times` times (once by default): the game calls JumpOrAscendStart.
+function Stubs.Jump(times)
+    for _ = 1, times or 1 do JumpOrAscendStart() end
+end
+-- In mid-air, in water, flying, on a mount or in a vehicle; a secret (Stubs.SECRET) reads as such.
+function Stubs.SetFalling(falling) state.falling = falling end
+function Stubs.SetSwimming(swimming) state.swimming = swimming end
+function Stubs.SetFlying(flying) state.flying = flying end
+function Stubs.SetMounted(mounted) state.mounted = mounted end
+function Stubs.SetVehicle(inVehicle) state.inVehicle = inVehicle end
 function Stubs.SetCombat(inCombat) state.combat = inCombat end
 -- Modifier keys held down: { alt = true, ctrl = true, shift = true }; no argument = none.
 function Stubs.SetKeys(keys) state.keys = keys or {} end
@@ -945,6 +1008,16 @@ function Stubs.SetUnit(unit, member) state.units[unit] = member end
 
 -- Learned professions: list of { skillLine, name, rank, max } (slots prof1, prof2).
 function Stubs.SetProfessions(list) state.professions = list end
+
+-- The Skills tab's lines, top to bottom: { id, name, header, collapsed, category, rank, max,
+-- modifier, temp }. A header's id is its category; the lines under it follow until the next header.
+function Stubs.SetSkillLines(list) state.skillLines = list end
+
+-- The lines change (a point gained, a skill learned) and the client fires SKILL_LINES_CHANGED.
+function Stubs.ChangeSkillLines(list)
+    state.skillLines = list
+    Stubs.Fire("SKILL_LINES_CHANGED")
+end
 
 -- An open loot window: { source = guid, items = { { id = itemID, quantity = n }, ... } } or nil.
 function Stubs.SetLoot(loot) state.loot = loot end
@@ -974,7 +1047,7 @@ function Stubs.Relog(opts, reload)
         footstepsDB = serialize.RoundTrip(_G.WayscribeFootstepsDB),
     }
     local world = {
-        instance = state.instance, group = state.group, professions = state.professions,
+        instance = state.instance, group = state.group, professions = state.professions, skillLines = state.skillLines,
         spellNames = state.spellNames, itemNames = state.itemNames, itemClasses = state.itemClasses,
         questTitles = state.questTitles, cvars = state.cvars, position = state.position,
         onTaxi = state.onTaxi, dead = state.dead, subZone = state.subZone, bestMap = state.bestMap,

@@ -22,7 +22,7 @@ own in [architecture/](architecture/), listed in the index below. Code comments 
 | 5 | [05-compat.md](architecture/05-compat.md) | Capability detection, API shims, `/ws probe` |
 | 6.1–6.7, 6.9, 6.10 | [06-trackers.md](architecture/06-trackers.md) | Session, level, professions, gathering, bosses, dungeon runs, quest chains, deaths, duels |
 | 6.8 | [06.8-footsteps.md](architecture/06.8-footsteps.md) | Footsteps: sampling, packed trails, the map, coverage |
-| 6.11–6.21 | [06.11-launch-trackers.md](architecture/06.11-launch-trackers.md) | The 1.0 launch trackers: their shared rules, first visits, gold, reputation, notable gear, Legacy Challenges, flight paths, guild, home, collections, PvP rank |
+| 6.11–6.23 | [06.11-launch-trackers.md](architecture/06.11-launch-trackers.md) | The 1.0 launch trackers: their shared rules, first visits, gold, reputation, notable gear, Legacy Challenges, flight paths, guild, home, collections, PvP rank, weapon skills, jumps |
 | 7 | [07-ui.md](architecture/07-ui.md) | Journal, world map, Your Year, export, backup, login recap, settings, minimap, notes |
 | 8 | [08-your-year.md](architecture/08-your-year.md) | The yearly recap's cards |
 | 9 | [09-repository-layout.md](architecture/09-repository-layout.md) | Files and TOC load order |
