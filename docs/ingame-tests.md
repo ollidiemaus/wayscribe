@@ -172,6 +172,13 @@ Wayscribe draws where you walked as a dark red line on the world map.
   flicker.
 - [ ] **Item names.** → Gathered items show their names, not "item 2770" (they may fill in a moment
   later).
+- [ ] **Unknown item.** With `/etrace` open, `/run C_Item.RequestLoadItemDataByID(9999999)`. → Note
+  whether `ITEM_DATA_LOAD_RESULT` fires with `9999999, false`. Then log out, open the character's
+  `SavedVariables/Wayscribe.lua`, and in today's `counters` add `[9999999] = 1` to `gather` (make a
+  `["gather"] = { [9999999] = 1 },` if there is none). Log in, open the journal on today and leave it
+  open. → The line shows "item 9999999", and after a few seconds
+  `/run print(C_AddOnProfiler.GetAddOnMetric("Wayscribe", Enum.AddOnProfilerMetric.RecentAverageTime))`
+  prints a number near zero.
 - [ ] **Small icon.** → The minimap button shows the bolder icon centered in its gold ring, framed
   like the round button at the top right of the world map: parchment and quill fill the ring, the
   dashed trail is visible, no blue corners stick out past the ring. The Addon Compartment and the

@@ -388,7 +388,9 @@ local function installWorld()
             local class = state.itemClasses[itemID]
             if class then return itemID, "", "", "", 0, class[1], class[2] end
         end,
-        RequestLoadItemDataByID = function(itemID) state.requestedItems[itemID] = true end,
+        RequestLoadItemDataByID = function(itemID)
+            state.requestedItems[itemID] = (state.requestedItems[itemID] or 0) + 1
+        end,
     }
     _G.GetNumLootItems = function() return state.loot and #state.loot.items or 0 end
     _G.GetLootSlotLink = function(slot)

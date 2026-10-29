@@ -887,39 +887,91 @@ function Compat.GetQuestLineEnd(questID)
 end
 
 ------------------------------------------------------------------------------------------------
--- Item names load asynchronously. A miss asks the client for the item; once data arrives, the bus
--- message ITEM_NAMES_LOADED tells the UI to redraw. The event is only watched while names are
--- pending.
+-- Item names load asynchronously. A miss asks the client for the item once; once its name is in,
+-- the bus message ITEM_NAMES_LOADED tells the UI to redraw (one per 0.3 s burst). An item the
+-- client says it can't load, or doesn't answer for within 30 s, isn't asked for again this session
+-- and causes no redraw, so an open Journal naming one doesn't loop. The events are watched while
+-- any request is pending.
 
 local NAMES_SETTLE = 0.3
+local REQUEST_TIMEOUT = 30
 local namesFrame
-local namesNotifyPending = false
+local namesNotifyPending, expiryArmed = false, false
+local requestedItems = {} -- [itemID] = GetTime() of the request, while no answer is in
+-- The client said it can't load them. Session-only (not in SavedVariables), so a later session
+-- asks again; bounded by the item IDs a journal names.
+local unloadableItems = {}
 
-local function onItemData()
-    if namesNotifyPending then return end
-    namesNotifyPending = true
-    C_Timer.After(NAMES_SETTLE, function()
-        namesNotifyPending = false
-        namesFrame:UnregisterAllEvents()
-        ns.Bus:Fire("ITEM_NAMES_LOADED")
-    end)
+local function itemNameIn(itemID)
+    return text(Compat.Call(C_Item.GetItemNameByID, itemID))
 end
 
-local function watchItemData()
+local function settleRequest(itemID, unloadable)
+    requestedItems[itemID] = nil
+    if unloadable then unloadableItems[itemID] = true end
+    if next(requestedItems) == nil then namesFrame:UnregisterAllEvents() end
+end
+
+local function onSettle()
+    namesNotifyPending = false
+    ns.Bus:Fire("ITEM_NAMES_LOADED")
+end
+
+-- Settles the requests whose names are in now: the one the event names, or every pending one when
+-- its itemID is unreadable. Data without a name changes nothing shown, so it arms no redraw.
+local function onItemData(_, _, rawID, rawSuccess)
+    local itemID = Compat.Safe(rawID, "number")
+    if itemID and not requestedItems[itemID] then return end -- not one of ours
+    if itemID and Compat.Safe(rawSuccess, "boolean") == false then
+        settleRequest(itemID, true)
+        return
+    end
+    local named = false
+    for pendingID in pairs(requestedItems) do
+        if (not itemID or pendingID == itemID) and itemNameIn(pendingID) then
+            settleRequest(pendingID)
+            named = true
+        end
+    end
+    if not named or namesNotifyPending then return end
+    namesNotifyPending = true
+    C_Timer.After(NAMES_SETTLE, onSettle)
+end
+
+-- A request that never got an answer (or whose answer was unreadable) counts as can't load.
+local function expireRequests()
+    expiryArmed = false
+    local now = GetTime()
+    for itemID, askedAt in pairs(requestedItems) do
+        if now - askedAt >= REQUEST_TIMEOUT then settleRequest(itemID, true) end
+    end
+    if next(requestedItems) ~= nil then
+        expiryArmed = true
+        C_Timer.After(REQUEST_TIMEOUT, expireRequests)
+    end
+end
+
+local function requestItem(itemID)
     if not namesFrame then
         namesFrame = CreateFrame("Frame")
         namesFrame:SetScript("OnEvent", onItemData)
     end
+    requestedItems[itemID] = GetTime()
     pcall(namesFrame.RegisterEvent, namesFrame, "GET_ITEM_INFO_RECEIVED")
     pcall(namesFrame.RegisterEvent, namesFrame, "ITEM_DATA_LOAD_RESULT")
+    if not expiryArmed then
+        expiryArmed = true
+        C_Timer.After(REQUEST_TIMEOUT, expireRequests)
+    end
+    Compat.Call(C_Item.RequestLoadItemDataByID, itemID)
 end
 
 function Compat.GetItemName(itemID)
     if not C_Item then return nil end
-    local name = text(Compat.Call(C_Item.GetItemNameByID, itemID))
-    if not name and C_Item.RequestLoadItemDataByID then
-        watchItemData()
-        Compat.Call(C_Item.RequestLoadItemDataByID, itemID)
+    local name = itemNameIn(itemID)
+    if not name and C_Item.RequestLoadItemDataByID and not requestedItems[itemID]
+        and not unloadableItems[itemID] then
+        requestItem(itemID)
     end
     return name
 end

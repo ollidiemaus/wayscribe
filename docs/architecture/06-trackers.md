@@ -81,7 +81,9 @@ second entry, and it falls back to `UnitLevel` when the event argument is secret
   Item class and subclass IDs from `C_Item.GetItemInfoInstant` are locale-free.
 - Item names load asynchronously. `Compat.GetItemName` requests a missing one and watches
   `GET_ITEM_INFO_RECEIVED` / `ITEM_DATA_LOAD_RESULT` until it arrives, then fires `ITEM_NAMES_LOADED` so
-  the journal redraws.
+  the journal redraws. An item whose load fails (or gets no answer within 30 s) is not asked for
+  again that session and causes no redraw, so a day naming an item the client doesn't know can't
+  make the open journal loop.
 
 ## 6.5 Boss kills
 - `ENCOUNTER_END(encounterID, name, difficultyID, groupSize, success)` with `success == 1`, or

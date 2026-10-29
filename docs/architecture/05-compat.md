@@ -54,7 +54,7 @@ Compat.GetWeaponSkillName(id)    -- -> a skill line's name from the Skills tab b
 Compat.GetInstance()             -- -> instanceID, type, difficultyID, name
 Compat.GetGroupMembers()         -- -> array of { guid, name, realm, class }; with surnames: "First Surname", no realm
 Compat.GetLootSlots()            -- -> { [slot] = { itemID, quantity } }, sourceGUID
-Compat.GetItemName(itemID)       -- -> name, or nil and the item is requested (ITEM_NAMES_LOADED follows)
+Compat.GetItemName(itemID)       -- -> name, or nil and the item is requested once (ITEM_NAMES_LOADED follows; a failed or unanswered load stays nil for the session, no redraw)
 Compat.GetItemClass(itemID)      -- -> classID, subclassID (locale-free)
 Compat.GetSpellName(spellID) / Compat.GetSkillLineName(skillLineID)
 Compat.GetQuestTitle(questID)    -- C_QuestLog title, nil until the client has the quest
