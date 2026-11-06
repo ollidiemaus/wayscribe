@@ -1,9 +1,9 @@
 local _, ns = ...
 local L, Compat, Store, Time, RecordTypes, Theme = ns.L, ns.Compat, ns.Store, ns.Time, ns.RecordTypes, ns.Theme
 
--- One day's page of the journal (docs/ARCHITECTURE.md §7): its entries in time order, then the
--- day's counter lines, then the sessions played that day. Build() is the model and Show() draws
--- it, so the page can be checked without a client.
+-- One day's page of the journal (docs/ARCHITECTURE.md §7): its entries newest first, then the
+-- day's counter lines, then the sessions played that day. Build() is the model, in time order
+-- because Export reads it too, and Show() draws it, so the page can be checked without a client.
 local DayView = {}
 ns.DayView = DayView
 
@@ -221,8 +221,8 @@ function DayView:Show(page, paperWidth, emptyText)
     if not page then
         add({ text = emptyText, faded = true })
     else
-        for _, entry in ipairs(page.entries) do
-            add(entry)
+        for i = #page.entries, 1, -1 do
+            add(page.entries[i])
         end
         for i, line in ipairs(page.counters) do
             add(line, i == 1 and #page.entries > 0 and SECTION_GAP or nil)

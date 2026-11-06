@@ -142,6 +142,21 @@ describe("filters", function()
         T.same(listTexts(ns), { "October 2026", "Monday 5 | Today", "Sunday 4 | Yesterday", "Saturday 3" })
     end)
 
+    it("leave the remaining entries newest first", function()
+        local ns = twoDays()
+        Stubs.Advance(HOUR)
+        ns.Store:Append("LEVEL_UP", { level = 13 })
+        Stubs.Advance(HOUR)
+        ns.Store:Append("LEVEL_UP", { level = 14 })
+        ns.Journal:Open(20261004)
+        chip(ns, "adventure"):Click()
+        T.same(page(ns), {
+            "2:00 PM", "Reached level 14",
+            "1:00 PM", "Reached level 13",
+            "Sessions: 12:00 PM - now",
+        })
+    end)
+
     it("hiding everything leaves a note instead of a page", function()
         local ns = twoDays()
         ns.Journal:Toggle()
@@ -167,8 +182,8 @@ describe("live updates", function()
         T.eq(#page(ns), 3, "not redrawn yet")
         Stubs.Advance(0)
         T.same(page(ns), {
-            "12:00 PM", "Defeated Taragaman the Hungerer for the first time",
             "12:00 PM", "Reached level 13",
+            "12:00 PM", "Defeated Taragaman the Hungerer for the first time",
             "Sessions: 12:00 PM - now",
         })
 
@@ -190,6 +205,38 @@ describe("live updates", function()
 end)
 
 describe("entries", function()
+    it("read newest first, above the day's counters and sessions", function()
+        local ns = twoDays()
+        ns.Journal:Open(20261004)
+        Stubs.Advance(HOUR)
+        ns.Store:Append("LEVEL_UP", { level = 13 })
+        ns.Store:Count("gather", 2770, 1)
+        ns.Journal:Refresh()
+        T.same(page(ns), {
+            "1:00 PM", "Reached level 13",
+            "12:00 PM", "Defeated Taragaman the Hungerer for the first time",
+            "Gathered 1× Copper Ore",
+            "Sessions: 12:00 PM - now",
+        })
+    end)
+
+    it("that share a moment stay reversed, whichever day is open", function()
+        local ns = twoDays()
+        ns.Store:Append("LEVEL_UP", { level = 13 })
+        ns.Store:Append("LEVEL_UP", { level = 14 })
+        local expected = {
+            "12:00 PM", "Reached level 14",
+            "12:00 PM", "Reached level 13",
+            "12:00 PM", "Defeated Taragaman the Hungerer for the first time",
+            "Sessions: 12:00 PM - now",
+        }
+        ns.Journal:Open(20261004)
+        T.same(page(ns), expected)
+        ns.Journal:Select(20261003)
+        ns.Journal:Select(20261004)
+        T.same(page(ns), expected)
+    end)
+
     it("back-filled entries have no time and simulated ones are marked", function()
         local ns = twoDays()
         local today = ns.Time.DayKey(Stubs.Now())
@@ -198,9 +245,9 @@ describe("entries", function()
         ns.Slash:Handle("simulate LEVEL_UP level=30")
         ns.Journal:Open(today)
         T.same(page(ns), {
-            "12:00 PM", "Defeated Taragaman the Hungerer for the first time",
-            "Completed the quest chain: The Defias Brotherhood",
             "12:00 PM", "[sim] Reached level 30",
+            "Completed the quest chain: The Defias Brotherhood",
+            "12:00 PM", "Defeated Taragaman the Hungerer for the first time",
             "Sessions: 12:00 PM - now",
         })
     end)

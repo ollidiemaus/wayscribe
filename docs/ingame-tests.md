@@ -170,6 +170,10 @@ Wayscribe draws where you walked as a dark red line on the world map.
 
 - [ ] **Live.** With the journal open on today, loot ore or level up. → The page updates without
   flicker.
+- [ ] **Newest first.** On a day with several entries and counter lines, read the page. → The
+  latest entry is the first line under the date, each with its own time and marker; the counter
+  lines and the sessions stay below. A new entry appears at the top. Export and the login recap
+  still read oldest first.
 - [ ] **Item names.** → Gathered items show their names, not "item 2770" (they may fill in a moment
   later).
 - [ ] **Unknown item.** With `/etrace` open, `/run C_Item.RequestLoadItemDataByID(9999999)`. → Note

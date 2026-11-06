@@ -18,7 +18,7 @@ local function twoDays(opts)
 end
 
 describe("export", function()
-    it("writes every day like its page, oldest first", function()
+    it("writes every day like its page, but days and entries oldest first", function()
         local ns = twoDays()
         local text, days = ns.Export.BuildText("all")
         T.eq(days, 2)
@@ -36,6 +36,16 @@ describe("export", function()
             "  Sessions: 12:00 PM - now",
             "",
         }, "\n"))
+    end)
+
+    it("keeps a day's entries oldest first, unlike its page", function()
+        local ns = twoDays()
+        Stubs.Advance(3600)
+        ns.Store:Append("LEVEL_UP", { level = 13 })
+        local text = ns.Export.BuildText("all")
+        local boss = text:find("Defeated Taragaman", 1, true)
+        local level = text:find("Reached level 13", 1, true)
+        T.truthy(boss and level and boss < level, "the earlier entry reads first")
     end)
 
     it("keeps to the chosen range and every category, whatever the journal's filter", function()
