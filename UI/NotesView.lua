@@ -378,6 +378,7 @@ local function createBody(page)
     ui.bodyScroll, ui.body = scroll, body
     ui.bodyHint = Theme.Text(scroll, "text", Theme.INK_FADED)
     ui.bodyHint:SetPoint("TOPLEFT", 0, 0)
+    ui.bodyHint:SetPoint("TOPRIGHT", 0, 0)
     ui.bodyHint:SetText(L.NOTES_WRITE_HERE)
     NotesView.PlaceBody(BODY_TOP)
 end
