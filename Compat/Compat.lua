@@ -129,6 +129,10 @@ function Compat:Detect()
         and C_MapExplorationInfo.GetExploredMapTextures ~= nil
     has.panelTabs = self.HasTemplate("PanelTabButtonTemplate") == true and type(PanelTemplates_SetNumTabs) == "function"
         and type(PanelTemplates_SetTab) == "function"
+    -- The game's own map pin and its guiding arrow (a note's places, docs/ARCHITECTURE.md §7.9).
+    has.userWaypoint = C_Map ~= nil and C_Map.SetUserWaypoint ~= nil and C_Map.CanSetUserWaypointOnMap ~= nil
+        and UiMapPoint ~= nil and UiMapPoint.CreateFromCoordinates ~= nil
+        and C_SuperTrack ~= nil and C_SuperTrack.SetSuperTrackedUserWaypoint ~= nil
     -- Forever's characters have a first name and a surname, and the unit name functions return the
     -- surname where other clients return the realm. UnitName never returns the player's own realm,
     -- so a second value there is a surname.
@@ -586,6 +590,30 @@ end
 -- The continent a map lies in (Kalimdor for Mulgore), or nil.
 function Compat.GetContinentOf(mapID)
     return enclosingMap(mapID, mapType("Continent", CONTINENT_MAP_TYPE))
+end
+
+-- Whether the game's map pin is there: the client has it and the ruleset doesn't turn it off
+-- (Enum.GameRule.WorldMapTrackingPinDisabled, off in Forever's build 70291).
+function Compat.HasUserWaypoint()
+    if not Compat.has.userWaypoint then return false end
+    local rule = type(Enum) == "table" and type(Enum.GameRule) == "table" and Enum.GameRule.WorldMapTrackingPinDisabled
+    return not (rule and C_GameRules and Compat.Call(C_GameRules.IsGameRuleActive, rule) == true)
+end
+
+-- Whether the game's map pin can go on a map (zones: yes; continents: as the game says).
+function Compat.CanSetUserWaypoint(mapID)
+    return Compat.HasUserWaypoint() and Compat.Call(C_Map.CanSetUserWaypointOnMap, mapID) == true
+end
+
+-- The game's map pin at a point of a map (u, v from 0 to 1), tracked at once so its arrow guides
+-- the player, without opening the map. The game holds one pin: it replaces the old one. Returns
+-- whether it was set.
+function Compat.SetUserWaypoint(mapID, u, v)
+    if not Compat.CanSetUserWaypoint(mapID) then return false end
+    local point = Compat.Call(UiMapPoint.CreateFromCoordinates, mapID, u, v)
+    if type(point) ~= "table" or not pcall(C_Map.SetUserWaypoint, point) then return false end
+    Compat.Call(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
+    return true
 end
 
 -- The top of the player's chain of maps (the world), or nil before the player's map is known.

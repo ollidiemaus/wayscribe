@@ -73,7 +73,7 @@ commands.mark = function(rest)
     local title = rest ~= "" and rest or place.sub or ns.Compat.GetMapName(ns.Compat.GetPlayerMapID()) or ""
     local note = ns.Notes:Add({ title = title, text = line })
     if note then
-        ns.Print(L.NOTES_MARKED:format(ns.NotesView.Title(note)))
+        ns.Print(L.NOTES_MARKED:format(ns.Notes.Title(note)))
     end
 end
 

@@ -135,6 +135,10 @@ open any time.
   (`/ws mark Rare spawn` names it). Either starts a note with that spot's `/way` line.
 - Hover over a marker to read its label and its note; click it to open the note in the journal.
   Pick one of the eight raid icons for a note's markers.
+- **Get guided there:** the map pin beside a `/way` line sends its place to TomTom, if you use it,
+  and TomTom's arrow points the way; without TomTom it becomes the game's own map pin, and the
+  game's arrow starts. *Send all to TomTom* loads a whole route at once, the arrow at the place
+  closest to you. Ctrl+click a marker on the world map does the same as its line's pin.
 - *Show on the map* opens the map at a note's first place. The map button's menu (or the settings)
   hides your markers when you want a clean map.
 - Your notes belong to the character, and the backup and the text export include them.

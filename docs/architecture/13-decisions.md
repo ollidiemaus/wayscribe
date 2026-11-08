@@ -177,9 +177,13 @@ The choices that shaped the addon, by topic. Each says what was decided and why.
   rarely belong to one day. Each note still knows the day it was written.
 - **Alt+click**: Ctrl+click is the default map's own pin, HandyNotes uses Alt+right-click.
 - **Raid target icons** for markers: in every client since Vanilla, recognizable at 18 pixels.
-- **No minimap markers and no waypoint yet**: the minimap needs its own math or a library. The
-  default map's pin is on in Forever (build 70291, §12 #14), so a note could offer "Set as waypoint"
-  later; the ruleset can still turn it off (`WorldMapTrackingPinDisabled`), so it would be checked.
+- **No minimap markers**: the minimap needs its own math or a library.
+- **A place is sent to TomTom when it is loaded, else to the game's map pin** (#47): TomTom's arrow
+  is what guide readers already follow, and the game's pin works without another addon. It is on in
+  Forever (build 70291, §12 #14); the ruleset can still turn it off (`WorldMapTrackingPinDisabled`),
+  so that is checked. Wayscribe keeps no waypoints of its own and removes none (TomTom's menu and
+  `/cway` do), and picks *Send all*'s arrow itself. The game's pin holds one place, so *Send all* is
+  TomTom's only.
 
 ## Landscape (for positioning)
 

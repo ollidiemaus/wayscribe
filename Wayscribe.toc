@@ -90,6 +90,7 @@ Trackers\Jumps.lua
 UI\Theme.lua
 UI\DayView.lua
 UI\YourYear.lua
+UI\Waypoints.lua
 UI\NotesView.lua
 UI\DungeonMap.lua
 UI\MapsView.lua

@@ -1,11 +1,12 @@
 local _, ns = ...
-local L, Compat, Geometry, Notes = ns.L, ns.Compat, ns.Geometry, ns.Notes
+local L, Compat, Geometry, Notes, Waypoints = ns.L, ns.Compat, ns.Geometry, ns.Notes, ns.Waypoints
 
 -- The notes' places as markers on the world map (docs/ARCHITECTURE.md §7.9). A MapCanvas data
 -- provider of its own, next to Footsteps':
 --   * every /way line of a note on the shown map's continent is a marker with the note's icon,
 --     at Blizzard's own map pin level, sized for the screen at every zoom; mouseover shows the
---     line's label and the note; a click opens the note in the journal;
+--     line's label and the note; a click opens the note in the journal, Ctrl+click sends its place
+--     to TomTom or the game's map pin (UI/Waypoints.lua);
 --   * Alt+click on the map starts a note at that spot: a popup asks for its title (the zone's
 --     name to begin with), and the note's text starts with the spot's /way line;
 --   * the journal's Show on the map opens the map at a note's first place and shows the note's
@@ -63,13 +64,17 @@ local function hideTooltip()
     if GameTooltip then GameTooltip:Hide() end
 end
 
+local function keyDown(fn)
+    return Compat.Call(fn) == true
+end
+
 -- The line's label (else the note's title), the note, the start of its text without the /way
--- lines, and where: "Mulgore 49.0, 86.4".
+-- lines, where: "Mulgore 49.0, 86.4", and what a click and a Ctrl+click do.
 local function showTooltip(marker)
     local note, place = Notes:Get(marker.noteId), marker.place
     if not (note and place and GameTooltip) then return end
     GameTooltip:SetOwner(marker, "ANCHOR_RIGHT")
-    local title = ns.NotesView.Title(note)
+    local title = Notes.Title(note)
     if place.label ~= "" then
         GameTooltip:SetText(place.label)
         GameTooltip:AddLine(title, 1, 0.82, 0, true)
@@ -83,11 +88,22 @@ local function showTooltip(marker)
     end
     GameTooltip:AddLine(L.NOTES_PLACE:format(Compat.GetMapName(place.map) or "?", place.u, place.v), 0.7, 0.7, 0.7)
     GameTooltip:AddLine(L.NOTES_MARKER_HINT, 0.25, 1, 0.25, true)
+    local target = Waypoints.Target()
+    if Waypoints.CanSend(place, target) then
+        GameTooltip:AddLine(target == "tomtom" and L.NOTES_MARKER_SEND_TOMTOM or L.NOTES_MARKER_SEND_PIN, 0.25, 1, 0.25, true)
+    end
     GameTooltip:Show()
 end
 
+-- Ctrl+click sends the place where it can be sent; otherwise a click opens the note. The marker
+-- takes the click, so the game's own Ctrl+click doesn't also pin the spot under the cursor.
 local function onMarkerClick(marker)
     hideTooltip()
+    local note = Notes:Get(marker.noteId)
+    if note and keyDown(IsControlKeyDown) and Waypoints.CanSend(marker.place) then
+        Waypoints.Send(note, marker.place)
+        return
+    end
     ns.Journal:OpenNotes(marker.noteId)
 end
 
@@ -205,10 +221,6 @@ function NotesMap:AskTitle(place)
     }
     place.title = zone or ""
     StaticPopup_Show(NEW_POPUP, zone or L.NOTES_THIS_PLACE, nil, place)
-end
-
-local function keyDown(fn)
-    return Compat.Call(fn) == true
 end
 
 -- The map's click handlers: true stops the click there (no zooming into the zone).

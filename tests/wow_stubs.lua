@@ -32,7 +32,11 @@ local function newFontString()
     local fontString = { shown = true, text = nil }
     function fontString:SetText(text) self.text = text end
     function fontString:GetText() return self.text end
-    function fontString:GetStringHeight() return 12 end
+    -- 12 pixels a line; no wrapping.
+    function fontString:GetStringHeight()
+        local _, breaks = (self.text or ""):gsub("\n", "")
+        return 12 * (breaks + 1)
+    end
     function fontString:GetStringWidth() return 100 end
     function fontString:Show() self.shown = true end
     function fontString:Hide() self.shown = false end
@@ -102,6 +106,7 @@ local function newFrame(frameType, name, parent, template)
     function frame:SetPoint(...) self.lastPoint = { ... } end
     function frame:SetText(text) self.text = text end
     function frame:GetText() return self.text end
+    function frame:SetNormalAtlas(atlas) self.normalAtlas = atlas end
     function frame:GetNumLetters() return #(self.text or "") end
     function frame:CreateFontString()
         local fontString = newFontString()
@@ -313,7 +318,61 @@ local function installMaps()
             table.sort(children, function(a, b) return a.mapID < b.mapID end)
             return children
         end,
+        -- The game's own map pin: zones take one, continents and the world don't. A new pin
+        -- replaces the old one and isn't tracked yet.
+        CanSetUserWaypointOnMap = function(mapID)
+            local map = MAPS[mapID]
+            return map ~= nil and map.type >= 3
+        end,
+        SetUserWaypoint = function(point)
+            state.userWaypoint = { map = point.uiMapID, x = point.position.x, y = point.position.y, tracked = false }
+        end,
     }
+    _G.UiMapPoint = {
+        CreateFromCoordinates = function(mapID, x, y, z)
+            return { uiMapID = mapID, position = CreateVector2D(x, y), z = z }
+        end,
+    }
+    _G.C_SuperTrack = {
+        SetSuperTrackedUserWaypoint = function(tracked)
+            if state.userWaypoint then state.userWaypoint.tracked = tracked == true end
+        end,
+    }
+end
+
+-- The game's map pin: { map, x, y (0 to 1), tracked }, or nil.
+function Stubs.UserWaypoint() return state.userWaypoint end
+
+-- TomTom (4.4) as far as other addons use it. AddWaypoint returns the waypoint already at the same
+-- map, spot and title untouched; else it adds one and, when opts.crazy (default: its autoqueue
+-- setting, on) says so, points the arrow at it. Every waypoint keeps the options it was given.
+-- opts.autoqueue = false: new waypoints don't take the arrow; opts.fail: every call errors.
+function Stubs.InstallTomTom(opts)
+    opts = opts or {}
+    local tomtom = { added = {}, profile = { autoqueue = opts.autoqueue ~= false, arrival = 15 } }
+    local byKey = {}
+    function tomtom:AddWaypoint(m, x, y, given)
+        if opts.fail then error("TomTom: something broke") end
+        given = given or {}
+        local key = ("%d:%.6f:%.6f:%s"):format(m, x, y, tostring(given.title))
+        if byKey[key] then return byKey[key] end
+        local copy = {}
+        for k, v in pairs(given) do copy[k] = v end
+        local uid = { m, x, y, title = given.title, opts = copy,
+            arrivaldistance = given.arrivaldistance or self.profile.arrival }
+        byKey[key] = uid
+        self.added[#self.added + 1] = uid
+        local crazy = given.crazy
+        if crazy == nil then crazy = self.profile.autoqueue end
+        if crazy then self:SetCrazyArrow(uid, uid.arrivaldistance, uid.title) end
+        return uid
+    end
+    function tomtom:SetCrazyArrow(uid, dist, title)
+        if opts.fail then error("TomTom: something broke") end
+        self.arrow = { uid = uid, dist = dist, title = title }
+    end
+    _G.TomTom = tomtom
+    return tomtom
 end
 
 local function installWorld()
@@ -585,7 +644,7 @@ function Stubs.Install(opts)
     _G.Settings = nil
     _G.LibStub = nil
     _G.CreateScrollBoxListLinearView, _G.CreateDataProvider, _G.ScrollUtil, _G.ScrollBoxConstants = nil, nil, nil, nil
-    _G.C_XMLUtil, _G.C_Texture = nil, nil
+    _G.C_XMLUtil, _G.C_Texture, _G.TomTom = nil, nil, nil
     _G.MapCanvasDataProviderMixin, _G.CreateFromMixins, _G.OpenWorldMap, _G.MenuUtil = nil, nil, nil, nil
     _G.PanelTemplates_SetNumTabs, _G.PanelTemplates_SetTab, _G.StaticPopup_Show, _G.debugprofilestop = nil, nil, nil, nil
     _G.WayscribeDB = opts.accountDB

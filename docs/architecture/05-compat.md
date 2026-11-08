@@ -18,6 +18,7 @@ Compat.has = {
     mapChildren     = …,   -- C_Map.GetMapChildrenInfo: the zone maps coverage counts against
     mapExploration  = …,   -- C_MapExplorationInfo.GetExploredMapTextures: the zones explored (first visits)
     panelTabs       = …,   -- PanelTabButtonTemplate + PanelTemplates_*: the journal's tabs
+    userWaypoint    = …,   -- C_Map.SetUserWaypoint + UiMapPoint + C_SuperTrack: the game's map pin (notes)
     surnames        = …,   -- characters have a surname, returned where other clients return the realm
 }
 Compat.Safe(v [, expectedType])  -- -> v, or nil if issecretvalue(v) or the type is wrong. Every game value goes through this.
@@ -29,6 +30,9 @@ Compat.GetMapAtWorldPos(continentID, x, y) -- -> the most detailed uiMapID there
 Compat.GetParentMap(mapID)       -- -> parentMapID
 Compat.GetZoneRects()            -- -> { { map, c, minX, maxX, minY, maxY } } of every zone map, in world yards
 Compat.GetZoneOf(mapID)          -- -> the zone a map lies in (itself, or the nearest zone above it)
+Compat.HasUserWaypoint()         -- -> whether the game's map pin is there and the ruleset doesn't turn it off
+Compat.CanSetUserWaypoint(mapID) -- -> whether the game's map pin can go on that map (not on continents)
+Compat.SetUserWaypoint(mapID, u, v) -- sets the game's map pin there and tracks it; -> whether it did
 Compat.GetExploredZones()        -- -> { [zoneMapID] = true } for every zone with explored-area textures
 Compat.GetExploredTextureCounts() -- -> { [zoneMapID] = { textures, hover } } of every zone with explored-area textures
 Compat.GetMoney()                -- -> copper, or nil when missing, erroring or secret; the raw value second (trace)

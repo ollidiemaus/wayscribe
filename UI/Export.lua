@@ -73,7 +73,7 @@ local function noteLines(out, fromDay, toDay)
     out[#out + 1] = L.EXPORT_NOTES
     out[#out + 1] = ""
     for _, note in ipairs(notes) do
-        out[#out + 1] = ns.NotesView.Title(note)
+        out[#out + 1] = ns.Notes.Title(note)
         out[#out + 1] = "  " .. ns.NotesView.Subtitle(note)
         for line in ((note.text or "") .. "\n"):gmatch("(.-)\n") do
             out[#out + 1] = line ~= "" and ("  " .. line) or ""

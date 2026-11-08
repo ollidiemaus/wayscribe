@@ -61,6 +61,27 @@ _Avoid_: Hop, bounce
 Forever's own milestone, shown in place of achievements, which the game dates when it is completed.
 _Avoid_: Achievement
 
+### Notes
+
+**Note**:
+The player's own words in the journal: a title and a text the player can edit and delete. Not a
+fact Wayscribe records.
+_Avoid_: Memo, entry (entries are what Wayscribe records)
+
+**Place**:
+A spot in the world that a `/way` line of a note names, by zone and coordinates. A line whose zone
+can't be found is not a place.
+_Avoid_: Waypoint, location, pin
+
+**Marker**:
+A place drawn on the world map, with its note's icon.
+_Avoid_: Pin, waypoint
+
+**Waypoint**:
+A spot that TomTom or the game's own map pin guides the player to with an arrow. A place becomes a
+waypoint only when the player sends it there.
+_Avoid_: Place, marker (for what Wayscribe keeps itself)
+
 ### Knowing a feature works
 
 **In-game check**:

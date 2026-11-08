@@ -1,13 +1,14 @@
 local _, ns = ...
-local L, Compat, Store, Time, Theme, DayView, Notes =
-    ns.L, ns.Compat, ns.Store, ns.Time, ns.Theme, ns.DayView, ns.Notes
+local L, Compat, Store, Time, Theme, DayView, Notes, Waypoints =
+    ns.L, ns.Compat, ns.Store, ns.Time, ns.Theme, ns.DayView, ns.Notes, ns.Waypoints
 
 -- The journal's second tab: the player's own notes (docs/ARCHITECTURE.md §7.9). The left page lists
 -- them, newest first, under a New note button; the right page is the open note, written straight
 -- onto the paper: its title, when it was written and how many places it has, and its text. Every
 -- keystroke is saved; a note left without title and text is dropped. Each /way line of the text
 -- is a marker on the world map (UI/NotesMap.lua), with the icon picked here; leaving a note writes
--- the player's zone into the lines that took it.
+-- the player's zone into the lines that took it. A map-pin button beside each /way line sends its
+-- place to TomTom or the game's map pin (UI/Waypoints.lua).
 local NotesView = {}
 ns.NotesView = NotesView
 
@@ -18,8 +19,11 @@ local ICON_SIZE = 18
 local BODY_TOP = 64        -- the text, under the subtitle
 local BODY_TOP_PLACED = 88 -- the text, under the marker icons
 local DELETE_POPUP = "WAYSCRIBE_DELETE_NOTE"
+local STRIP = 22           -- kept free right of the text, in every note, for the send buttons
+local SEND_SIZE = 16
+local PIN_ATLAS, PIN_HIGHLIGHT = "Waypoint-MapPin-Untracked", "Waypoint-MapPin-Highlight"
 
-local ui = { icons = {} }
+local ui = { icons = {}, sendButtons = {} }
 NotesView.ui = ui
 -- notes: all notes, newest first; selected: the open note's id; shownId: the note the editors hold.
 local state = { notes = {} }
@@ -34,10 +38,6 @@ end
 
 ------------------------------------------------------------------------------------------------
 -- Text, shared with the export
-
-function NotesView.Title(note)
-    return note.title ~= nil and note.title ~= "" and note.title or L.NOTES_UNTITLED
-end
 
 -- "Written Friday, October 9, 2026 · edited 2:05 PM · 3 places on the map · 1 /way line not
 -- found"
@@ -143,7 +143,7 @@ local function confirmDelete()
         whileDead = true,
         hideOnEscape = true,
     }
-    StaticPopup_Show(DELETE_POPUP, NotesView.Title(note), nil, note.id)
+    StaticPopup_Show(DELETE_POPUP, Notes.Title(note), nil, note.id)
 end
 
 -- step 1 turns back (the next older note), -1 on (a newer one). Returns whether it turned.
@@ -181,7 +181,7 @@ local function initRow(row, element)
     end
     local note = element.note
     row.noteId = note.id
-    row.label:SetText(NotesView.Title(note))
+    row.label:SetText(Notes.Title(note))
     row.detail:SetText(listDate(note))
     row.icon:SetShown(#Notes.PlacesOf(note) > 0)
     row.icon:SetTexture(Notes.IconTexture(note.icon))
@@ -380,6 +380,11 @@ local function createBody(page)
     ui.bodyHint:SetPoint("TOPLEFT", 0, 0)
     ui.bodyHint:SetPoint("TOPRIGHT", 0, 0)
     ui.bodyHint:SetText(L.NOTES_WRITE_HERE)
+    -- Lays out lines of the text the way the box does, to find where they sit once they wrap.
+    ui.measure = Theme.Text(page, "text")
+    ui.measure:SetWordWrap(true)
+    ui.measure:SetNonSpaceWrap(true)
+    ui.measure:Hide()
     NotesView.PlaceBody(BODY_TOP)
 end
 
@@ -423,8 +428,22 @@ local function createButtons(page)
     ui.mapButton = createButton(page, L.FOOTSTEPS_SHOW_DAY, L.NOTES_SHOW_ON_MAP_TIP,
         function() ns.NotesMap:ShowNote(state.shownId) end)
     ui.mapButton:SetPoint("BOTTOMLEFT", insets.spine, insets.bottom - 35)
+    ui.sendAllButton = createButton(page, L.NOTES_SEND_ALL, L.NOTES_SEND_ALL_TIP, function()
+        local note = state.shownId and Notes:Get(state.shownId)
+        if note then Waypoints.SendAll(note) end
+    end)
     ui.deleteButton = createButton(page, L.NOTES_DELETE, nil, confirmDelete)
     ui.deleteButton:SetPoint("BOTTOMLEFT", insets.spine, insets.bottom - 35)
+end
+
+-- One after the other, level with the page controls: Show on the map, Send all, Delete.
+local function placeAfter(button, previous)
+    button:ClearAllPoints()
+    if previous then
+        button:SetPoint("LEFT", previous, "RIGHT", 6, 0)
+    else
+        button:SetPoint("BOTTOMLEFT", DayView.INSETS.spine, DayView.INSETS.bottom - 35)
+    end
 end
 
 local function setWritable(writable)
@@ -442,6 +461,95 @@ local function showIcons(note)
         button:SetAlpha(button.icon == (note.icon or 1) and 1 or 0.35)
     end
     NotesView.PlaceBody(placed and BODY_TOP_PLACED or BODY_TOP)
+end
+
+------------------------------------------------------------------------------------------------
+-- The send buttons, beside the /way lines
+
+-- "Send to TomTom" or "Set the map pin here", and where: "Mulgore 49.0 86.4".
+local function showSendTooltip(button)
+    local place = button.place
+    if not (GameTooltip and place) then return end
+    GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
+    GameTooltip:SetText(Waypoints.Target() == "tomtom" and L.NOTES_SEND_TOMTOM or L.NOTES_SEND_PIN)
+    GameTooltip:AddLine(L.NOTES_PLACE:format(Compat.GetMapName(place.map) or "?", place.u, place.v), 0.7, 0.7, 0.7)
+    GameTooltip:Show()
+end
+
+local function onSendClick(button)
+    local note = state.shownId and Notes:Get(state.shownId)
+    if note then Waypoints.Send(note, button.place) end
+end
+
+local function sendButton(i)
+    local button = ui.sendButtons[i]
+    if not button then
+        button = CreateFrame("Button", nil, ui.body)
+        button:SetSize(SEND_SIZE, SEND_SIZE)
+        button:SetNormalAtlas(PIN_ATLAS)
+        button:SetHighlightAtlas(PIN_HIGHLIGHT, "ADD")
+        button:SetScript("OnClick", onSendClick)
+        button:SetScript("OnEnter", showSendTooltip)
+        button:SetScript("OnLeave", hideTooltip)
+        ui.sendButtons[i] = button
+    end
+    return button
+end
+
+-- The box doesn't say where a line sits once the text wraps, so each line is laid out in a hidden
+-- text of the same font and width; a line starts under the ones above it. Heights are kept by
+-- line, for the width they were sendLayout at.
+local sendLayout = { heights = {} }
+
+local function measure(text)
+    ui.measure:SetText(text)
+    return ui.measure:GetStringHeight() or 0
+end
+
+local function setMeasureWidth(width)
+    if sendLayout.width == width then return end
+    sendLayout.width, sendLayout.heights = width, {}
+    ui.measure:SetWidth(width)
+    sendLayout.row = measure("X")
+    sendLayout.gap = measure("X\nX") - 2 * sendLayout.row
+end
+
+local function lineHeight(line, heights)
+    local height = sendLayout.heights[line] or measure(line ~= "" and line or "X")
+    heights[line] = height
+    return height
+end
+
+-- A button level with the first row of each /way line whose place can be sent; none without a
+-- target. Placed again when the places change (the text, or the zone a line without one is in) or
+-- the width does.
+local function placeSendButtons(note, width)
+    local target = Waypoints.Target()
+    local places = Notes.PlacesOf(note)
+    if sendLayout.places == places and sendLayout.target == target and sendLayout.width == width then return end
+    setMeasureWidth(width)
+    sendLayout.places, sendLayout.target = places, target
+    local used, top, index, heights = 0, 0, 1, {}
+    local lineNumber = 0
+    for line in ((note.text or "") .. "\n"):gmatch("(.-)\n") do
+        if not (target and places[index]) then break end
+        lineNumber = lineNumber + 1
+        local place = places[index]
+        if place.line == lineNumber then
+            index = index + 1
+            if Waypoints.CanSend(place, target) then
+                used = used + 1
+                local button = sendButton(used)
+                button.place = place
+                button:ClearAllPoints()
+                button:SetPoint("CENTER", ui.body, "TOPRIGHT", STRIP / 2, -(top + sendLayout.row / 2))
+                button:Show()
+            end
+        end
+        top = top + lineHeight(line, heights) + sendLayout.gap
+    end
+    sendLayout.heights = heights
+    for i = used + 1, #ui.sendButtons do ui.sendButtons[i]:Hide() end
 end
 
 local function showNote(note, paperWidth)
@@ -463,17 +571,21 @@ local function showNote(note, paperWidth)
         ui.bodyScroll:SetVerticalScroll(0)
         updateHints()
     end
-    ui.body:SetWidth(math.max(DayView.TextWidth(paperWidth or 0), 1))
+    local width = math.max(DayView.TextWidth(paperWidth or 0) - STRIP, 1)
+    ui.body:SetWidth(width)
+    placeSendButtons(note, width)
     ui.subtitle:SetText(NotesView.Subtitle(note))
     showIcons(note)
     local onMap = #Notes.PlacesOf(note) > 0 and ns.NotesMap:CanShow()
     ui.mapButton:SetShown(onMap)
-    ui.deleteButton:ClearAllPoints()
-    if onMap then
-        ui.deleteButton:SetPoint("LEFT", ui.mapButton, "RIGHT", 6, 0)
-    else
-        ui.deleteButton:SetPoint("BOTTOMLEFT", DayView.INSETS.spine, DayView.INSETS.bottom - 35)
+    local previous = onMap and ui.mapButton or nil
+    local sendAll = Waypoints.CanSendAll(note)
+    ui.sendAllButton:SetShown(sendAll)
+    if sendAll then
+        placeAfter(ui.sendAllButton, previous)
+        previous = ui.sendAllButton
     end
+    placeAfter(ui.deleteButton, previous)
     setWritable(Notes:IsWritable())
 end
 

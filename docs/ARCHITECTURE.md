@@ -3,7 +3,8 @@
 How Wayscribe is built, and why. Wayscribe is an automatic, per-character journal for **WoW
 Forever**: it records what happens while you play, groups it by day, and powers a login recap, the
 **Footsteps** travel map and **Your Year**, a yearly recap. Next to what it records, the player keeps
-their own **notes** in it, and a note can mark a place on the world map. What it does for players is in the
+their own **notes** in it, and a note can mark a place on the world map and send it to TomTom or the
+game's map pin. What it does for players is in the
 [README](../README.md); how to run the tests and try a build is in [DEVELOPMENT.md](DEVELOPMENT.md).
 
 This page is the overview: the design principles and the layers. Each other section has a file of its
@@ -94,7 +95,7 @@ flowchart LR
 | **Data** | `Store`, `Paths` (Footsteps trails), `Notes` (the player's notes), `Schema` (migrations, safe mode), `RecordTypes`, `Index`, `Players` (interning), `Codec`, `Coverage` (share of Azeroth walked), `YearCards` (Your Year's card registry), `Backup` (the restorable backup string) | Core, Compat |
 | **StaticData** | Plain tables: dungeon → final encounter, quest chains, gather and travel spell IDs, English map names | — |
 | **Trackers** | Translate game events into facts, holding only the minimal state they need | Core, Compat, Data (write API), StaticData |
-| **UI** | Journal window with Your Year and Notes, login recap, settings, minimap, keybind, Footsteps map, notes on the map, export, backup and restore | Core, Data (read API, `Notes` to write the player's notes), RecordTypes |
+| **UI** | Journal window with Your Year and Notes, login recap, settings, minimap, keybind, Footsteps map, notes on the map, sending places to TomTom or the map pin, export, backup and restore | Core, Data (read API, `Notes` to write the player's notes), RecordTypes |
 
 Dependencies point one way only. UI never calls trackers, and trackers never call UI. They talk through
 the Store and the bus. The one write the UI makes is the player's own notes, through `Notes` (§4.9).

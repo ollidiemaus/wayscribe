@@ -1,5 +1,5 @@
 local _, ns = ...
-local Time, Compat = ns.Time, ns.Compat
+local L, Time, Compat = ns.L, ns.Time, ns.Compat
 
 -- The player's own notes (docs/ARCHITECTURE.md §4.9), the single write path for them. They live
 -- in the character's journal file next to the records, so a backup carries them:
@@ -399,6 +399,11 @@ function Notes.PlayerPlace()
     local continent, x, y = Compat.GetPlayerWorldPosition()
     if not continent then return nil end
     return { c = continent, x = x, y = y, sub = Compat.GetSubZoneName() }
+end
+
+-- A note's title, "Untitled" without one.
+function Notes.Title(note)
+    return note.title ~= nil and note.title ~= "" and note.title or L.NOTES_UNTITLED
 end
 
 -- The day a note was written.

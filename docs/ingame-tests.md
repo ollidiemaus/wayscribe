@@ -210,6 +210,23 @@ world map.
   (`/way Atlantis 1 1`) is counted as "1 /way line not found".
 - [ ] **Precision.** Compare a marker from `/way` with the map's own coordinates (lower left). →
   Within about 0.1.
+- [ ] **The pins beside the lines.** A note whose first paragraph wraps over a few rows, then
+  several `/way` lines, one with a label long enough to wrap, and more text than the page holds. →
+  A map-pin button right of each `/way` line, level with its first row, also below the wrapped
+  ones. Scroll the text: the buttons move with their lines. Write a new `/way` line in a note
+  without one: the text doesn't jump when you finish it, and its button appears.
+- [ ] **TomTom** (4.4.1). Click a line's pin. → TomTom's arrow points at the place, titled with
+  the line's label. Follow another waypoint, click the pin again: the arrow is back, and TomTom's
+  list has no second one. *Send all to TomTom* on a note of several places: all are in TomTom's
+  list, the arrow at the one closest to you.
+- [ ] **The game's pin.** Without TomTom, click a line's pin. → The game's pin on the map at that
+  place and its arrow on screen at once; the map stays closed. A `/way Kalimdor 50 50` line has no
+  pin (the game refuses its pin on continents in Forever).
+- [ ] **Ctrl+click a marker** on the world map, with and without TomTom. → The waypoint lands on
+  the marker's place, with no second game pin under the cursor and nothing from TomTom's map
+  click. A plain click still opens the note.
+- [ ] **The page's buttons fit.** A note with places, with TomTom loaded, on a German client. →
+  *Auf der Karte zeigen*, *Alle an TomTom senden* and *Löschen* fit side by side on the page.
 
 ## Backup
 

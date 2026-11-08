@@ -5,12 +5,14 @@ local describe, it = T.describe, T.it
 local GUID = "Player-1-0000AAAA"
 local WIDTH, HEIGHT = 1000, 668 -- the stub map's canvas
 
--- opts.map: with the world map; opts.scrollBox = false: a client without ScrollBox.
+-- opts.map: with the world map; opts.scrollBox = false: a client without ScrollBox;
+-- opts.pin = false: a client without the game's map pin.
 local function start(opts)
     opts = opts or {}
     local ns = Stubs.LoadAddon(opts)
     local map = opts.map and Stubs.InstallWorldMap() or nil
     if opts.scrollBox ~= false then Stubs.InstallScrollBox() end
+    if opts.pin == false then C_Map.SetUserWaypoint = nil end
     Stubs.Login()
     return ns, map
 end
@@ -90,6 +92,15 @@ local function markers(ns)
     local view, list = ns.NotesMap.view, {}
     for i = 1, view.used do
         if view.frames[i]:IsShown() then list[#list + 1] = view.frames[i] end
+    end
+    return list
+end
+
+-- The buttons beside the open note's /way lines, top to bottom.
+local function sendButtons(ns)
+    local list = {}
+    for _, button in ipairs(ns.NotesView.ui.sendButtons or {}) do
+        if button:IsShown() then list[#list + 1] = button end
     end
     return list
 end
@@ -487,7 +498,7 @@ describe("notes on the map", function()
         list[1].scripts.OnEnter(list[1])
         T.same(tooltip.lines, {
             "The Kaldorei", "Hidden Books", "Peacebloom by the river.", "Mulgore 30.0 60.0",
-            "Click to open the note in the journal.",
+            "Click to open the note in the journal.", "Ctrl+click to set the map pin here.",
         })
         list[2].scripts.OnEnter(list[2])
         T.eq(tooltip.lines[1], "Hidden Books", "the note's title without a label")
@@ -555,6 +566,253 @@ describe("notes on the map", function()
         checkbox.toggle()
         T.falsy(ns.NotesMap:IsShownOnMap())
         _G.MenuUtil = nil
+    end)
+end)
+
+describe("sending places", function()
+    it("sets the game's map pin from the button beside a /way line, and tracks it", function()
+        local ns, map = start({ map = true })
+        ns.Notes:Add({ title = "Herbs", text = "Peacebloom by the river.\n/way Mulgore 30.0 60.0 The Kaldorei" })
+        ns.Journal:OpenNotes(1)
+        local list = sendButtons(ns)
+        T.eq(#list, 1)
+        T.eq(list[1].normalAtlas, "Waypoint-MapPin-Untracked", "the game's map pin")
+        local printed = #Stubs.Printed()
+        list[1]:Click()
+        T.same(Stubs.UserWaypoint(), { map = 1412, x = 0.3, y = 0.6, tracked = true })
+        T.falsy(map:IsShown(), "the map stays closed")
+        T.eq(#Stubs.Printed(), printed, "nothing in the chat")
+        T.eq(#ns.Log:GetEntries(), 0)
+    end)
+
+    it("sends a place to TomTom, titled with its label, and points the arrow at it", function()
+        local ns = start({ map = true })
+        local tomtom = Stubs.InstallTomTom({ autoqueue = false })
+        ns.Notes:Add({ title = "Hidden Books", text = "/way Mulgore 30.0 60.0 The Kaldorei\n/way Mulgore 70 20" })
+        ns.Journal:OpenNotes(1)
+        local list = sendButtons(ns)
+        T.eq(#list, 2)
+        T.eq(list[1].normalAtlas, "Waypoint-MapPin-Untracked", "the game's map pin, with TomTom too")
+        local printed = #Stubs.Printed()
+        list[1]:Click()
+        T.eq(#tomtom.added, 1)
+        local kaldorei = tomtom.added[1]
+        T.same({ kaldorei[1], kaldorei[2], kaldorei[3] }, { 1412, 0.3, 0.6 })
+        T.same(kaldorei.opts, { title = "The Kaldorei", from = "Wayscribe" }, "TomTom's settings decide the rest")
+        T.same(tomtom.arrow, { uid = kaldorei, dist = 15, title = "The Kaldorei" },
+            "the arrow points at it, whatever TomTom does with new waypoints")
+        list[2]:Click()
+        T.eq(tomtom.added[2].title, "Hidden Books", "without a label: the note's title")
+        T.eq(tomtom.arrow.uid, tomtom.added[2])
+        list[1]:Click()
+        T.eq(#tomtom.added, 2, "no second waypoint")
+        T.eq(tomtom.arrow.uid, kaldorei, "the arrow points at it again")
+        T.eq(Stubs.UserWaypoint(), nil, "not the game's pin")
+        T.eq(#Stubs.Printed(), printed, "nothing in the chat")
+    end)
+
+    it("offers a button only for a place that can be sent", function()
+        local ns = start({ pin = false })
+        Stubs.SetBestMap(1412)
+        ns.Notes:Add({ title = "Route", text = table.concat({
+            "/way Atlantis 10 10", "/way 20 20", "/way Mulgore 30 60", "/way 40 40", "/way Kalimdor 50 50",
+        }, "\n") })
+        ns.Journal:OpenNotes(1)
+        T.eq(#sendButtons(ns), 0, "nothing to send to")
+        local tomtom = Stubs.InstallTomTom()
+        ns.Journal:Refresh()
+        local list = sendButtons(ns)
+        T.eq(#list, 3, "an unknown zone, and the line under it, find no place")
+        list[2]:Click()
+        T.same({ tomtom.added[1][1], tomtom.added[1][2], tomtom.added[1][3] }, { 1412, 0.4, 0.4 },
+            "a line without a zone: the zone named above")
+        list[3]:Click()
+        T.eq(tomtom.added[2][1], 1414, "a continent")
+
+        ns = start()
+        Stubs.SetBestMap(1412)
+        ns.Notes:Add({ title = "Route", text = "/way 20 20\n/way Kalimdor 50 50" })
+        ns.Journal:OpenNotes(1)
+        list = sendButtons(ns)
+        T.eq(#list, 1, "the game can't pin a continent")
+        list[1]:Click()
+        T.same(Stubs.UserWaypoint(), { map = 1412, x = 0.2, y = 0.2, tracked = true }, "where the player is")
+    end)
+
+    it("leaves the game's pin alone where the ruleset turns it off", function()
+        local ns = start()
+        _G.Enum = { GameRule = { WorldMapTrackingPinDisabled = 7 } }
+        _G.C_GameRules = { IsGameRuleActive = function(rule) return rule == 7 end }
+        ns.Notes:Add({ title = "Herbs", text = "/way Mulgore 30 60" })
+        ns.Journal:OpenNotes(1)
+        T.eq(#sendButtons(ns), 0)
+        Stubs.InstallTomTom()
+        ns.Journal:Refresh()
+        T.eq(#sendButtons(ns), 1, "TomTom isn't the game's pin")
+        _G.Enum, _G.C_GameRules = nil, nil
+    end)
+
+    it("says what a click does, and sits level with its line while the note is written", function()
+        local ns = start()
+        local tooltip = installTooltip()
+        ns.Notes:Add({ title = "Herbs", text = "Peacebloom by the river." })
+        ns.Journal:OpenNotes(1)
+        local ui = ns.NotesView.ui
+        local width = ui.body.width
+        T.eq(#sendButtons(ns), 0)
+        T.truthy(width < ns.DayView.TextWidth(ns.Journal.ui.paperWidth), "a strip is kept free for the buttons")
+        typeInto(ui.body, "Peacebloom by the river.\n\n/way Mulgore 30.0 60.0 The Kaldorei")
+        Stubs.Advance(0) -- the coalesced redraw
+        local list = sendButtons(ns)
+        T.eq(#list, 1)
+        T.eq(ui.body.width, width, "the text doesn't reflow")
+        T.same(list[1].lastPoint, { "CENTER", ui.body, "TOPRIGHT", 11, -30 }, "right of its line, level with its first row")
+        list[1].scripts.OnEnter(list[1])
+        T.same(tooltip.lines, { "Set the map pin here", "Mulgore 30.0 60.0" })
+        Stubs.InstallTomTom()
+        list[1].scripts.OnEnter(list[1])
+        T.same(tooltip.lines, { "Send to TomTom", "Mulgore 30.0 60.0" })
+
+        typeInto(ui.body, "/way Mulgore 70 20\nPeacebloom by the river.\n\n/way Mulgore 30.0 60.0 The Kaldorei")
+        Stubs.Advance(0)
+        list = sendButtons(ns)
+        T.eq(#list, 2, "a button for the new line")
+        T.eq(list[1].lastPoint[5], -6)
+        T.eq(list[2].lastPoint[5], -42, "the line moved down")
+        list[2].scripts.OnEnter(list[2])
+        T.eq(tooltip.lines[2], "Mulgore 30.0 60.0")
+        typeInto(ui.body, "Peacebloom by the river.")
+        Stubs.Advance(0)
+        T.eq(#sendButtons(ns), 0, "gone with its line")
+        _G.GameTooltip = nil
+    end)
+
+    it("sends all of a note's places to TomTom, the arrow at the one closest to the player", function()
+        local ns = start({ map = true })
+        local tomtom = Stubs.InstallTomTom() -- new waypoints would take the arrow
+        ns.Notes:Add({ title = "Herbs", text = "/way Mulgore 10 10 West\n/way Mulgore 50 50 Middle\n/way Mulgore 90 90 East" })
+        ns.Journal:OpenNotes(1)
+        local ui = ns.NotesView.ui
+        T.truthy(ui.sendAllButton:IsShown())
+        T.eq(ui.sendAllButton:GetText(), "Send all to TomTom")
+        T.same(ui.sendAllButton.lastPoint, { "LEFT", ui.mapButton, "RIGHT", 6, 0 }, "after Show on the map")
+        T.same(ui.deleteButton.lastPoint, { "LEFT", ui.sendAllButton, "RIGHT", 6, 0 }, "before Delete")
+        Stubs.SetPosition(1, Stubs.MapToWorld(1412, 0.6, 0.6))
+        local printed = #Stubs.Printed()
+        ui.sendAllButton:Click()
+        T.eq(#tomtom.added, 3)
+        T.same(tomtom.added[1].opts, { title = "West", from = "Wayscribe", crazy = false }, "the arrow stays until all are in")
+        T.same(tomtom.arrow, { uid = tomtom.added[2], dist = 15, title = "Middle" }, "the closest")
+        T.eq(#Stubs.Printed(), printed, "nothing in the chat")
+        Stubs.SetPosition(0, 100, 100)
+        ui.sendAllButton:Click()
+        T.eq(#tomtom.added, 3, "no second waypoints")
+        T.eq(tomtom.arrow.uid, tomtom.added[1], "from another continent: the first place")
+        Stubs.SetPosition(1, Stubs.MapToWorld(1412, 0.95, 0.95))
+        tomtom:AddWaypoint(1412, 0.95, 0.95, { title = "Someone else's" })
+        ui.sendAllButton:Click()
+        T.eq(tomtom.arrow.uid, tomtom.added[3], "never another addon's waypoint")
+        Stubs.SetPosition(nil)
+        ui.sendAllButton:Click()
+        T.eq(tomtom.arrow.uid, tomtom.added[1], "inside a dungeon: the first place")
+    end)
+
+    it("offers Send all only for two places or more, and only with TomTom", function()
+        local ns = start({ map = true })
+        ns.Notes:Add({ title = "Two", text = "/way Mulgore 10 10\n/way Mulgore 50 50" })
+        ns.Notes:Add({ title = "One", text = "/way Mulgore 10 10\n/way Atlantis 50 50" })
+        ns.Journal:OpenNotes(1)
+        local ui = ns.NotesView.ui
+        T.falsy(ui.sendAllButton:IsShown(), "the game's pin holds one place")
+        T.same(ui.deleteButton.lastPoint, { "LEFT", ui.mapButton, "RIGHT", 6, 0 })
+        Stubs.InstallTomTom()
+        ns.Journal:Refresh()
+        T.truthy(ui.sendAllButton:IsShown())
+        ns.Journal:OpenNotes(2)
+        T.falsy(ui.sendAllButton:IsShown(), "one place: its own button does it")
+    end)
+
+    it("works while the journal is read-only", function()
+        local ns = start()
+        local tomtom = Stubs.InstallTomTom()
+        ns.Notes:Add({ title = "Herbs", text = "/way Mulgore 10 10\n/way Mulgore 50 50" })
+        ns.SetSafeMode("test reason")
+        ns.Journal:OpenNotes(1)
+        local ui = ns.NotesView.ui
+        T.falsy(ui.deleteButton:IsEnabled())
+        T.truthy(ui.sendAllButton:IsEnabled())
+        ui.sendAllButton:Click()
+        T.eq(#tomtom.added, 2)
+        sendButtons(ns)[2]:Click()
+        T.eq(tomtom.arrow.uid, tomtom.added[2])
+    end)
+
+    it("Ctrl+click on a marker sends its place, a plain click still opens the note", function()
+        local ns, map = start({ map = true })
+        ns.Notes:Add({ title = "Herbs", text = "/way Mulgore 30 60 The Kaldorei\n/way Kalimdor 50 50" })
+        ns.Journal:Open()
+        map:Show()
+        local list = markers(ns)
+        T.eq(#list, 2)
+        local tooltip = installTooltip()
+        list[1].scripts.OnEnter(list[1])
+        T.same({ tooltip.lines[#tooltip.lines - 1], tooltip.lines[#tooltip.lines] },
+            { "Click to open the note in the journal.", "Ctrl+click to set the map pin here." })
+        Stubs.SetKeys({ ctrl = true })
+        list[1]:Click()
+        T.same(Stubs.UserWaypoint(), { map = 1412, x = 0.3, y = 0.6, tracked = true }, "on the place, not under the cursor")
+        T.eq(ns.Journal.state.tab, "journal", "the note isn't opened")
+        list[2].scripts.OnEnter(list[2])
+        T.eq(tooltip.lines[#tooltip.lines], "Click to open the note in the journal.", "the game can't pin a continent")
+        list[2]:Click()
+        T.eq(Stubs.UserWaypoint().map, 1412)
+        T.eq(ns.Journal.state.tab, "notes", "so Ctrl+click opens the note")
+
+        local tomtom = Stubs.InstallTomTom()
+        list[2].scripts.OnEnter(list[2])
+        T.eq(tooltip.lines[#tooltip.lines], "Ctrl+click to send it to TomTom.")
+        list[2]:Click()
+        T.eq(tomtom.added[1][1], 1414)
+        T.eq(tomtom.arrow.uid, tomtom.added[1])
+        Stubs.SetKeys()
+        list[1]:Click()
+        T.eq(#tomtom.added, 1, "a plain click sends nothing")
+        _G.GameTooltip = nil
+    end)
+
+    it("opens the note on Ctrl+click when there is nothing to send to", function()
+        local ns, map = start({ map = true, pin = false })
+        ns.Notes:Add({ title = "Herbs", text = "/way Mulgore 30 60" })
+        ns.Journal:Open()
+        map:Show()
+        local marker = markers(ns)[1]
+        local tooltip = installTooltip()
+        marker.scripts.OnEnter(marker)
+        T.eq(tooltip.lines[#tooltip.lines], "Click to open the note in the journal.", "no Ctrl+click hint")
+        Stubs.SetKeys({ ctrl = true })
+        marker:Click()
+        Stubs.SetKeys()
+        T.eq(ns.Journal.state.tab, "notes")
+        _G.GameTooltip = nil
+    end)
+
+    it("keeps the notes working when TomTom fails", function()
+        local ns, map = start({ map = true })
+        Stubs.InstallTomTom({ fail = true })
+        ns.Notes:Add({ title = "Herbs", text = "/way Mulgore 10 10\n/way Mulgore 50 50" })
+        ns.Journal:OpenNotes(1)
+        local ui = ns.NotesView.ui
+        sendButtons(ns)[1]:Click()
+        ui.sendAllButton:Click()
+        map:Show()
+        Stubs.SetKeys({ ctrl = true })
+        markers(ns)[1]:Click()
+        Stubs.SetKeys()
+        typeInto(ui.body, "/way Mulgore 10 10\n/way Mulgore 50 50\nStill writing.")
+        Stubs.Advance(0)
+        T.eq(ns.Notes:Get(1).text, "/way Mulgore 10 10\n/way Mulgore 50 50\nStill writing.")
+        T.eq(#sendButtons(ns), 2)
+        T.eq(#ns.Log:GetEntries(), 0, "TomTom's error isn't Wayscribe's")
     end)
 end)
 
@@ -800,7 +1058,31 @@ describe("notes in German", function()
         map:Show()
         local tooltip = installTooltip()
         markers(ns)[1].scripts.OnEnter(markers(ns)[1])
-        T.eq(tooltip.lines[#tooltip.lines], "Klicken, um die Notiz im Tagebuch zu öffnen.")
+        T.eq(tooltip.lines[#tooltip.lines - 1], "Klicken, um die Notiz im Tagebuch zu öffnen.")
+        _G.GameTooltip = nil
+    end)
+
+    it("names sending a place in German", function()
+        local ns, map = start({ locale = "deDE", map = true })
+        ns.Notes:Add({ title = "Kräuter", text = "/way Mulgore 30 60\n/way Mulgore 50 50" })
+        ns.Journal:OpenNotes(1)
+        local ui = ns.NotesView.ui
+        local tooltip = installTooltip()
+        local button = sendButtons(ns)[1]
+        button.scripts.OnEnter(button)
+        T.same(tooltip.lines, { "Die Kartenmarkierung hierhin setzen", "Mulgore 30.0 60.0" })
+        map:Show()
+        markers(ns)[1].scripts.OnEnter(markers(ns)[1])
+        T.eq(tooltip.lines[#tooltip.lines], "Strg+Klick, um die Kartenmarkierung hierhin zu setzen.")
+        Stubs.InstallTomTom()
+        ns.Journal:Refresh()
+        button.scripts.OnEnter(button)
+        T.eq(tooltip.lines[1], "An TomTom senden")
+        markers(ns)[1].scripts.OnEnter(markers(ns)[1])
+        T.eq(tooltip.lines[#tooltip.lines], "Strg+Klick, um den Ort an TomTom zu senden.")
+        T.eq(ui.sendAllButton:GetText(), "Alle an TomTom senden")
+        ui.sendAllButton.scripts.OnEnter(ui.sendAllButton)
+        T.truthy(tooltip.lines[1]:find("^Fügt jeden Ort dieser Notiz zu TomTom hinzu"))
         _G.GameTooltip = nil
     end)
 end)
