@@ -61,6 +61,16 @@ _Avoid_: Hop, bounce
 Forever's own milestone, shown in place of achievements, which the game dates when it is completed.
 _Avoid_: Achievement
 
+### Footsteps
+
+**Footsteps**:
+The record of where the character went, shown as trails on the world map.
+_Avoid_: Route, breadcrumbs
+
+**Trail**:
+One continuous stretch of Footsteps, on foot or in flight.
+_Avoid_: Line (a trail is drawn as many lines)
+
 ### Notes
 
 **Note**:
@@ -74,7 +84,8 @@ can't be found is not a place.
 _Avoid_: Waypoint, location, pin
 
 **Marker**:
-A place drawn on the world map, with its note's icon.
+An icon on the world map at a spot: a note's place, with its note's icon, or where an entry
+happened, such as a death or a hearthstone journey.
 _Avoid_: Pin, waypoint
 
 **Waypoint**:
