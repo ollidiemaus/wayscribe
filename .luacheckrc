@@ -56,7 +56,7 @@ read_globals = {
     -- Libraries (optional, see embeds.xml)
     "LibStub",
     -- Other addons, looked up when used: TomTom (a note's places, UI/Waypoints.lua), OpenMap's
-    -- API (its stitched map, UI/MapPlace.lua)
+    -- API (its stitched map, UI/MapPlacement.lua)
     "TomTom", "OpenMapAPI",
 }
 

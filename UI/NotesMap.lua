@@ -1,9 +1,9 @@
 local _, ns = ...
-local L, Compat, Notes, Waypoints = ns.L, ns.Compat, ns.Notes, ns.Waypoints
+local L, Compat, Notes, Waypoints, MapPlacement = ns.L, ns.Compat, ns.Notes, ns.Waypoints, ns.MapPlacement
 
 -- The notes' places as markers on the world map (docs/ARCHITECTURE.md §7.9). A MapCanvas data
 -- provider of its own, next to Footsteps':
---   * every /way line of a note that can be placed on the shown map (UI/MapPlace.lua: its
+--   * every /way line of a note that can be placed on the shown map (UI/MapPlacement.lua: its
 --     continent on the default map, every continent on OpenMap's stitched map) is a marker with
 --     the note's icon, at Blizzard's own map pin level (above OpenMap's art on its stitched map),
 --     sized for the screen at every zoom; mouseover shows the
@@ -52,13 +52,13 @@ end
 
 -- At the default map's pin level for its own waypoint: above the trails and the map's labels.
 -- On OpenMap's stitched map: above its art and the trails.
-local function ensureFrame(map, place)
+local function ensureFrame(map, placement)
     if not view.frame then
         local canvas = map:GetCanvas()
         view.frame = CreateFrame("Frame", nil, canvas)
         view.frame:SetAllPoints(canvas)
     end
-    view.frame:SetFrameLevel(ns.MapPlace.FrameLevel(map, place, "PIN_FRAME_LEVEL_WAYPOINT_LOCATION", 0, 2))
+    view.frame:SetFrameLevel(placement:FrameLevel(map, "PIN_FRAME_LEVEL_WAYPOINT_LOCATION", 0, 2))
 end
 
 local function hideTooltip()
@@ -114,8 +114,8 @@ local function markerSize(marker)
 end
 
 local function placeMarker(note, place)
-    local u, v = view.place:At(place.c, place.x, place.y)
-    if not u or (view.place.clip and (u < 0 or u > 1 or v < 0 or v > 1)) then return end
+    local u, v = view.placement:At(place.c, place.x, place.y)
+    if not (u and view.placement:Shows(u, v)) then return end
     view.used = view.used + 1
     local marker = view.frames[view.used]
     if not marker then
@@ -139,17 +139,18 @@ end
 
 function NotesMap:Redraw()
     clear()
-    view.place = nil
+    view.placement = nil
     local map = self.map
     if not (map and map:IsShown()) then return end
-    local place = ns.MapPlace.For(map)
-    if not place then return end
-    ensureFrame(map, place)
-    view.place = place
-    view.width, view.height = place.width, place.height
+    local placement = MapPlacement.For(map)
+    if not placement then return end
+    ensureFrame(map, placement)
+    view.placement = placement
+    view.width, view.height = placement.width, placement.height
     view.scale = Compat.Call(map.GetCanvasScale, map) or 1
     local all = self:IsShownOnMap()
-    for _, placed in ipairs(Notes:GetPlaced(place.continent)) do
+    -- The shown map's continent; on the stitched map (continent nil) every continent.
+    for _, placed in ipairs(Notes:GetPlaced(placement.continent)) do
         if all or placed.note.id == view.focus then placeMarker(placed.note, placed.place) end
     end
 end
@@ -229,7 +230,7 @@ function NotesMap:OnCanvasClick(button, u, v)
         return false
     end
     local mapID = self.map and self.map:GetMapID()
-    local transform = mapID and ns.MapPlace.Transform(mapID)
+    local transform = mapID and MapPlacement.Transform(mapID)
     local continent, x, y
     if transform and type(u) == "number" and type(v) == "number" then
         continent, x, y = Compat.GetWorldPosFromMapPos(mapID, u, v)
@@ -267,7 +268,7 @@ function NotesMap:ShowNote(id)
     end
     view.focus = note.id
     local u, v = first.u / 100, first.v / 100
-    ns.MapPlace.Open(first.map, u - AROUND, v - AROUND, u + AROUND, v + AROUND)
+    MapPlacement.Open(first.map, u - AROUND, v - AROUND, u + AROUND, v + AROUND)
     self:Redraw()
     return true
 end
@@ -327,7 +328,7 @@ function NotesMap:Register()
     end
     self.provider = createProvider()
     WorldMapFrame:AddDataProvider(self.provider)
-    ns.MapPlace.OnStitchedChanged(self, function() self:RedrawIfShown() end)
+    MapPlacement.OnStitchedChanged(self, function() self:RedrawIfShown() end)
 end
 
 function NotesMap:OnSettingsChanged(key)

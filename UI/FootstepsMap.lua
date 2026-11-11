@@ -1,10 +1,10 @@
 local _, ns = ...
 local L, Compat, Paths, Time, Geometry, Codec = ns.L, ns.Compat, ns.Paths, ns.Time, ns.Geometry, ns.Codec
-local MapPlace = ns.MapPlace
+local MapPlacement = ns.MapPlacement
 
 -- Footsteps on the world map (docs/ARCHITECTURE.md §6.8). A MapCanvas data provider, the default
 -- map's extension point for addons, draws the trails as lines on the map canvas:
---   * points are placed by UI/MapPlace.lua: on the default map with the shown map's transform
+--   * points are placed by UI/MapPlacement.lua: on the default map with the shown map's transform
 --     (its continent only, clipped to the map); on OpenMap's stitched map one API call each,
 --     every continent, past the host map's edge, above OpenMap's art. A trail breaks where a
 --     point can't be placed;
@@ -45,7 +45,7 @@ local function newPool(sublevel)
 end
 
 -- day: a day picked in the journal, shown until the map closes; job: the drawing coroutine;
--- place: world -> shown map (MapPlace.For), nil while nothing can be drawn; drawnScale: the canvas
+-- placement: world -> shown map (MapPlacement.For), nil while nothing can be drawn; drawnScale: the canvas
 -- scale the lines were drawn for; liveFrom: index of the live trail's last point a line ends at;
 -- tail: the line from there to the player; markers: icons of journal records (deaths, journeys).
 local view = {
@@ -113,11 +113,8 @@ end
 -- A line in canvas coordinates (0..1 across the map), clipped to the map where the placement
 -- says so. False once MAX_LINES are in use.
 local function drawLine(pool, u1, v1, u2, v2, style, alpha)
-    local a, b, c, d = u1, v1, u2, v2
-    if view.place.clip then
-        a, b, c, d = Geometry.ClipToUnit(u1, v1, u2, v2)
-        if not a then return true end
-    end
+    local a, b, c, d = view.placement:Line(u1, v1, u2, v2)
+    if not a then return true end
     if view.trails.used + view.liveTrail.used >= MAX_LINES then return false end
     pool.used = pool.used + 1
     local line = pool.lines[pool.used]
@@ -131,25 +128,32 @@ end
 
 -- World points of `continent` from index `first` on, as connected lines at least minLength long
 -- on the canvas: a shorter step is merged with the next. finish: also connect the last point,
--- however close. A point that can't be placed breaks the trail: no line leads to or from it.
--- Returns false once MAX_LINES are in use, else true and the index of the last point drawn to
--- (or a run starts at).
+-- however close. A point that can't be placed breaks the trail: no line leads to or from it, and
+-- the run before it ends at its last placed point. Returns false once MAX_LINES are in use, else
+-- true and the index of the last point drawn to (or a run starts at).
 local function drawTrail(pool, points, first, continent, style, alpha, finish)
-    local place = view.place
+    local placement = view.placement
     local min2 = view.minLength * view.minLength
-    local fromU, fromV = place:At(continent, points[first], points[first + 1])
+    local fromU, fromV = placement:At(continent, points[first], points[first + 1])
     local anchor = first
+    local lastU, lastV, lastI -- the last placed point, not drawn to yet
     for i = first + 2, #points - 1, 2 do
-        local u, v = place:At(continent, points[i], points[i + 1])
+        local u, v = placement:At(continent, points[i], points[i + 1])
         if not u then
-            fromU, fromV = nil, nil
+            if lastU then
+                if not drawLine(pool, fromU, fromV, lastU, lastV, style, alpha) then return false end
+                anchor = lastI
+            end
+            fromU, fromV, lastU = nil, nil, nil
         elseif not fromU then
             fromU, fromV, anchor = u, v, i
         else
             local du, dv = (u - fromU) * view.width, (v - fromV) * view.height
             if du * du + dv * dv >= min2 or (finish and i >= #points - 1) then
                 if not drawLine(pool, fromU, fromV, u, v, style, alpha) then return false end
-                fromU, fromV, anchor = u, v, i
+                fromU, fromV, anchor, lastU = u, v, i, nil
+            else
+                lastU, lastV, lastI = u, v, i
             end
         end
     end
@@ -162,12 +166,9 @@ local function drawTail(live)
     local last = #points - 1
     local a, b, c, d
     if last > from then
-        local u1, v1 = view.place:At(live.c, points[from], points[from + 1])
-        local u2, v2 = view.place:At(live.c, points[last], points[last + 1])
-        if u1 and u2 then
-            a, b, c, d = u1, v1, u2, v2
-            if view.place.clip then a, b, c, d = Geometry.ClipToUnit(u1, v1, u2, v2) end
-        end
+        local u1, v1 = view.placement:At(live.c, points[from], points[from + 1])
+        local u2, v2 = view.placement:At(live.c, points[last], points[last + 1])
+        if u1 and u2 then a, b, c, d = view.placement:Line(u1, v1, u2, v2) end
     end
     if not a then
         if view.tail then view.tail:Hide() end
@@ -181,7 +182,7 @@ local function drawSegment(segment, recentFrom)
     local points = Codec.DecodePath(segment.p)
     if not points or #points < 4 then return true end
     -- Detail finer than LOD_PIXELS on screen, in yards.
-    local yards = view.place:YardsPerUnit(segment.c, points[1], points[2])
+    local yards = view.placement:YardsPerUnit(segment.c, points[1], points[2])
     local tolerance = yards and yards * view.pixel * LOD_PIXELS or STORED_TOLERANCE
     if tolerance > STORED_TOLERANCE then
         points = Geometry.Simplify(points, tolerance)
@@ -215,7 +216,7 @@ end
 local function drawStored(segments, since)
     for i = #segments, 1, -1 do
         local segment = segments[i]
-        if view.place:Covers(segment.c) then
+        if view.placement:Covers(segment.c) then
             if not drawSegment(segment, since) then return end
             if overBudget() then coroutine.yield() end
         end
@@ -236,13 +237,13 @@ local function resume()
 end
 
 -- Above the map art and its explored areas (OpenMap's art on its stitched map); pins stay on top.
-local function ensureFrame(map, place)
+local function ensureFrame(map, placement)
     if not view.frame then
         local canvas = map:GetCanvas()
         view.frame = CreateFrame("Frame", nil, canvas)
         view.frame:SetAllPoints(canvas)
     end
-    view.frame:SetFrameLevel(MapPlace.FrameLevel(map, place, "PIN_FRAME_LEVEL_MAP_EXPLORATION", 1, 1))
+    view.frame:SetFrameLevel(placement:FrameLevel(map, "PIN_FRAME_LEVEL_MAP_EXPLORATION", 1, 1))
 end
 
 local function clearMarkers()
@@ -263,20 +264,20 @@ function FootstepsMap:Clear()
 end
 
 function FootstepsMap:IsDrawing()
-    return view.place ~= nil and self.map ~= nil and self.map:IsShown()
+    return view.placement ~= nil and self.map ~= nil and self.map:IsShown()
 end
 
 function FootstepsMap:Redraw()
     self:Clear()
-    view.place = nil
+    view.placement = nil
     local map = self.map
     if not (map and map:IsShown()) then return end
     local mode = self:GetMode()
-    local place = mode ~= "off" and MapPlace.For(map)
-    if not place then return end
-    ensureFrame(map, place)
-    view.place = place
-    view.width, view.height = place.width, place.height
+    local placement = mode ~= "off" and MapPlacement.For(map)
+    if not placement then return end
+    ensureFrame(map, placement)
+    view.placement = placement
+    view.width, view.height = placement.width, placement.height
     -- Detail for this zoom, in canvas units.
     view.scale = Compat.Call(map.GetCanvasScale, map) or 1
     view.drawnScale = view.scale
@@ -298,7 +299,7 @@ function FootstepsMap:DrawLive()
         clearPool(view.liveTrail)
         view.liveRef, view.liveFrom = live, 1
     end
-    if not (live and view.place and view.place:Covers(live.c) and covers(self:GetMode(), live.day)) then
+    if not (live and view.placement and view.placement:Covers(live.c) and covers(self:GetMode(), live.day)) then
         if view.tail then view.tail:Hide() end
         return
     end
@@ -352,7 +353,7 @@ end
 
 function FootstepsMap:OnAdded(segment, dayKey)
     local mode = self:GetMode()
-    if not self:IsDrawing() or not covers(mode, dayKey) or not view.place:Covers(segment.c) then return end
+    if not self:IsDrawing() or not covers(mode, dayKey) or not view.placement:Covers(segment.c) then return end
     if view.job then
         self:Redraw() -- still drawing an older list: start over with the new trail in it
     else
@@ -458,8 +459,8 @@ end
 -- marker = { c, x, y, icon, title } from the record's type.
 local function placeMarker(record, marker)
     if type(marker.x) ~= "number" or type(marker.y) ~= "number" then return end
-    local u, v = view.place:At(marker.c, marker.x, marker.y)
-    if not u or (view.place.clip and (u < 0 or u > 1 or v < 0 or v > 1)) then return end
+    local u, v = view.placement:At(marker.c, marker.x, marker.y)
+    if not (u and view.placement:Shows(u, v)) then return end
     local markers = view.markers
     markers.used = markers.used + 1
     local frame = markers.frames[markers.used]
@@ -483,7 +484,7 @@ end
 -- The markers of the days shown, where they can be placed.
 function FootstepsMap:DrawMarkers()
     clearMarkers()
-    if not view.place then return end
+    if not view.placement then return end
     local fromDay, toDay = dayRange(self:GetMode())
     for _, typeName in ipairs(ns.RecordTypes:MarkerTypes()) do
         for _, record in ipairs(ns.Store:GetRecordsOfType(typeName, fromDay, toDay)) do
@@ -551,7 +552,7 @@ function FootstepsMap:Register()
     self.provider = createProvider()
     WorldMapFrame:AddDataProvider(self.provider)
     self:CreateButton(WorldMapFrame)
-    MapPlace.OnStitchedChanged(self, function() self:RedrawIfShown() end)
+    MapPlacement.OnStitchedChanged(self, function() self:RedrawIfShown() end)
 end
 
 ------------------------------------------------------------------------------------------------
@@ -609,7 +610,7 @@ function FootstepsMap:MapForDay(dayKey)
     if not best then return nil end
     local mapID = Compat.GetMapAtWorldPos(best.c, (best.minX + best.maxX) / 2, (best.minY + best.maxY) / 2)
     for _ = 1, MAX_PARENTS do
-        if not mapID or fits(MapPlace.Transform(mapID), best) then break end
+        if not mapID or fits(MapPlacement.Transform(mapID), best) then break end
         mapID = Compat.GetParentMap(mapID)
     end
     return mapID, best
@@ -617,7 +618,7 @@ end
 
 -- The bounds of box on map mapID (u1, v1, u2, v2), or nil.
 local function boundsOn(mapID, box)
-    local transform = mapID and box and MapPlace.Transform(mapID)
+    local transform = mapID and box and MapPlacement.Transform(mapID)
     if not (transform and transform.continent == box.c) then return nil end
     local u1, v1 = Geometry.ToMap(transform, box.minX, box.minY)
     local u2, v2 = Geometry.ToMap(transform, box.maxX, box.maxY)
@@ -637,7 +638,7 @@ function FootstepsMap:ShowDay(dayKey)
     end
     view.day = dayKey
     local mapID, box = self:MapForDay(dayKey)
-    MapPlace.Open(mapID, boundsOn(mapID, box))
+    MapPlacement.Open(mapID, boundsOn(mapID, box))
     self:UpdateButton()
     self:Redraw()
     return true

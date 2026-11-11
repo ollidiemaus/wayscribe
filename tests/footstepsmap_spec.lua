@@ -383,6 +383,18 @@ describe("on OpenMap's stitched map", function()
         T.eq(#ns.Log:GetEntries(), 0)
     end)
 
+    it("runs a trail up to its last placed point before a break", function()
+        local ns, map = start({ openMap = {} })
+        map.mapID = 1414
+        map:Show()
+        -- Steps of about 21 yards, a line every three: the last two steps before Kalimdor's edge are
+        -- too short for a line of their own.
+        walkOnMap(1414, 0.9945, 0.5, 1.004, 0.5)
+        local reach = 0
+        for _, line in ipairs(live(ns)) do reach = math.max(reach, line.x1, line.x2) end
+        T.truthy(reach > 0.999 * WIDTH and reach <= WIDTH, "the trail reaches " .. reach)
+    end)
+
     it("draws again when the map underneath changes or the maps switch, not on a pan", function()
         local ns, map, openMap = start({ openMap = {} })
         trail(1412, 0.2, 0.5, 0.6, 0.5)

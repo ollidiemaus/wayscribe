@@ -9,19 +9,19 @@ local Compat, Geometry = ns.Compat, ns.Geometry
 --   * On OpenMap's stitched map (docs/adr/0001-openmap-via-its-public-api.md): every point is
 --     placed with OpenMapAPI.CanvasFromWorldPos, one call each, on every continent, and may land
 --     past the host map's 0..1; nil means it can't be placed. Frames go above OpenMap's art.
--- Opening the map at a place is here too: the stitched map glides there instead.
-local MapPlace = {}
-ns.MapPlace = MapPlace
+-- Opening the map at a spot is here too: the stitched map glides there instead.
+local MapPlacement = {}
+ns.MapPlacement = MapPlacement
 
 local PROBE_YARDS = 100 -- how far apart the two points are that measure the stitched scale
 local FIT = 0.8         -- of the stitched view the shown box fills
-local MAX_ZOOM = 16
+local MAX_ZOOM = 48     -- OpenMap's deepest zoom; it keeps the view inside its own limits too
 
 local transforms = {}
 
 -- The world-to-map transform of a map, with its continent; nil for maps spanning several
 -- continents (the world map) or without world coordinates.
-function MapPlace.Transform(mapID)
+function MapPlacement.Transform(mapID)
     local cached = transforms[mapID]
     if cached == nil then
         cached = false
@@ -40,20 +40,41 @@ end
 
 ------------------------------------------------------------------------------------------------
 -- Placements: For(map) answers for the map as it shows now; a new one after every change.
+-- Both kinds answer:
+--   Covers(c)             whether points of continent c can be placed at all
+--   At(c, x, y)           canvas u, v (0..1 across the host map), or nil
+--   Line(u1, v1, u2, v2)  the part of a line to draw, or nil
+--   Shows(u, v)           whether a marker at u, v is drawn
+--   YardsPerUnit(c, x, y) yards per canvas unit around a point, or nil
+--   FrameLevel(map, pin, overPin, over)  the level for a frame of drawings on the canvas
+-- Fields: continent (the one continent placed; nil: every continent), width and height of the
+-- canvas.
 
 local Default, Stitched = {}, {}
 Default.__index, Stitched.__index = Default, Stitched
 
 function Default:Covers(continent) return continent == self.continent end
 
--- Map u, v of a world point (0..1 inside the map), or nil.
 function Default:At(continent, x, y)
     if continent ~= self.continent then return nil end
     return Geometry.ToMap(self.transform, x, y)
 end
 
+-- Clipped to the map.
+function Default:Line(u1, v1, u2, v2) return Geometry.ClipToUnit(u1, v1, u2, v2) end
+
+function Default:Shows(u, v) return u >= 0 and u <= 1 and v >= 0 and v <= 1 end
+
 function Default:YardsPerUnit()
     return self.transform.width / self.width
+end
+
+-- overPin levels above the default map's pin level `pin`, else `over` above the canvas.
+function Default:FrameLevel(map, pin, overPin, over)
+    local levels = map.GetPinFrameLevelsManager and Compat.Call(map.GetPinFrameLevelsManager, map)
+    local level = type(levels) == "table" and Compat.Call(levels.GetValidFrameLevel, levels, pin)
+    if type(level) == "number" then return level + overPin end
+    return map:GetCanvas():GetFrameLevel() + over
 end
 
 function Stitched:Covers(continent) return type(continent) == "number" end
@@ -64,10 +85,13 @@ function Stitched:At(continent, x, y)
     return u, v
 end
 
--- Yards per canvas unit around a point, measured by placing two points; nil where they can't be.
+-- The view shows past the host map: nothing is clipped.
+function Stitched:Line(u1, v1, u2, v2) return u1, v1, u2, v2 end
+
+function Stitched:Shows() return true end
+
+-- Measured by placing two points: OpenMap's regions each have a scale of their own.
 function Stitched:YardsPerUnit(continent, x, y)
-    local cached = self.scales[continent]
-    if cached then return cached end
     local u1, v1 = self:At(continent, x, y)
     if not u1 then return nil end
     local u2, v2 = self:At(continent, x + PROBE_YARDS, y)
@@ -75,41 +99,30 @@ function Stitched:YardsPerUnit(continent, x, y)
     if not u2 then return nil end
     local du, dv = (u2 - u1) * self.width, (v2 - v1) * self.height
     local distance = math.sqrt(du * du + dv * dv)
-    if distance <= 0 then return nil end
-    self.scales[continent] = PROBE_YARDS / distance
-    return self.scales[continent]
+    return distance > 0 and PROBE_YARDS / distance or nil
+end
+
+-- `over` levels above OpenMap's art.
+function Stitched:FrameLevel(map, pin, overPin, over)
+    local top = Compat.Call(self.api.ArtTopLevel)
+    if type(top) == "number" then return top + over end
+    return Default.FrameLevel(self, map, pin, overPin, over)
 end
 
 -- How points go on map's canvas now; nil where nothing can be placed (the whole world on the
--- default map, or a canvas without a size). Fields: stitched, clip (lines and markers stay
--- inside 0..1), width and height of the canvas.
-function MapPlace.For(map)
+-- default map, or a canvas without a size).
+function MapPlacement.For(map)
     local canvas = map:GetCanvas()
     local width, height = canvas:GetWidth(), canvas:GetHeight()
     if not (width > 0 and height > 0) then return nil end
     local api = Compat.StitchedMap()
     if api then
-        return setmetatable({ stitched = true, api = api, scales = {}, width = width, height = height }, Stitched)
+        return setmetatable({ api = api, width = width, height = height }, Stitched)
     end
-    local transform = MapPlace.Transform(map:GetMapID())
+    local transform = MapPlacement.Transform(map:GetMapID())
     if not transform then return nil end
-    return setmetatable({
-        clip = true, transform = transform, continent = transform.continent, width = width, height = height,
-    }, Default)
-end
-
--- The frame level for a frame of drawings on the canvas: `over` levels above OpenMap's art on
--- the stitched map; otherwise overPin above the default map's pin level `pin`, or `over` above
--- the canvas.
-function MapPlace.FrameLevel(map, place, pin, overPin, over)
-    if place.stitched then
-        local top = Compat.Call(place.api.ArtTopLevel)
-        if type(top) == "number" then return top + over end
-    end
-    local levels = map.GetPinFrameLevelsManager and Compat.Call(map.GetPinFrameLevelsManager, map)
-    local level = type(levels) == "table" and Compat.Call(levels.GetValidFrameLevel, levels, pin)
-    if type(level) == "number" then return level + overPin end
-    return map:GetCanvas():GetFrameLevel() + over
+    return setmetatable({ transform = transform, continent = transform.continent, width = width, height = height },
+        Default)
 end
 
 ------------------------------------------------------------------------------------------------
@@ -130,7 +143,7 @@ end
 
 -- Opens the world map in front of the journal at mapID (or as it is). On the stitched map the
 -- view glides to the box of mapID (u1, v1 to u2, v2; default: all of it) instead.
-function MapPlace.Open(mapID, u1, v1, u2, v2)
+function MapPlacement.Open(mapID, u1, v1, u2, v2)
     local map = WorldMapFrame
     if not map:IsShown() then
         if type(OpenWorldMap) == "function" then
@@ -147,7 +160,7 @@ function MapPlace.Open(mapID, u1, v1, u2, v2)
 end
 
 -- Calls fn() whenever the world map switches between OpenMap's stitched map and the default.
-function MapPlace.OnStitchedChanged(owner, fn)
+function MapPlacement.OnStitchedChanged(owner, fn)
     local api = Compat.OpenMapAPI()
     if not (api and type(api.RegisterCallback) == "function") then return end
     Compat.Call(api.RegisterCallback, owner, "OpenMap_StitchedChanged", function()

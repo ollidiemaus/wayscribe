@@ -161,7 +161,8 @@ function Compat.OpenMapAPI()
     return api
 end
 
--- The API while the world map shows OpenMap's stitched map, else nil.
+-- The API while OpenMap's stitched map is the world map's, else nil. OpenMap still answers yes
+-- after the map closes, so ask only while it shows.
 function Compat.StitchedMap()
     local api = Compat.OpenMapAPI()
     return api and Compat.Call(api.IsStitched) == true and api or nil
