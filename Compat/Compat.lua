@@ -148,6 +148,25 @@ function Compat.HasWorldMapCanvas()
         and Compat.has.mapWorldPos == true and type(CreateVector2D) == "function"
 end
 
+-- OpenMap's public API (docs/adr/0001-openmap-via-its-public-api.md) where it can place points
+-- on its stitched map: major 1, version 2 or later. Looked up on every call, by what it offers,
+-- never by addon name; nil otherwise.
+function Compat.OpenMapAPI()
+    local api = OpenMapAPI
+    if type(api) ~= "table" or api.major ~= 1 or type(api.version) ~= "number" or api.version < 2 then return nil end
+    if type(api.IsStitched) ~= "function" or type(api.CanvasFromWorldPos) ~= "function"
+        or type(api.ArtTopLevel) ~= "function" then
+        return nil
+    end
+    return api
+end
+
+-- The API while the world map shows OpenMap's stitched map, else nil.
+function Compat.StitchedMap()
+    local api = Compat.OpenMapAPI()
+    return api and Compat.Call(api.IsStitched) == true and api or nil
+end
+
 local function text(value)
     return type(value) == "string" and value ~= "" and value or nil
 end

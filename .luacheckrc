@@ -55,8 +55,9 @@ read_globals = {
     "C_QuestLog", "C_Reputation", "C_SkillInfo", "C_Spell", "C_SuperTrack", "C_TaxiMap", "C_Texture", "C_Timer", "C_TradeSkillUI", "C_XMLUtil",
     -- Libraries (optional, see embeds.xml)
     "LibStub",
-    -- Other addons, looked up when used: TomTom (a note's places, UI/Waypoints.lua)
-    "TomTom",
+    -- Other addons, looked up when used: TomTom (a note's places, UI/Waypoints.lua), OpenMap's
+    -- API (its stitched map, UI/MapPlace.lua)
+    "TomTom", "OpenMapAPI",
 }
 
 files["Locales/"] = { max_line_length = false }

@@ -160,6 +160,23 @@ Wayscribe draws where you walked as a dark red line on the world map.
 - [ ] **Footsteps settings.** The map dropdown and the flights checkbox work. *Delete all trails*
   asks first (try it only on a test character).
 
+### With OpenMap (#48)
+
+With OpenMap installed (version 2 of its API or later) and its stitched map showing:
+- [ ] **Over the art.** → Today's trails, a death's skull and your note markers show above OpenMap's
+  map art, not under it. Mouseover on a skull shows its time.
+- [ ] **Across a zone's edge.** Walk from one zone into the next, then open the map zoomed onto the
+  first zone. → The trail runs on past the zone's border without a cut.
+- [ ] **Both continents.** With trails in Kalimdor and the Eastern Kingdoms (*Last 7 days* or *All*),
+  zoom out. → Both show, each in its place.
+- [ ] **Pan and zoom.** Drag the map around: no stutter, trails stay put. Zoom far in, wait a moment.
+  → More detail; lines and markers keep their size on screen.
+- [ ] **All.** With several days of trails, set *All* and open the map. → No hitch.
+- [ ] **Show on the map.** From a journal day with trails. → The stitched map glides to that day's
+  trails, zoomed so they fit. A note's *Show on the map* glides to its place.
+- [ ] **Switch maps.** Switch to Blizzard's map with OpenMap's button and back. → The trails are drawn
+  right on each, clipped to the zone on Blizzard's.
+
 ## Journeys and deaths
 
 - [ ] **Hearthstone to another continent** (with a loading screen). → An entry "Hearthstone to …";

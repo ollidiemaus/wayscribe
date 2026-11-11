@@ -102,7 +102,8 @@ local function newFrame(frameType, name, parent, template)
     function frame:IsEnabled() return not self.disabled end
     function frame:SetTitle(text) self.title = text end
     function frame:SetupMenu(generator) self.menuGenerator = generator end
-    function frame:GetFrameLevel() return 1 end
+    function frame:GetFrameLevel() return self.frameLevel or 1 end
+    function frame:SetFrameLevel(level) self.frameLevel = level end
     function frame:SetPoint(...) self.lastPoint = { ... } end
     function frame:SetText(text) self.text = text end
     function frame:GetText() return self.text end
@@ -644,7 +645,7 @@ function Stubs.Install(opts)
     _G.Settings = nil
     _G.LibStub = nil
     _G.CreateScrollBoxListLinearView, _G.CreateDataProvider, _G.ScrollUtil, _G.ScrollBoxConstants = nil, nil, nil, nil
-    _G.C_XMLUtil, _G.C_Texture, _G.TomTom = nil, nil, nil
+    _G.C_XMLUtil, _G.C_Texture, _G.TomTom, _G.OpenMapAPI = nil, nil, nil, nil
     _G.MapCanvasDataProviderMixin, _G.CreateFromMixins, _G.OpenWorldMap, _G.MenuUtil = nil, nil, nil, nil
     _G.PanelTemplates_SetNumTabs, _G.PanelTemplates_SetTab, _G.StaticPopup_Show, _G.debugprofilestop = nil, nil, nil, nil
     _G.WayscribeDB = opts.accountDB
@@ -728,6 +729,66 @@ function Stubs.InstallWorldMap()
         if mapID then map:SetMapID(mapID) end
     end
     return map
+end
+
+-- OpenMap's public API (its API.lua) on the stub world map, stitched while the map shows.
+-- The fake stitched world (u, v: 0..1) holds Kalimdor (continent 1, the yards of map 1414) in
+-- its west half and the Eastern Kingdoms (continent 0, the same yards) in its east half; a point
+-- outside a continent's yards has no place. So a Kalimdor point lands on the host map's canvas
+-- where Stubs.WorldToMap(host) puts it, and an Eastern Kingdoms point one Kalimdor width (1 on
+-- map 1414) further east. opts: major (1), version (4), stitched (true).
+-- api.SetStitched(on) switches maps like OpenMap's own button; api.Pan(u, v) moves the view;
+-- api.glides lists every ShowWorld; api.placed counts CanvasFromWorldPos calls.
+function Stubs.InstallOpenMap(map, opts)
+    opts = opts or {}
+    local api = { major = opts.major or 1, version = opts.version or 4, glides = {}, placed = 0 }
+    local stitched = opts.stitched ~= false
+    local callbacks = {}
+    local function fire(event, ...)
+        for _, method in pairs(callbacks[event] or {}) do method(event, ...) end
+    end
+    -- A point of the host map (0..1) and the stitched world, through the yards of map 1414.
+    local function worldFromMap(mapID, x, y)
+        if not MAPS[mapID] then return nil end
+        local u, v = Stubs.WorldToMap(1414, Stubs.MapToWorld(mapID, x, y))
+        return u / 2, v
+    end
+    local function mapFromWorld(mapID, u, v)
+        if not MAPS[mapID] then return nil end
+        return Stubs.WorldToMap(mapID, Stubs.MapToWorld(1414, u * 2, v))
+    end
+    function api.IsStitched() return stitched and map:IsShown() end
+    function api.RegisterCallback(owner, event, method)
+        callbacks[event] = callbacks[event] or {}
+        callbacks[event][owner] = method
+    end
+    function api.WorldFromMap(mapID, x, y)
+        if type(x) ~= "number" or type(y) ~= "number" then return nil end
+        return worldFromMap(mapID, x, y)
+    end
+    function api.MapFromWorld(mapID, u, v) return mapFromWorld(mapID, u, v) end
+    function api.ShowWorld(u, v, zoom)
+        if not api.IsStitched() then return false end
+        api.glides[#api.glides + 1] = { u = u, v = v, zoom = zoom }
+        return true
+    end
+    if api.version >= 2 then
+        function api.CanvasFromWorldPos(continent, x, y)
+            api.placed = api.placed + 1
+            if not api.IsStitched() or (continent ~= 0 and continent ~= 1) then return nil end
+            local u, v = Stubs.WorldToMap(1414, x, y)
+            if u < 0 or u > 1 or v < 0 or v > 1 then return nil end
+            return mapFromWorld(map:GetMapID(), (u + (continent == 0 and 1 or 0)) / 2, v)
+        end
+        function api.ArtTopLevel() return 2000 end
+    end
+    function api.SetStitched(on)
+        stitched = on
+        fire("OpenMap_StitchedChanged", on)
+    end
+    function api.Pan(u, v) fire("OpenMap_ViewChanged", u, v, 2) end
+    _G.OpenMapAPI = api
+    return api
 end
 
 -- Lua files in TOC order; embeds.xml (the libraries) is skipped, like a copy without Libs.

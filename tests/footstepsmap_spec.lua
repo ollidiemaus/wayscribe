@@ -6,15 +6,17 @@ local DAY = 24 * 3600
 local WIDTH, HEIGHT = 1000, 668 -- the stub map's canvas
 
 -- opts.noMap: a client without the world map's data providers.
+-- opts.openMap: OpenMap's API on the map (Stubs.InstallOpenMap's opts); returned third.
 -- opts.before(): runs just before the login (spell names, for example).
 local function start(opts)
     opts = opts or {}
     local ns = Stubs.LoadAddon(opts)
     local map = not opts.noMap and Stubs.InstallWorldMap() or nil
+    local openMap = opts.openMap and Stubs.InstallOpenMap(map, opts.openMap) or nil
     Stubs.InstallScrollBox()
     if opts.before then opts.before() end
     Stubs.Login()
-    return ns, map
+    return ns, map, openMap
 end
 
 local function wait(seconds)
@@ -333,6 +335,153 @@ describe("journeys on the map", function()
     end)
 end)
 
+-- Map 1414's point (u, v), in yards.
+local function kalimdor(u, v)
+    return Stubs.MapToWorld(1414, u, v)
+end
+
+describe("on OpenMap's stitched map", function()
+    it("draws trails above OpenMap's art, past the edge of the map underneath", function()
+        local ns, map = start({ openMap = {} })
+        trail(1412, 0.8, 0.3, 1.3, 0.3)
+        map:Show()
+        local lines = trails(ns)
+        T.eq(#lines, 1)
+        expectLine(lines[1], 0.8, 0.3, 1.3, 0.3)
+        T.truthy(ns.FootstepsMap.view.frame:GetFrameLevel() > 2000, "above the art")
+        T.eq(#ns.Log:GetEntries(), 0)
+    end)
+
+    it("draws the trails of both continents, each in its place", function()
+        local ns, map = start({ openMap = {} })
+        map.mapID = 1414
+        trail(1414, 0.2, 0.5, 0.3, 0.5)
+        trail(1414, 0.6, 0.4, 0.7, 0.4, 0) -- the same yards in the Eastern Kingdoms: east of Kalimdor
+        map:Show()
+        local lines = trails(ns)
+        T.eq(#lines, 2)
+        expectLine(lines[1], 1.6, 0.4, 1.7, 0.4) -- newest first
+        expectLine(lines[2], 0.2, 0.5, 0.3, 0.5)
+    end)
+
+    it("breaks a trail where OpenMap can't place a point", function()
+        local ns, map = start({ openMap = {} })
+        map.mapID = 1414
+        -- Out past Kalimdor's yards and back.
+        local corners = { { 0.90, 0.50 }, { 0.95, 0.45 }, { 1.05, 0.50 }, { 0.97, 0.55 }, { 0.92, 0.60 } }
+        for i = 1, #corners - 1 do
+            walkOnMap(1414, corners[i][1], corners[i][2], corners[i + 1][1], corners[i + 1][2], 1, 80)
+        end
+        wait(61)
+        map:Show()
+        local lines = trails(ns)
+        T.truthy(#lines >= 2, "lines: " .. #lines)
+        for _, line in ipairs(lines) do
+            T.truthy(line.x1 <= WIDTH + 0.5 and line.x2 <= WIDTH + 0.5, "no line out to the unplaced point")
+            T.truthy(math.abs(line.x2 - line.x1) < 0.08 * WIDTH, "no line across the gap")
+        end
+        T.eq(#ns.Log:GetEntries(), 0)
+    end)
+
+    it("draws again when the map underneath changes or the maps switch, not on a pan", function()
+        local ns, map, openMap = start({ openMap = {} })
+        trail(1412, 0.2, 0.5, 0.6, 0.5)
+        trail(1412, 0.2, 0.5, 0.6, 0.5, 0)
+        map:Show()
+        T.eq(#trails(ns), 2)
+        local placed = openMap.placed
+        openMap.Pan(0.3, 0.4)
+        T.eq(openMap.placed, placed, "a pan places nothing again")
+        T.eq(#trails(ns), 2)
+
+        map:SetMapID(1414)
+        local lines = trails(ns)
+        T.eq(#lines, 2)
+        local u1, v1 = Stubs.WorldToMap(1414, Stubs.MapToWorld(1412, 0.2, 0.5))
+        local u2, v2 = Stubs.WorldToMap(1414, Stubs.MapToWorld(1412, 0.6, 0.5))
+        expectLine(lines[2], u1, v1, u2, v2)
+
+        openMap.SetStitched(false)
+        T.eq(#trails(ns), 1, "Blizzard's map: Kalimdor's only")
+        T.truthy(ns.FootstepsMap.view.frame:GetFrameLevel() < 2000, "at the map's own level")
+        openMap.SetStitched(true)
+        T.eq(#trails(ns), 2)
+        T.truthy(ns.FootstepsMap.view.frame:GetFrameLevel() > 2000)
+    end)
+
+    it("grows the trail being recorded past the map's edge, with its tail to the player", function()
+        local ns, map = start({ openMap = {} })
+        map:Show()
+        walkOnMap(1412, 1.2, 0.5, 1.25, 0.5)
+        T.truthy(#live(ns) >= 2, "lines: " .. #live(ns))
+        local position = Stubs.state.position
+        Stubs.SetPosition(1, position.x, position.y - 9) -- too short a step for a line
+        Stubs.Advance(1)
+        local tail = ns.FootstepsMap.view.tail
+        T.truthy(tail and tail:IsShown())
+        local u, v = Stubs.WorldToMap(1412, position.x, position.y - 9)
+        T.truthy(u > 1, "past the edge")
+        near(tail.x2, u * WIDTH, "tail x")
+        near(tail.y2, -v * HEIGHT, "tail y")
+    end)
+
+    it("keeps line widths on screen and draws detail for the settled zoom", function()
+        local ns, map = start({ openMap = {} })
+        local x, y = Stubs.MapToWorld(1412, 0.5, 0.5)
+        for i = 0, 60 do
+            local angle = i / 60 * math.pi
+            Stubs.SetPosition(1, x + 300 * math.cos(angle), y + 300 * math.sin(angle))
+            Stubs.Advance(1)
+        end
+        wait(61)
+        map.canvasScale = 0.5
+        map:Show()
+        local zoomedOut = #trails(ns)
+        map:Zoom(4)
+        T.eq(trails(ns)[1].thickness, 2.5 / 4)
+        Stubs.Advance(1)
+        T.truthy(#trails(ns) > zoomedOut, "more detail zoomed in: " .. zoomedOut .. " -> " .. #trails(ns))
+    end)
+
+    it("marks deaths and journeys anywhere on the stitched world, above OpenMap's art", function()
+        local ns, map = start({ openMap = {}, before = function()
+            Stubs.state.spellNames[8690] = "Hearthstone"
+            Stubs.state.spellIcons[8690] = 134414
+        end })
+        dieAt(1412, 1.5, 0.5)
+        Stubs.Advance(60)
+        walkOnMap(1412, 0.3, 0.6, 0.31, 0.6)
+        Stubs.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-1-1-1-1", 8690)
+        Stubs.SetSubZone("Bloodhoof")
+        Stubs.SetPosition(0, kalimdor(0.5, 0.5))
+        wait(3)
+        map:Show()
+        local list = markers(ns)
+        T.eq(#list, 3)
+        near(list[1].lastPoint[4], 1.5 * WIDTH, "the skull past the zone's edge")
+        local u, v = Stubs.WorldToMap(1412, kalimdor(1.5, 0.5))
+        near(list[3].lastPoint[4], u * WIDTH, "arrived in the Eastern Kingdoms: x")
+        near(list[3].lastPoint[5], -v * HEIGHT, "y")
+        T.truthy(list[1]:GetParent():GetFrameLevel() > 2000)
+        map:Zoom(2)
+        T.eq(list[1].width, 8)
+        dieAt(1412, 0.5, 0.5)
+        T.eq(#markers(ns), 4, "a new skull while the map is open")
+    end)
+
+    it("is left alone by an OpenMap too old to place points", function()
+        local ns, map = start({ openMap = { version = 1 } })
+        trail(1412, 0.8, 0.3, 1.3, 0.3)
+        trail(1412, 0.2, 0.5, 0.6, 0.5, 0)
+        map:Show()
+        local lines = trails(ns)
+        T.eq(#lines, 1)
+        expectLine(lines[1], 0.8, 0.3, 1, 0.3)
+        T.truthy(ns.FootstepsMap.view.frame:GetFrameLevel() < 2000)
+        T.eq(#ns.Log:GetEntries(), 0)
+    end)
+end)
+
 describe("from the journal", function()
     it("shows a day's footsteps on the map that holds them", function()
         local ns, map = start()
@@ -354,6 +503,34 @@ describe("from the journal", function()
         T.eq(ns.FootstepsMap:GetMode(), "today", "back to the usual trails once the map closes")
         map:Show()
         T.eq(#trails(ns), 0)
+    end)
+
+    it("glides OpenMap's stitched map to the day's trails", function()
+        local ns, map, openMap = start({ openMap = {} })
+        trail(1412, 0.2, 0.5, 0.4, 0.6)
+        ns.Journal:Open()
+        ns.Journal.ui.pathLink:Click()
+        T.truthy(map:IsShown())
+        T.eq(#openMap.glides, 1)
+        local glide = openMap.glides[1]
+        -- The fake stitched world: Kalimdor's map 1414 squeezed into its west half.
+        local u1, v1 = Stubs.WorldToMap(1414, Stubs.MapToWorld(1412, 0.2, 0.5))
+        local u2, v2 = Stubs.WorldToMap(1414, Stubs.MapToWorld(1412, 0.4, 0.6))
+        T.truthy(math.abs(glide.u - (u1 + u2) / 4) < 1e-4, "u: " .. glide.u)
+        T.truthy(math.abs(glide.v - (v1 + v2) / 2) < 1e-4, "v: " .. glide.v)
+        local extent = math.max(math.abs(u2 - u1) / 2, math.abs(v2 - v1))
+        T.truthy(glide.zoom > 1 and glide.zoom * extent <= 1, "the trails fit: zoom " .. glide.zoom)
+        T.eq(#trails(ns), 1)
+    end)
+
+    it("opens the map that holds the day when Blizzard's map shows, OpenMap or not", function()
+        local ns, map, openMap = start({ openMap = { stitched = false } })
+        trail(1412, 0.2, 0.5, 0.3, 0.5)
+        map.mapID = 1414
+        ns.Journal:Open()
+        ns.Journal.ui.pathLink:Click()
+        T.eq(map:GetMapID(), 1412)
+        T.eq(#openMap.glides, 0)
     end)
 
     it("opens the continent for a trail that leaves the zone", function()

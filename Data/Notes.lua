@@ -232,13 +232,13 @@ function Notes:GetAll()
     return all
 end
 
--- Every place on a continent: { { note, place }, ... }.
+-- Every place on a continent (nil: on every continent): { { note, place }, ... }.
 function Notes:GetPlaced(continent)
     local placed = {}
     for _, note in ipairs(list(self.db)) do
         if isNote(note) then
             for _, place in ipairs((Notes.PlacesOf(note))) do
-                if place.c == continent then placed[#placed + 1] = { note = note, place = place } end
+                if continent == nil or place.c == continent then placed[#placed + 1] = { note = note, place = place } end
             end
         end
     end

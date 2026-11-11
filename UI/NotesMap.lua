@@ -1,10 +1,12 @@
 local _, ns = ...
-local L, Compat, Geometry, Notes, Waypoints = ns.L, ns.Compat, ns.Geometry, ns.Notes, ns.Waypoints
+local L, Compat, Notes, Waypoints = ns.L, ns.Compat, ns.Notes, ns.Waypoints
 
 -- The notes' places as markers on the world map (docs/ARCHITECTURE.md §7.9). A MapCanvas data
 -- provider of its own, next to Footsteps':
---   * every /way line of a note on the shown map's continent is a marker with the note's icon,
---     at Blizzard's own map pin level, sized for the screen at every zoom; mouseover shows the
+--   * every /way line of a note that can be placed on the shown map (UI/MapPlace.lua: its
+--     continent on the default map, every continent on OpenMap's stitched map) is a marker with
+--     the note's icon, at Blizzard's own map pin level (above OpenMap's art on its stitched map),
+--     sized for the screen at every zoom; mouseover shows the
 --     line's label and the note; a click opens the note in the journal, Ctrl+click sends its place
 --     to TomTom or the game's map pin (UI/Waypoints.lua);
 --   * Alt+click on the map starts a note at that spot: a popup asks for its title (the zone's
@@ -19,6 +21,7 @@ local FOCUS_SCALE = 1.5    -- the marker the journal opened the map for
 local CLICK_PRIORITY = 100 -- asked before the default map's own click handlers (its pin: 90)
 local PREVIEW_BYTES = 300  -- of a note's text in the tooltip
 local NEW_POPUP = "WAYSCRIBE_NEW_NOTE"
+local AROUND = 0.1         -- of the zone shown around a note's place on OpenMap's stitched map
 
 -- frames: pooled markers, used of them shown; focus: a note shown until the map closes.
 local view = { frames = {}, used = 0 }
@@ -48,16 +51,14 @@ function NotesMap:Clear()
 end
 
 -- At the default map's pin level for its own waypoint: above the trails and the map's labels.
-local function ensureFrame(map)
-    if view.frame then return end
-    local canvas = map:GetCanvas()
-    local frame = CreateFrame("Frame", nil, canvas)
-    frame:SetAllPoints(canvas)
-    local levels = map.GetPinFrameLevelsManager and Compat.Call(map.GetPinFrameLevelsManager, map)
-    local level = type(levels) == "table"
-        and Compat.Call(levels.GetValidFrameLevel, levels, "PIN_FRAME_LEVEL_WAYPOINT_LOCATION")
-    frame:SetFrameLevel(type(level) == "number" and level or canvas:GetFrameLevel() + 2)
-    view.frame = frame
+-- On OpenMap's stitched map: above its art and the trails.
+local function ensureFrame(map, place)
+    if not view.frame then
+        local canvas = map:GetCanvas()
+        view.frame = CreateFrame("Frame", nil, canvas)
+        view.frame:SetAllPoints(canvas)
+    end
+    view.frame:SetFrameLevel(ns.MapPlace.FrameLevel(map, place, "PIN_FRAME_LEVEL_WAYPOINT_LOCATION", 0, 2))
 end
 
 local function hideTooltip()
@@ -113,8 +114,8 @@ local function markerSize(marker)
 end
 
 local function placeMarker(note, place)
-    local u, v = Geometry.ToMap(view.transform, place.x, place.y)
-    if u < 0 or u > 1 or v < 0 or v > 1 then return end
+    local u, v = view.place:At(place.c, place.x, place.y)
+    if not u or (view.place.clip and (u < 0 or u > 1 or v < 0 or v > 1)) then return end
     view.used = view.used + 1
     local marker = view.frames[view.used]
     if not marker then
@@ -138,18 +139,17 @@ end
 
 function NotesMap:Redraw()
     clear()
-    view.transform = nil
+    view.place = nil
     local map = self.map
     if not (map and map:IsShown()) then return end
-    local transform = ns.FootstepsMap.TransformFor(map:GetMapID())
-    local canvas = map:GetCanvas()
-    if not transform or canvas:GetWidth() <= 0 then return end
-    ensureFrame(map)
-    view.transform = transform
-    view.width, view.height = canvas:GetWidth(), canvas:GetHeight()
+    local place = ns.MapPlace.For(map)
+    if not place then return end
+    ensureFrame(map, place)
+    view.place = place
+    view.width, view.height = place.width, place.height
     view.scale = Compat.Call(map.GetCanvasScale, map) or 1
     local all = self:IsShownOnMap()
-    for _, placed in ipairs(Notes:GetPlaced(transform.continent)) do
+    for _, placed in ipairs(Notes:GetPlaced(place.continent)) do
         if all or placed.note.id == view.focus then placeMarker(placed.note, placed.place) end
     end
 end
@@ -229,7 +229,7 @@ function NotesMap:OnCanvasClick(button, u, v)
         return false
     end
     local mapID = self.map and self.map:GetMapID()
-    local transform = mapID and ns.FootstepsMap.TransformFor(mapID)
+    local transform = mapID and ns.MapPlace.Transform(mapID)
     local continent, x, y
     if transform and type(u) == "number" and type(v) == "number" then
         continent, x, y = Compat.GetWorldPosFromMapPos(mapID, u, v)
@@ -266,7 +266,8 @@ function NotesMap:ShowNote(id)
         return false
     end
     view.focus = note.id
-    ns.FootstepsMap.OpenMap(first.map)
+    local u, v = first.u / 100, first.v / 100
+    ns.MapPlace.Open(first.map, u - AROUND, v - AROUND, u + AROUND, v + AROUND)
     self:Redraw()
     return true
 end
@@ -326,6 +327,7 @@ function NotesMap:Register()
     end
     self.provider = createProvider()
     WorldMapFrame:AddDataProvider(self.provider)
+    ns.MapPlace.OnStitchedChanged(self, function() self:RedrawIfShown() end)
 end
 
 function NotesMap:OnSettingsChanged(key)

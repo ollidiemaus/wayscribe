@@ -6,15 +6,17 @@ local GUID = "Player-1-0000AAAA"
 local WIDTH, HEIGHT = 1000, 668 -- the stub map's canvas
 
 -- opts.map: with the world map; opts.scrollBox = false: a client without ScrollBox;
--- opts.pin = false: a client without the game's map pin.
+-- opts.pin = false: a client without the game's map pin; opts.openMap: OpenMap's API on the map
+-- (Stubs.InstallOpenMap's opts), returned third.
 local function start(opts)
     opts = opts or {}
     local ns = Stubs.LoadAddon(opts)
     local map = opts.map and Stubs.InstallWorldMap() or nil
+    local openMap = opts.openMap and Stubs.InstallOpenMap(map, opts.openMap) or nil
     if opts.scrollBox ~= false then Stubs.InstallScrollBox() end
     if opts.pin == false then C_Map.SetUserWaypoint = nil end
     Stubs.Login()
-    return ns, map
+    return ns, map, openMap
 end
 
 -- A place on map 1412 (u, v) in world yards.
@@ -549,6 +551,47 @@ describe("notes on the map", function()
         ns.NotesMap:SetShownOnMap(true)
         T.eq(WayscribeDB.settings.notesOnMap, nil, "the default isn't stored")
         T.eq(#markers(ns), 3)
+    end)
+
+    it("draws markers on OpenMap's stitched map, on both continents, above its art", function()
+        local ns, map, openMap = start({ map = true, openMap = {} })
+        withElwynn(function()
+            ns.Notes:Add({ title = "Herbs", text = "/way Mulgore 30 60\n/way Kalimdor 70 50" })
+            ns.Notes:Add({ title = "Goldshire", text = "/way Wald von Elwynn 42 65" })
+            map:Show()
+            local list = markers(ns)
+            T.eq(#list, 3)
+            local outsideU = Stubs.WorldToMap(1412, Stubs.MapToWorld(1414, 0.7, 0.5))
+            T.truthy(outsideU > 1)
+            near(list[2].lastPoint[4], outsideU * WIDTH, "past the zone's edge")
+            local place = ns.Notes.PlacesOf(ns.Notes:Get(2))[1]
+            T.eq(place.c, 0)
+            -- The fake stitched world puts the Eastern Kingdoms one Kalimdor width east.
+            local u, v = Stubs.WorldToMap(1414, place.x, place.y)
+            local x, y = Stubs.MapToWorld(1414, u + 1, v)
+            local hostU, hostV = Stubs.WorldToMap(1412, x, y)
+            near(list[3].lastPoint[4], hostU * WIDTH, "x")
+            near(list[3].lastPoint[5], -hostV * HEIGHT, "y")
+            T.truthy(list[1]:GetParent():GetFrameLevel() > 2000, "above the art")
+            T.truthy(list[1]:GetParent():GetFrameLevel() > ns.FootstepsMap.view.frame:GetFrameLevel(),
+                "above the trails")
+            openMap.SetStitched(false)
+            T.eq(#markers(ns), 1, "Blizzard's map: the zone's own")
+        end)
+        T.eq(#ns.Log:GetEntries(), 0)
+    end)
+
+    it("glides OpenMap's stitched map to the note the journal shows", function()
+        local ns, map, openMap = start({ map = true, openMap = {} })
+        ns.Notes:Add({ title = "Herbs", text = "/way Mulgore 30 60" })
+        map:Show()
+        T.truthy(ns.NotesMap:ShowNote(1))
+        T.eq(#openMap.glides, 1)
+        local u, v = Stubs.WorldToMap(1414, Stubs.MapToWorld(1412, 0.3, 0.6))
+        T.truthy(math.abs(openMap.glides[1].u - u / 2) < 1e-6, "u")
+        T.truthy(math.abs(openMap.glides[1].v - v) < 1e-6, "v")
+        T.truthy(openMap.glides[1].zoom > 1)
+        T.eq(#markers(ns), 1)
     end)
 
     it("is switched in the map button's menu", function()
