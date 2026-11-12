@@ -17,5 +17,9 @@ capability (`OpenMapAPI`, major 1, version 2 or later), never by addon name.
 
 ## Consequences
 
-Redraws on the stitched map happen only when the host map changes, the stitched mode toggles or the
-zoom settles, not on every pan: the whole world is drawn once and the canvas carries it.
+Redraws on the stitched map happen only when the stitched mode toggles, the zoom settles or a pan
+nears the edge of what's drawn, not on a host map change: the trails are drawn on a frame spanning
+the stitched world that only moves when the host map changes. Only the trails within three views of
+the view are drawn: with a long history, the game's own cost of moving thousands of lines with the
+canvas made dragging the map slow. Each point is placed once per trail and kept, so the price of
+one call per point is paid once a session, not on every redraw.

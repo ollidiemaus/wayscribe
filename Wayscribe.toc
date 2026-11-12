@@ -97,6 +97,7 @@ UI\MapsView.lua
 UI\DuelsView.lua
 UI\Journal.lua
 UI\Export.lua
+UI\MapPlacement.lua
 UI\FootstepsMap.lua
 UI\NotesMap.lua
 UI\LoginRecap.lua
