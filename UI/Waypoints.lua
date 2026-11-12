@@ -7,7 +7,7 @@ local Compat, Notes = ns.Compat, ns.Notes
 -- call it.
 --
 -- TomTom is looked up when it is used, so installing or removing it needs nothing else, and every
--- call into it is protected: an error in TomTom stays out of the journal.
+-- call into it is protected: an error in TomTom stays out of the journal, and goes to /ws log.
 local Waypoints = {}
 ns.Waypoints = Waypoints
 
@@ -48,7 +48,7 @@ end
 local function addToTomTom(addon, note, place, keepArrow)
     local options = { title = titleOf(note, place), from = SOURCE }
     if keepArrow then options.crazy = false end
-    local waypoint = Compat.Call(addon.AddWaypoint, addon, place.map, place.u / 100, place.v / 100, options)
+    local waypoint = Compat.CallAddon("tomtom:AddWaypoint", addon.AddWaypoint, addon, place.map, place.u / 100, place.v / 100, options)
     return type(waypoint) == "table" and waypoint or nil
 end
 
@@ -56,7 +56,9 @@ end
 -- so the arrow is pointed explicitly.
 local function pointArrow(addon, waypoint)
     if type(addon.SetCrazyArrow) ~= "function" then return false end
-    return pcall(addon.SetCrazyArrow, addon, waypoint, waypoint.arrivaldistance, waypoint.title) == true
+    local ok, message = pcall(addon.SetCrazyArrow, addon, waypoint, waypoint.arrivaldistance, waypoint.title)
+    if not ok then Compat.ReportAddonError("tomtom:SetCrazyArrow", message) end
+    return ok
 end
 
 -- Makes a place of a note a waypoint. Returns whether it did.

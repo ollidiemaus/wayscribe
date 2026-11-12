@@ -112,6 +112,7 @@ local function newFrame(frameType, name, parent, template)
     function frame:GetText() return self.text end
     function frame:SetNormalAtlas(atlas) self.normalAtlas = atlas end
     function frame:GetNumLetters() return #(self.text or "") end
+    function frame:GetTextWidth() return 6 * #(self.text or "") end
     function frame:CreateFontString()
         local fontString = newFontString()
         self.regions[#self.regions + 1] = fontString
@@ -136,6 +137,7 @@ local function newFrame(frameType, name, parent, template)
         function line:SetEndPoint(_, _, x, y) self.x2, self.y2 = x, y end
         function line:SetThickness(thickness) self.thickness = thickness end
         function line:SetColorTexture(r, g, b, a) self.color = { r, g, b, a } end
+        function line:SetVertexColor(r, g, b, a) self.color = { r, g, b, a } end
         self.lines = self.lines or {}
         self.lines[#self.lines + 1] = line
         return permissive(line)

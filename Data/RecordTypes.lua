@@ -40,20 +40,28 @@ function RecordTypes:Get(name)
 end
 
 -- Nested tables (e.g. a roster) may only hold plain, non-secret data the client can save.
-local function checkPlain(value, depth)
+local function checkPlain(value, depth, maxDepth)
     if ns.Compat.IsSecret(value) then return false, "secret value" end
     local kind = type(value)
     if kind == "string" or kind == "number" or kind == "boolean" then return true end
     if kind ~= "table" then return false, "cannot store a " .. kind end
-    if depth > MAX_DEPTH then return false, "nested too deeply" end
+    if depth > maxDepth then return false, "nested too deeply" end
     if getmetatable(value) ~= nil then return false, "tables with metatables are not saved" end
     for key, item in pairs(value) do
         local keyType = type(key)
         if keyType ~= "string" and keyType ~= "number" then return false, "unsupported key type " .. keyType end
-        local ok, reason = checkPlain(item, depth + 1)
+        local ok, reason = checkPlain(item, depth + 1, maxDepth)
         if not ok then return false, reason end
     end
     return true
+end
+
+-- A tracker's saved state (Store:SetState): plain data the client can save, nothing secret
+-- (wow-addon-standards S3, D3). Nil clears it. Returns true, or false plus a reason.
+local STATE_MAX_DEPTH = 8
+function RecordTypes.CheckState(value)
+    if value == nil then return true end
+    return checkPlain(value, 1, STATE_MAX_DEPTH)
 end
 
 -- Returns true, or false plus a reason. Rejects secrets, wrong types, missing and unknown fields.
@@ -70,7 +78,7 @@ function RecordTypes:Validate(def, data)
         elseif type(value) ~= expected then
             return false, field .. " should be a " .. expected .. ", got a " .. type(value)
         elseif expected == "table" then
-            local ok, reason = checkPlain(value, 1)
+            local ok, reason = checkPlain(value, 1, MAX_DEPTH)
             if not ok then return false, field .. ": " .. reason end
         end
     end

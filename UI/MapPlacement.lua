@@ -137,7 +137,7 @@ end
 function Stitched:Covers(continent) return type(continent) == "number" end
 
 function Stitched:At(continent, x, y)
-    local hx, hy = Compat.Call(self.api.CanvasFromWorldPos, continent, x, y)
+    local hx, hy = Compat.CallAddon("openmap:CanvasFromWorldPos", self.api.CanvasFromWorldPos, continent, x, y)
     if type(hx) ~= "number" or type(hy) ~= "number" then return nil end
     return self.l + hx * (self.r - self.l), self.t + hy * (self.b - self.t)
 end
@@ -193,7 +193,7 @@ end
 
 -- `over` levels above OpenMap's art.
 function Stitched:FrameLevel(map, pin, overPin, over)
-    local top = Compat.Call(self.api.ArtTopLevel)
+    local top = Compat.CallAddon("openmap:ArtTopLevel", self.api.ArtTopLevel)
     if type(top) == "number" then return top + over end
     return Default.FrameLevel(self, map, pin, overPin, over)
 end
@@ -255,7 +255,7 @@ end
 local function onOpenMap(owner, event, source, fn)
     local api = Compat.OpenMapAPI()
     if not (api and type(api.RegisterCallback) == "function") then return end
-    Compat.Call(api.RegisterCallback, owner, event, function()
+    Compat.CallAddon("openmap:RegisterCallback", api.RegisterCallback, owner, event, function()
         ns.SafeCall(source, fn)
     end)
 end

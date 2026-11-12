@@ -56,8 +56,9 @@ describe("professions", function()
     it("takes one snapshot per burst of events", function()
         local ns = start({ { skillLine = MINING, name = "Mining", rank = 10, max = 75 } })
         local calls = 0
-        local original = GetProfessions
-        _G.GetProfessions = function(...) calls = calls + 1 return original(...) end
+        local tracker = ns.Trackers:Get("Professions")
+        local original = tracker.Snapshot
+        tracker.Snapshot = function(...) calls = calls + 1 return original(...) end
         Stubs.SetProfessions({ { skillLine = MINING, name = "Mining", rank = 11, max = 75 } })
         Stubs.Fire("SKILL_LINES_CHANGED")
         Stubs.Fire("CHAT_MSG_SKILL", "Your skill in Mining has increased to 11.")

@@ -12,6 +12,10 @@ local function start()
     state.spellNames = { [2575] = "Mining", [1235230] = "Mining", [2366] = "Herbalism", [8613] = "Skinning", [9999] = "Mining" }
     state.itemNames = { [COPPER_ORE] = "Copper Ore", [ROUGH_STONE] = "Rough Stone", [LIGHT_LEATHER] = "Light Leather" }
     state.itemClasses = { [COPPER_ORE] = { 7, 7 }, [PEACEBLOOM] = { 7, 9 }, [LINEN] = { 7, 5 } }
+    Stubs.SetProfessions({
+        { skillLine = 186, name = "Mining", rank = 1, max = 75 },
+        { skillLine = 393, name = "Skinning", rank = 1, max = 75 },
+    })
     Stubs.Login()
     return ns
 end
@@ -142,5 +146,26 @@ describe("gathering", function()
         end
         local line = ns.RecordTypes:RenderCounters(counters(ns))[1]
         T.eq(line, "Gathered 9× Item1, 8× Item2, 7× Item3, 6× Item4, 5× Item5, 4× Item6 and 2 more")
+    end)
+    it("listens to casts and loot only with a gathering profession", function()
+        local ns = Stubs.LoadAddon()
+        local state = Stubs.state
+        state.spellNames = { [2575] = "Mining" }
+        state.itemClasses = { [COPPER_ORE] = { 7, 7 } }
+        Stubs.SetProfessions({ { skillLine = 197, name = "Tailoring", rank = 1, max = 75 } })
+        Stubs.Login()
+        cast(2575)
+        loot(VEIN, { { id = COPPER_ORE, quantity = 1 } })
+        T.eq(counters(ns).gather, nil, "no gathering profession: nothing counted")
+
+        Stubs.SetProfessions({
+            { skillLine = 197, name = "Tailoring", rank = 1, max = 75 },
+            { skillLine = 186, name = "Mining", rank = 1, max = 75 },
+        })
+        Stubs.Fire("SKILL_LINES_CHANGED")
+        Stubs.Advance(2)
+        cast(2575)
+        loot(VEIN, { { id = COPPER_ORE, quantity = 1 } })
+        T.same(counters(ns).gather, { [COPPER_ORE] = 1 })
     end)
 end)

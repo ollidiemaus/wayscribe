@@ -98,21 +98,64 @@ function Gathering:BuildSpellKinds()
     end
 end
 
-function Gathering:OnEnable()
-    self:BuildSpellKinds()
-    self.window, self.loot, self.lastNode = nil, nil, nil
-    self:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
-    self:RegisterEvent("LOOT_READY")
-    self:RegisterEvent("LOOT_SLOT_CLEARED")
-    self:RegisterEvent("LOOT_CLOSED")
+-- The classic skill lines GetProfessionInfo reports (393 Skinning seen on Forever, docs/forever-probe.md).
+local GATHERING_SKILL_LINES = { 182, 186, 393 } -- Herbalism, Mining, Skinning
+local SKILLS_SETTLE = 1
+
+-- Whether this character can gather: true when it knows a gathering profession, or when the client
+-- can't say (no profession API), so the tracker never misses gathering it can't rule out.
+local function canGather()
+    local snapshot = Compat.GetProfessionSnapshot()
+    if not snapshot then return true end
+    for _, skillLine in ipairs(GATHERING_SKILL_LINES) do
+        if snapshot[skillLine] then return true end
+    end
+    return false
 end
 
+-- Every cast and every loot window would wake the tracker, so it listens only while the character
+-- has a gathering profession (wow-addon-standards E1); SKILL_LINES_CHANGED tells when that changes.
+function Gathering:UpdateEvents()
+    local wanted = canGather()
+    if wanted == self.listening then return end
+    self.listening = wanted
+    self.window, self.loot, self.lastNode = nil, nil, nil
+    if wanted then
+        self:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+        self:RegisterEvent("LOOT_READY")
+        self:RegisterEvent("LOOT_SLOT_CLEARED")
+        self:RegisterEvent("LOOT_CLOSED")
+    else
+        self:UnregisterEvent("UNIT_SPELLCAST_SUCCEEDED")
+        self:UnregisterEvent("LOOT_READY")
+        self:UnregisterEvent("LOOT_SLOT_CLEARED")
+        self:UnregisterEvent("LOOT_CLOSED")
+    end
+end
+
+function Gathering:OnEnable()
+    self:BuildSpellKinds()
+    self.window, self.loot, self.lastNode, self.listening = nil, nil, nil, nil
+    if Compat.has.professions == "modern" then self:TryRegisterEvent("SKILL_LINES_CHANGED") end
+    self:UpdateEvents()
+end
+
+function Gathering:SKILL_LINES_CHANGED()
+    self:Debounce("skills", SKILLS_SETTLE, self.UpdateEvents)
+end
+
+-- A spell ID not listed is looked up by name once, and the answer kept by ID (false for not a
+-- gathering spell), so each later cast of it is one lookup: this runs on every cast the player makes.
+-- The table is built again on each enable, and holds at most the spells this character casts.
 function Gathering:KindOfSpell(spellID)
     if not spellID then return nil end
     local kind = self.kindById[spellID]
-    if kind then return kind end
-    local name = Compat.GetSpellName(spellID)
-    return name and self.kindByName[name]
+    if kind == nil then
+        local name = Compat.GetSpellName(spellID)
+        kind = name and self.kindByName[name] or false
+        self.kindById[spellID] = kind
+    end
+    return kind or nil
 end
 
 function Gathering:UNIT_SPELLCAST_SUCCEEDED(_, castGUID, spellID)

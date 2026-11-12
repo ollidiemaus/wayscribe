@@ -198,6 +198,28 @@ describe("world map", function()
         T.truthy(#trails(ns) > zoomedOut, "more detail zoomed in: " .. zoomedOut .. " -> " .. #trails(ns))
     end)
 
+    it("arms one timer for a whole zoom animation and draws once it settles", function()
+        local ns, map = start()
+        local x, y = Stubs.MapToWorld(1412, 0.5, 0.5)
+        for i = 0, 60 do
+            local angle = i / 60 * math.pi
+            Stubs.SetPosition(1, x + 300 * math.cos(angle), y + 300 * math.sin(angle))
+            Stubs.Advance(1)
+        end
+        wait(61)
+        map.canvasScale = 0.5
+        map:Show()
+        local zoomedOut = #trails(ns)
+        local armed = Stubs.state.timersArmed
+        for step = 1, 20 do
+            map:Zoom(0.5 + step * 0.2) -- one call per frame of the animation, ending at 4.5
+        end
+        T.eq(Stubs.state.timersArmed - armed, 1, "one timer for twenty zoom steps")
+        T.eq(#trails(ns), zoomedOut, "nothing drawn before the zoom settles")
+        Stubs.Advance(1)
+        T.truthy(#trails(ns) > zoomedOut, "drawn once settled")
+    end)
+
     it("keeps lines equally wide at every zoom", function()
         local ns, map = start()
         trail(1412, 0.2, 0.5, 0.6, 0.5)
