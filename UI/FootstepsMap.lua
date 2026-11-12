@@ -12,6 +12,9 @@ local MapPlacement = ns.MapPlacement
 --   * lines are simplified to the zoom, newest trails first, up to MAX_LINES; no line is shorter
 --     than MIN_LINE_PIXELS on screen;
 --   * drawing is spread over frames (BUDGET_MS each), so even "All" never stalls the map;
+--   * on the stitched map only the stored trails in and around the view are drawn (a window
+--     WINDOW views across): thousands of lines on the canvas make every frame of a drag slow.
+--     The trails are drawn again when the view nears the window's edge;
 --   * the trail being recorded grows while the map is open, with a tail line to the player;
 --   * redrawn when the map underneath changes (on the stitched map: only moved), the map switches
 --     between OpenMap's and the default, or the zoom settles far from the drawn one; never on a
@@ -33,6 +36,7 @@ local LOD_PIXELS = 1       -- detail finer than this isn't drawn
 -- 8 yards a point, broke up on the small map), so shorter steps are merged until this long.
 local MIN_LINE_PIXELS = 3
 local REDRAW_ZOOM = 1.5    -- a zoom by this factor redraws with the detail of the new scale
+local WINDOW = 3           -- views across the part of the stitched world drawn
 local ZOOM_SETTLE = 0.3    -- seconds after the last zoom step
 local STYLES = {
     ground = { width = 2.5, color = { 0.66, 0.12, 0.06 } },
@@ -52,7 +56,9 @@ end
 -- placement: world -> shown map (MapPlacement.For), nil while nothing can be drawn; scale: screen
 -- units per drawing frame unit (the canvas scale times the frame's own); drawnScale: the scale
 -- the lines were drawn for; liveFrom: index of the live trail's last point a line ends at;
--- tail: the line from there to the player; markers: icons of journal records (deaths, journeys).
+-- tail: the line from there to the player; markers: icons of journal records (deaths, journeys);
+-- window: on the stitched map, the part of the drawing frame drawn ({ minX, maxX, minY, maxY }),
+-- nil: all of it.
 local view = {
     trails = newPool(1), liveTrail = newPool(2), liveFrom = 1,
     markers = { frames = {}, used = 0 },
@@ -190,8 +196,13 @@ local function drawTail(live)
     placeLine(view.tail, a, b, c, d, live.f and "flight" or "ground", RECENT_ALPHA)
 end
 
+-- Whether a box meets the window (no window: everything does).
+local function meets(window, minX, maxX, minY, maxY)
+    return not window or (maxX >= window.minX and minX <= window.maxX and maxY >= window.minY and minY <= window.maxY)
+end
+
 -- A run of placed points (drawing frame units, MapPlacement's Runs) as connected lines at least
--- minLength long; the last point is always drawn to.
+-- minLength long, those in the window; the last point is always drawn to.
 local function drawRun(pool, run, style, alpha)
     local min2 = view.minLength * view.minLength
     local width, height = view.width, view.height
@@ -200,7 +211,8 @@ local function drawRun(pool, run, style, alpha)
         local x, y = run[i], run[i + 1]
         local dx, dy = x - fromX, y - fromY
         if dx * dx + dy * dy >= min2 or i >= #run - 1 then
-            if not drawLine(pool, fromX / width, fromY / height, x / width, y / height, style, alpha) then
+            if meets(view.window, math.min(fromX, x), math.max(fromX, x), math.min(fromY, y), math.max(fromY, y))
+                and not drawLine(pool, fromX / width, fromY / height, x / width, y / height, style, alpha) then
                 return false
             end
             fromX, fromY = x, y
@@ -213,7 +225,7 @@ end
 local function drawRuns(segment, style, alpha)
     local tolerance = view.pixel * LOD_PIXELS
     for _, run in ipairs(view.placement:Runs(segment)) do
-        if #run >= 4 then
+        if #run >= 4 and meets(view.window, run.minX, run.maxX, run.minY, run.maxY) then
             if not drawRun(view.trails, Geometry.Simplify(run, tolerance), style, alpha) then return false end
         end
     end
@@ -335,6 +347,12 @@ function FootstepsMap:Redraw(inPlace)
     view.drawnScale = view.scale
     view.pixel = 1 / view.scale
     view.minLength = view.pixel * MIN_LINE_PIXELS
+    view.window = nil
+    local x, y, halfWidth, halfHeight = MapPlacement.View(placement, map, view.scale)
+    if x then
+        halfWidth, halfHeight = halfWidth * WINDOW, halfHeight * WINDOW
+        view.window = { minX = x - halfWidth, maxX = x + halfWidth, minY = y - halfHeight, maxY = y + halfHeight }
+    end
     local segments = Paths:GetSegments(dayRange(mode))
     local since = recentFrom(mode)
     view.job = coroutine.create(function() drawStored(segments, since) end)
@@ -374,6 +392,18 @@ function FootstepsMap:Refresh()
     view.placement = placement
     placement:Attach(view.frame, map:GetCanvas())
     self:UpdateThickness()
+end
+
+-- The stitched view moved: drawn again around it once it nears the window's edge.
+function FootstepsMap:OnViewChanged()
+    local window = view.window
+    if not (window and self:IsDrawing()) then return end
+    local x, y, halfWidth, halfHeight = MapPlacement.View(view.placement, self.map, view.scale)
+    if not x then return end
+    if x - halfWidth < window.minX or x + halfWidth > window.maxX
+        or y - halfHeight < window.minY or y + halfHeight > window.maxY then
+        self:Redraw(true)
+    end
 end
 
 -- Lines keep their width on screen at every zoom.
@@ -628,6 +658,7 @@ function FootstepsMap:Register()
     MapPlacement.OnStitchedChanged(self, function()
         if not MapPlacement.Matches(view.placement) then self:RedrawIfShown() end
     end)
+    MapPlacement.OnViewChanged(self, function() self:OnViewChanged() end)
 end
 
 ------------------------------------------------------------------------------------------------

@@ -740,7 +740,8 @@ end
 -- outside a continent's yards has no place. So a Kalimdor point lands on the host map's canvas
 -- where Stubs.WorldToMap(host) puts it, and an Eastern Kingdoms point one Kalimdor width (1 on
 -- map 1414) further east. opts: major (1), version (4), stitched (true).
--- api.SetStitched(on) switches maps like OpenMap's own button; api.Pan(u, v) moves the view;
+-- api.SetStitched(on) switches maps like OpenMap's own button; api.Pan(u, v, zoom) moves the view
+-- (GetView answers nil until the first);
 -- api.glides lists every ShowWorld; api.placed counts CanvasFromWorldPos calls.
 function Stubs.InstallOpenMap(map, opts)
     opts = opts or {}
@@ -789,7 +790,14 @@ function Stubs.InstallOpenMap(map, opts)
         stitched = on
         fire("OpenMap_StitchedChanged", on)
     end
-    function api.Pan(u, v) fire("OpenMap_ViewChanged", u, v, 2) end
+    function api.GetView()
+        if not (api.IsStitched() and api.view) then return nil end
+        return api.view.u, api.view.v, api.view.zoom
+    end
+    function api.Pan(u, v, zoom)
+        api.view = { u = u, v = v, zoom = zoom or 2 }
+        fire("OpenMap_ViewChanged", u, v, api.view.zoom)
+    end
     _G.OpenMapAPI = api
     return api
 end

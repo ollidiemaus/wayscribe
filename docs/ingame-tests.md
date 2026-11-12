@@ -174,7 +174,8 @@ With OpenMap installed (version 2 of its API or later) and its stitched map show
   stay where they are, at the same width. `/openmap status`: "map switch (all addons)" stays small.
   Zoom far in, wait a moment. → More detail drawn over the lines shown; lines and markers keep their
   size on screen.
-- [ ] **All.** With several days of trails, set *All* and open the map. → No hitch.
+- [ ] **All.** With several days of trails, set *All* and open the map. → No hitch. Zoom in and drag
+  the map around, far: as smooth as with *Off*, the trails ahead appear before they come into view.
 - [ ] **Show on the map.** From a journal day with trails. → The stitched map glides to that day's
   trails, zoomed so they fit. A note's *Show on the map* glides to its place.
 - [ ] **Switch maps.** Switch to Blizzard's map with OpenMap's button and back. → The trails are drawn

@@ -160,8 +160,8 @@ function Stitched:SameSpace(other)
     return other ~= nil and other.stitched == true and other.space == self.space
 end
 
--- A stored trail's points as runs of placed points, in drawing frame units ({ x1, y1, x2, ... });
--- a point that can't be placed ends a run. Kept until the trail or the space changes.
+-- A stored trail's points as runs of placed points, in drawing frame units ({ x1, y1, x2, ... },
+-- with their bounds minX, maxX, minY, maxY); a point that can't be placed ends a run. Kept until the trail or the space changes.
 function Stitched:Runs(segment)
     local kept = runs[segment]
     if kept and kept.p == segment.p and kept.space == self.space then return kept.runs end
@@ -174,8 +174,15 @@ function Stitched:Runs(segment)
                 run = {}
                 list[#list + 1] = run
             end
-            run[#run + 1] = u * self.width
-            run[#run + 1] = v * self.height
+            local x, y = u * self.width, v * self.height
+            if #run == 0 then
+                run.minX, run.maxX, run.minY, run.maxY = x, x, y, y
+            else
+                run.minX, run.maxX = math.min(run.minX, x), math.max(run.maxX, x)
+                run.minY, run.maxY = math.min(run.minY, y), math.max(run.maxY, y)
+            end
+            run[#run + 1] = x
+            run[#run + 1] = y
         else
             run = nil
         end
@@ -245,11 +252,35 @@ function MapPlacement.Open(mapID, u1, v1, u2, v2)
     if map.Raise then map:Raise() end
 end
 
--- Calls fn() whenever the world map switches between OpenMap's stitched map and the default.
-function MapPlacement.OnStitchedChanged(owner, fn)
+local function onOpenMap(owner, event, source, fn)
     local api = Compat.OpenMapAPI()
     if not (api and type(api.RegisterCallback) == "function") then return end
-    Compat.Call(api.RegisterCallback, owner, "OpenMap_StitchedChanged", function()
-        ns.SafeCall("map:stitched", fn)
+    Compat.Call(api.RegisterCallback, owner, event, function()
+        ns.SafeCall(source, fn)
     end)
+end
+
+-- Calls fn() whenever the world map switches between OpenMap's stitched map and the default.
+function MapPlacement.OnStitchedChanged(owner, fn)
+    onOpenMap(owner, "OpenMap_StitchedChanged", "map:stitched", fn)
+end
+
+-- Calls fn() as OpenMap's stitched view moves (a few times a second at most).
+function MapPlacement.OnViewChanged(owner, fn)
+    onOpenMap(owner, "OpenMap_ViewChanged", "map:view", fn)
+end
+
+-- On the stitched map: the view's centre and half its width and height, in drawing frame units;
+-- nil when not known. scale: screen units per drawing frame unit.
+function MapPlacement.View(placement, map, scale)
+    if not (placement and placement.stitched and type(placement.api.GetView) == "function") then return nil end
+    local u, v = Compat.Call(placement.api.GetView)
+    local container = map.ScrollContainer
+    local width = container and Compat.Call(container.GetWidth, container)
+    local height = container and Compat.Call(container.GetHeight, container)
+    if not (type(u) == "number" and type(v) == "number" and type(width) == "number" and width > 0
+            and type(height) == "number" and height > 0 and scale > 0) then
+        return nil
+    end
+    return u * placement.width, v * placement.height, width / 2 / scale, height / 2 / scale
 end
