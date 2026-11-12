@@ -6,14 +6,16 @@ local MapPlacement = ns.MapPlacement
 -- map's extension point for addons, draws the trails as lines on the map canvas:
 --   * points are placed by UI/MapPlacement.lua: on the default map with the shown map's transform
 --     (its continent only, clipped to the map); on OpenMap's stitched map one API call each,
---     every continent, past the host map's edge, above OpenMap's art. A trail breaks where a
---     point can't be placed;
+--     every continent, past the host map's edge, above OpenMap's art, on a frame spanning the
+--     stitched world that only moves when OpenMap switches the map underneath. A trail breaks
+--     where a point can't be placed;
 --   * lines are simplified to the zoom, newest trails first, up to MAX_LINES; no line is shorter
 --     than MIN_LINE_PIXELS on screen;
 --   * drawing is spread over frames (BUDGET_MS each), so even "All" never stalls the map;
 --   * the trail being recorded grows while the map is open, with a tail line to the player;
---   * redrawn when the map underneath changes, the map switches between OpenMap's and the
---     default, or the zoom settles far from the drawn one; never on a pan;
+--   * redrawn when the map underneath changes (on the stitched map: only moved), the map switches
+--     between OpenMap's and the default, or the zoom settles far from the drawn one; never on a
+--     pan. A redraw for the zoom draws over the lines shown, so the map is never blank meanwhile;
 --   * journal records with places draw markers on the days shown (RecordTypes' markers): a skull
 --     for a death, a spell's icon where a hearthstone journey left and arrived.
 -- A button on the map picks which trails to show; the journal's day page can show one day.
@@ -40,13 +42,16 @@ local RECENT_ALPHA, OLDER_ALPHA = 0.9, 0.5
 local MARKER_SIZE = 16 -- pixels on screen
 local MAX_PARENTS = 10
 
+-- used: lines of the drawing now; shown: lines on the map, more than used while a redraw draws
+-- over an older drawing.
 local function newPool(sublevel)
-    return { lines = {}, used = 0, sublevel = sublevel }
+    return { lines = {}, used = 0, shown = 0, sublevel = sublevel }
 end
 
 -- day: a day picked in the journal, shown until the map closes; job: the drawing coroutine;
--- placement: world -> shown map (MapPlacement.For), nil while nothing can be drawn; drawnScale: the canvas
--- scale the lines were drawn for; liveFrom: index of the live trail's last point a line ends at;
+-- placement: world -> shown map (MapPlacement.For), nil while nothing can be drawn; scale: screen
+-- units per drawing frame unit (the canvas scale times the frame's own); drawnScale: the scale
+-- the lines were drawn for; liveFrom: index of the live trail's last point a line ends at;
 -- tail: the line from there to the player; markers: icons of journal records (deaths, journeys).
 local view = {
     trails = newPool(1), liveTrail = newPool(2), liveFrom = 1,
@@ -92,11 +97,17 @@ end
 ------------------------------------------------------------------------------------------------
 -- Lines
 
-local function clearPool(pool)
-    for i = 1, pool.used do
+-- Hides the lines past the ones in use.
+local function trimPool(pool)
+    for i = pool.used + 1, pool.shown do
         pool.lines[i]:Hide()
     end
+    pool.shown = pool.used
+end
+
+local function clearPool(pool)
     pool.used = 0
+    trimPool(pool)
 end
 
 -- Canvas coordinates a..d (already clipped where they need to be) as a line of `style`.
@@ -122,6 +133,7 @@ local function drawLine(pool, u1, v1, u2, v2, style, alpha)
         line = view.frame:CreateLine(nil, "ARTWORK", nil, pool.sublevel)
         pool.lines[pool.used] = line
     end
+    if pool.used > pool.shown then pool.shown = pool.used end
     placeLine(line, a, b, c, d, style, alpha)
     return true
 end
@@ -178,7 +190,40 @@ local function drawTail(live)
     placeLine(view.tail, a, b, c, d, live.f and "flight" or "ground", RECENT_ALPHA)
 end
 
+-- A run of placed points (drawing frame units, MapPlacement's Runs) as connected lines at least
+-- minLength long; the last point is always drawn to.
+local function drawRun(pool, run, style, alpha)
+    local min2 = view.minLength * view.minLength
+    local width, height = view.width, view.height
+    local fromX, fromY = run[1], run[2]
+    for i = 3, #run - 1, 2 do
+        local x, y = run[i], run[i + 1]
+        local dx, dy = x - fromX, y - fromY
+        if dx * dx + dy * dy >= min2 or i >= #run - 1 then
+            if not drawLine(pool, fromX / width, fromY / height, x / width, y / height, style, alpha) then
+                return false
+            end
+            fromX, fromY = x, y
+        end
+    end
+    return true
+end
+
+-- On the stitched map: the trail's kept runs, simplified to the zoom.
+local function drawRuns(segment, style, alpha)
+    local tolerance = view.pixel * LOD_PIXELS
+    for _, run in ipairs(view.placement:Runs(segment)) do
+        if #run >= 4 then
+            if not drawRun(view.trails, Geometry.Simplify(run, tolerance), style, alpha) then return false end
+        end
+    end
+    return true
+end
+
 local function drawSegment(segment, recentFrom)
+    local alpha = segment.t >= recentFrom and RECENT_ALPHA or OLDER_ALPHA
+    local style = segment.f and "flight" or "ground"
+    if view.placement.Runs then return drawRuns(segment, style, alpha) end
     local points = Codec.DecodePath(segment.p)
     if not points or #points < 4 then return true end
     -- Detail finer than LOD_PIXELS on screen, in yards.
@@ -188,8 +233,7 @@ local function drawSegment(segment, recentFrom)
         points = Geometry.Simplify(points, tolerance)
     end
     if #points < 4 then return true end
-    local alpha = segment.t >= recentFrom and RECENT_ALPHA or OLDER_ALPHA
-    return (drawTrail(view.trails, points, 1, segment.c, segment.f and "flight" or "ground", alpha, true))
+    return (drawTrail(view.trails, points, 1, segment.c, style, alpha, true))
 end
 
 -- Today's trails (or the picked day's) are drawn strongest.
@@ -233,16 +277,15 @@ local function resume()
     end
     if (not ok or coroutine.status(job) == "dead") and view.job == job then
         stopJob()
+        trimPool(view.trails) -- the lines of an older drawing it drew over
     end
 end
 
 -- Above the map art and its explored areas (OpenMap's art on its stitched map); pins stay on top.
 local function ensureFrame(map, placement)
-    if not view.frame then
-        local canvas = map:GetCanvas()
-        view.frame = CreateFrame("Frame", nil, canvas)
-        view.frame:SetAllPoints(canvas)
-    end
+    local canvas = map:GetCanvas()
+    view.frame = view.frame or CreateFrame("Frame", nil, canvas)
+    placement:Attach(view.frame, canvas)
     view.frame:SetFrameLevel(placement:FrameLevel(map, "PIN_FRAME_LEVEL_MAP_EXPLORATION", 1, 1))
 end
 
@@ -254,32 +297,41 @@ local function clearMarkers()
     markers.used = 0
 end
 
-function FootstepsMap:Clear()
+-- keepTrails: the stored trails stay shown until a new drawing has drawn over them.
+function FootstepsMap:Clear(keepTrails)
     stopJob()
-    clearPool(view.trails)
+    if keepTrails then view.trails.used = 0 else clearPool(view.trails) end
     clearPool(view.liveTrail)
     clearMarkers()
     if view.tail then view.tail:Hide() end
     view.liveRef, view.liveFrom = nil, 1
+    view.placement = nil
 end
 
 function FootstepsMap:IsDrawing()
     return view.placement ~= nil and self.map ~= nil and self.map:IsShown()
 end
 
-function FootstepsMap:Redraw()
-    self:Clear()
-    view.placement = nil
+local function screenScale(map, placement)
+    return (Compat.Call(map.GetCanvasScale, map) or 1) * placement.frameScale
+end
+
+-- inPlace: for the same map at another zoom, drawn over the lines shown.
+function FootstepsMap:Redraw(inPlace)
+    local keep = inPlace == true and view.placement ~= nil
+    self:Clear(keep)
     local map = self.map
-    if not (map and map:IsShown()) then return end
     local mode = self:GetMode()
-    local placement = mode ~= "off" and MapPlacement.For(map)
-    if not placement then return end
+    local placement = map and map:IsShown() and mode ~= "off" and MapPlacement.For(map)
+    if not placement then
+        clearPool(view.trails)
+        return
+    end
     ensureFrame(map, placement)
     view.placement = placement
     view.width, view.height = placement.width, placement.height
-    -- Detail for this zoom, in canvas units.
-    view.scale = Compat.Call(map.GetCanvasScale, map) or 1
+    -- Detail for this zoom, in drawing frame units.
+    view.scale = screenScale(map, placement)
     view.drawnScale = view.scale
     view.pixel = 1 / view.scale
     view.minLength = view.pixel * MIN_LINE_PIXELS
@@ -310,10 +362,24 @@ function FootstepsMap:DrawLive()
     drawTail(live)
 end
 
+-- The map underneath changed, or was laid out again. On the stitched map the same drawing only
+-- moves to the new map (MapPlacement's Attach); otherwise it's drawn again.
+function FootstepsMap:Refresh()
+    local map, drawn = self.map, view.placement
+    local placement = drawn and map and map:IsShown() and MapPlacement.For(map)
+    if not (placement and placement:SameSpace(drawn)) then
+        self:Redraw()
+        return
+    end
+    view.placement = placement
+    placement:Attach(view.frame, map:GetCanvas())
+    self:UpdateThickness()
+end
+
 -- Lines keep their width on screen at every zoom.
 function FootstepsMap:UpdateThickness()
-    if not self.map then return end
-    view.scale = Compat.Call(self.map.GetCanvasScale, self.map) or 1
+    if not (self.map and view.placement) then return end
+    view.scale = screenScale(self.map, view.placement)
     for _, pool in ipairs({ view.trails, view.liveTrail }) do
         for i = 1, pool.used do
             local line = pool.lines[i]
@@ -330,16 +396,22 @@ end
 
 -- Detail follows the zoom: after zooming far enough in or out, the trails are drawn again once
 -- the zoom has settled, so zoomed-out lines stay long enough to show and zoomed-in ones get detail.
+-- The scale is the one on screen, so OpenMap's switch to a map underneath with a scale of its own
+-- isn't a zoom; checked again once settled, as a switch passes through the new map's own scale.
+local function farFromDrawn()
+    if not (view.drawnScale and FootstepsMap:IsDrawing()) then return false end
+    local ratio = view.scale / view.drawnScale
+    return ratio >= REDRAW_ZOOM or ratio <= 1 / REDRAW_ZOOM
+end
+
 function FootstepsMap:OnCanvasScaleChanged()
     self:UpdateThickness()
-    if not (view.drawnScale and self:IsDrawing()) then return end
-    local ratio = view.scale / view.drawnScale
-    if ratio < REDRAW_ZOOM and ratio > 1 / REDRAW_ZOOM then return end
+    if not farFromDrawn() then return end
     view.zoomGeneration = (view.zoomGeneration or 0) + 1
     local generation = view.zoomGeneration
     C_Timer.After(ZOOM_SETTLE, function()
-        if view.zoomGeneration == generation then
-            ns.SafeCall("footsteps:zoom", self.RedrawIfShown, self)
+        if view.zoomGeneration == generation and farFromDrawn() then
+            ns.SafeCall("footsteps:zoom", self.Redraw, self, true)
         end
     end)
 end
@@ -515,7 +587,7 @@ local function createProvider()
         FootstepsMap:Clear()
     end
     function provider:RefreshAllData()
-        FootstepsMap:Redraw()
+        FootstepsMap:Refresh()
     end
     function provider:OnCanvasScaleChanged()
         FootstepsMap:OnCanvasScaleChanged()
@@ -552,7 +624,10 @@ function FootstepsMap:Register()
     self.provider = createProvider()
     WorldMapFrame:AddDataProvider(self.provider)
     self:CreateButton(WorldMapFrame)
-    MapPlacement.OnStitchedChanged(self, function() self:RedrawIfShown() end)
+    -- (OpenMap says so as its map opens too, after the drawing for it is made)
+    MapPlacement.OnStitchedChanged(self, function()
+        if not MapPlacement.Matches(view.placement) then self:RedrawIfShown() end
+    end)
 end
 
 ------------------------------------------------------------------------------------------------

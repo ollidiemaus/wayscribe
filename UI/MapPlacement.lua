@@ -7,15 +7,22 @@ local Compat, Geometry = ns.Compat, ns.Geometry
 --   * On the default map: three corners of the shown map give a world-to-map transform, so a
 --     point needs no API call; only the shown map's continent can be placed, inside 0..1.
 --   * On OpenMap's stitched map (docs/adr/0001-openmap-via-its-public-api.md): every point is
---     placed with OpenMapAPI.CanvasFromWorldPos, one call each, on every continent, and may land
---     past the host map's 0..1; nil means it can't be placed. Frames go above OpenMap's art.
+--     placed with OpenMapAPI.CanvasFromWorldPos, one call each, on every continent; nil means it
+--     can't be placed. Drawings live on a frame spanning the whole stitched world, laid on the
+--     canvas by the host map's rectangle there (two OpenMapAPI.WorldFromMap calls): when OpenMap
+--     switches the host map as the view moves, only that frame moves and scales, nothing is
+--     placed or drawn again. A stored trail's placed points are kept, so a redraw for the zoom
+--     calls nothing either. Frames go above OpenMap's art.
 -- Opening the map at a spot is here too: the stitched map glides there instead.
 local MapPlacement = {}
 ns.MapPlacement = MapPlacement
 
-local PROBE_YARDS = 100 -- how far apart the two points are that measure the stitched scale
 local FIT = 0.8         -- of the stitched view the shown box fills
 local MAX_ZOOM = 48     -- OpenMap's deepest zoom; it keeps the view inside its own limits too
+-- The world frame's scale stays within this factor of 1, and its sides in proportion within
+-- ASPECT_SLACK; past either, a new world frame size is picked and everything is drawn again.
+local MAX_FRAME_SCALE = 50
+local ASPECT_SLACK = 0.01
 
 local transforms = {}
 
@@ -42,17 +49,21 @@ end
 -- Placements: For(map) answers for the map as it shows now; a new one after every change.
 -- Both kinds answer:
 --   Covers(c)             whether points of continent c can be placed at all
---   At(c, x, y)           canvas u, v (0..1 across the host map), or nil
+--   At(c, x, y)           u, v (0..1 across the drawing frame), or nil
 --   Line(u1, v1, u2, v2)  the part of a line to draw, or nil
 --   Shows(u, v)           whether a marker at u, v is drawn
---   YardsPerUnit(c, x, y) yards per canvas unit around a point, or nil
+--   Attach(frame, canvas) lays the drawing frame on the canvas
+--   SameSpace(other)      whether drawings made for placement `other` stay right with this one
+--                         once the frame is attached again (nothing to place or draw again)
 --   FrameLevel(map, pin, overPin, over)  the level for a frame of drawings on the canvas
 -- Fields: continent (the one continent placed; nil: every continent), width and height of the
--- canvas.
+-- drawing frame, frameScale (its scale on the canvas), stitched.
+-- The default map's also answer YardsPerUnit(); the stitched map's Runs(segment).
 
 local Default, Stitched = {}, {}
 Default.__index, Stitched.__index = Default, Stitched
 
+-- The drawing frame is the canvas: 0..1 is the shown map.
 function Default:Covers(continent) return continent == self.continent end
 
 function Default:At(continent, x, y)
@@ -69,6 +80,15 @@ function Default:YardsPerUnit()
     return self.transform.width / self.width
 end
 
+function Default:Attach(frame, canvas)
+    frame:ClearAllPoints()
+    frame:SetScale(1)
+    frame:SetAllPoints(canvas)
+end
+
+-- Another map has another transform and clipping: drawn again.
+function Default:SameSpace() return false end
+
 -- overPin levels above the default map's pin level `pin`, else `over` above the canvas.
 function Default:FrameLevel(map, pin, overPin, over)
     local levels = map.GetPinFrameLevelsManager and Compat.Call(map.GetPinFrameLevelsManager, map)
@@ -77,12 +97,49 @@ function Default:FrameLevel(map, pin, overPin, over)
     return map:GetCanvas():GetFrameLevel() + over
 end
 
+-- The drawing frame spans the stitched world: 0..1 is all of it (OpenMap's u, v), width by
+-- height units, the size the first host map gave it. A new space when a host map needs the frame
+-- scaled too far or out of proportion; points placed for an older space are placed again.
+local space -- { width, height, id }
+local spaces = 0
+local runs = setmetatable({}, { __mode = "k" }) -- segment -> { p, space, runs }
+
+-- The host map's rectangle on the stitched world: l, t, r, b; nil if it has none.
+local function hostRect(api, mapID)
+    if type(api.WorldFromMap) ~= "function" then return nil end
+    local l, t = Compat.Call(api.WorldFromMap, mapID, 0, 0)
+    local r, b = Compat.Call(api.WorldFromMap, mapID, 1, 1)
+    if not (type(l) == "number" and type(t) == "number" and type(r) == "number" and type(b) == "number") then
+        return nil
+    end
+    if not (r > l and b > t) then return nil end
+    return l, t, r, b
+end
+
+local function stitched(api, map, width, height)
+    local l, t, r, b = hostRect(api, map:GetMapID())
+    if not l then return nil end
+    -- Canvas units per stitched-world unit, across and down.
+    local perU, perV = width / (r - l), height / (b - t)
+    local scale = space and perU / space.width
+    if not (scale and scale < MAX_FRAME_SCALE and scale > 1 / MAX_FRAME_SCALE
+            and math.abs(perV / space.height - scale) <= ASPECT_SLACK * scale) then
+        spaces = spaces + 1
+        space = { width = perU, height = perV, id = spaces }
+        scale = 1
+    end
+    return setmetatable({
+        api = api, l = l, t = t, r = r, b = b, stitched = true,
+        space = space.id, width = space.width, height = space.height, frameScale = scale,
+    }, Stitched)
+end
+
 function Stitched:Covers(continent) return type(continent) == "number" end
 
 function Stitched:At(continent, x, y)
-    local u, v = Compat.Call(self.api.CanvasFromWorldPos, continent, x, y)
-    if type(u) ~= "number" or type(v) ~= "number" then return nil end
-    return u, v
+    local hx, hy = Compat.Call(self.api.CanvasFromWorldPos, continent, x, y)
+    if type(hx) ~= "number" or type(hy) ~= "number" then return nil end
+    return self.l + hx * (self.r - self.l), self.t + hy * (self.b - self.t)
 end
 
 -- The view shows past the host map: nothing is clipped.
@@ -90,16 +147,41 @@ function Stitched:Line(u1, v1, u2, v2) return u1, v1, u2, v2 end
 
 function Stitched:Shows() return true end
 
--- Measured by placing two points: OpenMap's regions each have a scale of their own.
-function Stitched:YardsPerUnit(continent, x, y)
-    local u1, v1 = self:At(continent, x, y)
-    if not u1 then return nil end
-    local u2, v2 = self:At(continent, x + PROBE_YARDS, y)
-    if not u2 then u2, v2 = self:At(continent, x - PROBE_YARDS, y) end
-    if not u2 then return nil end
-    local du, dv = (u2 - u1) * self.width, (v2 - v1) * self.height
-    local distance = math.sqrt(du * du + dv * dv)
-    return distance > 0 and PROBE_YARDS / distance or nil
+-- The stitched world's origin goes where the host map's rectangle puts it. Offsets are in the
+-- frame's own (scaled) units.
+function Stitched:Attach(frame, canvas)
+    frame:ClearAllPoints()
+    frame:SetScale(self.frameScale)
+    frame:SetSize(self.width, self.height)
+    frame:SetPoint("TOPLEFT", canvas, "TOPLEFT", -self.l * self.width, self.t * self.height)
+end
+
+function Stitched:SameSpace(other)
+    return other ~= nil and other.stitched == true and other.space == self.space
+end
+
+-- A stored trail's points as runs of placed points, in drawing frame units ({ x1, y1, x2, ... });
+-- a point that can't be placed ends a run. Kept until the trail or the space changes.
+function Stitched:Runs(segment)
+    local kept = runs[segment]
+    if kept and kept.p == segment.p and kept.space == self.space then return kept.runs end
+    local list, run = {}, nil
+    local points = ns.Codec.DecodePath(segment.p)
+    for i = 1, points and #points - 1 or 0, 2 do
+        local u, v = self:At(segment.c, points[i], points[i + 1])
+        if u then
+            if not run then
+                run = {}
+                list[#list + 1] = run
+            end
+            run[#run + 1] = u * self.width
+            run[#run + 1] = v * self.height
+        else
+            run = nil
+        end
+    end
+    runs[segment] = { p = segment.p, space = self.space, runs = list }
+    return list
 end
 
 -- `over` levels above OpenMap's art.
@@ -110,19 +192,23 @@ function Stitched:FrameLevel(map, pin, overPin, over)
 end
 
 -- How points go on map's canvas now; nil where nothing can be placed (the whole world on the
--- default map, or a canvas without a size).
+-- default map, a host map that isn't on the stitched world, or a canvas without a size).
 function MapPlacement.For(map)
     local canvas = map:GetCanvas()
     local width, height = canvas:GetWidth(), canvas:GetHeight()
     if not (width > 0 and height > 0) then return nil end
     local api = Compat.StitchedMap()
-    if api then
-        return setmetatable({ api = api, width = width, height = height }, Stitched)
-    end
+    if api then return stitched(api, map, width, height) end
     local transform = MapPlacement.Transform(map:GetMapID())
     if not transform then return nil end
-    return setmetatable({ transform = transform, continent = transform.continent, width = width, height = height },
-        Default)
+    return setmetatable({
+        transform = transform, continent = transform.continent, width = width, height = height, frameScale = 1,
+    }, Default)
+end
+
+-- Whether placement is still the right kind for the map: stitched while OpenMap's map shows.
+function MapPlacement.Matches(placement)
+    return placement ~= nil and (placement.stitched == true) == (Compat.StitchedMap() ~= nil)
 end
 
 ------------------------------------------------------------------------------------------------

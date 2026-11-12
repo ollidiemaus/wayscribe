@@ -48,16 +48,16 @@ end
 
 function NotesMap:Clear()
     clear()
+    view.placement = nil
 end
 
 -- At the default map's pin level for its own waypoint: above the trails and the map's labels.
 -- On OpenMap's stitched map: above its art and the trails.
+-- On the stitched map the frame spans the stitched world (UI/MapPlacement.lua's Attach).
 local function ensureFrame(map, placement)
-    if not view.frame then
-        local canvas = map:GetCanvas()
-        view.frame = CreateFrame("Frame", nil, canvas)
-        view.frame:SetAllPoints(canvas)
-    end
+    local canvas = map:GetCanvas()
+    view.frame = view.frame or CreateFrame("Frame", nil, canvas)
+    placement:Attach(view.frame, canvas)
     view.frame:SetFrameLevel(placement:FrameLevel(map, "PIN_FRAME_LEVEL_WAYPOINT_LOCATION", 0, 2))
 end
 
@@ -147,7 +147,7 @@ function NotesMap:Redraw()
     ensureFrame(map, placement)
     view.placement = placement
     view.width, view.height = placement.width, placement.height
-    view.scale = Compat.Call(map.GetCanvasScale, map) or 1
+    view.scale = (Compat.Call(map.GetCanvasScale, map) or 1) * placement.frameScale
     local all = self:IsShownOnMap()
     -- The shown map's continent; on the stitched map (continent nil) every continent.
     for _, placed in ipairs(Notes:GetPlaced(placement.continent)) do
@@ -159,10 +159,23 @@ function NotesMap:RedrawIfShown()
     if self.map and self.map:IsShown() then self:Redraw() end
 end
 
+-- The map underneath changed: on the stitched map the markers only move with their frame.
+function NotesMap:Refresh()
+    local map, drawn = self.map, view.placement
+    local placement = drawn and map and map:IsShown() and MapPlacement.For(map)
+    if not (placement and placement:SameSpace(drawn)) then
+        self:Redraw()
+        return
+    end
+    view.placement = placement
+    placement:Attach(view.frame, map:GetCanvas())
+    self:UpdateSize()
+end
+
 -- Markers keep their size on screen at every zoom.
 function NotesMap:UpdateSize()
-    if not self.map then return end
-    view.scale = Compat.Call(self.map.GetCanvasScale, self.map) or 1
+    if not (self.map and view.placement) then return end
+    view.scale = (Compat.Call(self.map.GetCanvasScale, self.map) or 1) * view.placement.frameScale
     for i = 1, view.used do
         local marker = view.frames[i]
         local size = markerSize(marker)
@@ -293,7 +306,7 @@ local function createProvider()
         NotesMap:Clear()
     end
     function provider:RefreshAllData()
-        NotesMap:Redraw()
+        NotesMap:Refresh()
     end
     function provider:OnCanvasScaleChanged()
         NotesMap:UpdateSize()
@@ -328,7 +341,9 @@ function NotesMap:Register()
     end
     self.provider = createProvider()
     WorldMapFrame:AddDataProvider(self.provider)
-    MapPlacement.OnStitchedChanged(self, function() self:RedrawIfShown() end)
+    MapPlacement.OnStitchedChanged(self, function()
+        if not MapPlacement.Matches(view.placement) then self:RedrawIfShown() end
+    end)
 end
 
 function NotesMap:OnSettingsChanged(key)

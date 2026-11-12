@@ -57,8 +57,21 @@ local function live(ns)
     return shown(ns.FootstepsMap.view.liveTrail)
 end
 
+-- Where a line runs on the canvas: x1, y1, x2, y2 (its frame may span OpenMap's stitched world).
+local function ends(line)
+    local x1, y1 = Stubs.OnParent(line.parent, line.x1, line.y1)
+    local x2, y2 = Stubs.OnParent(line.parent, line.x2, line.y2)
+    return x1, y1, x2, y2
+end
+
+-- Where a marker's centre is on the canvas: x, y.
+local function centre(marker)
+    return Stubs.OnParent(marker:GetParent(), marker.lastPoint[4], marker.lastPoint[5])
+end
+
 local function length(line)
-    return math.sqrt((line.x2 - line.x1) ^ 2 + (line.y2 - line.y1) ^ 2)
+    local x1, y1, x2, y2 = ends(line)
+    return math.sqrt((x2 - x1) ^ 2 + (y2 - y1) ^ 2)
 end
 
 local function near(actual, expected, what)
@@ -69,10 +82,11 @@ end
 
 -- A line from map point (u1, v1) to (u2, v2) on the stub canvas.
 local function expectLine(line, u1, v1, u2, v2)
-    near(line.x1, u1 * WIDTH, "x1")
-    near(line.y1, -v1 * HEIGHT, "y1")
-    near(line.x2, u2 * WIDTH, "x2")
-    near(line.y2, -v2 * HEIGHT, "y2")
+    local x1, y1, x2, y2 = ends(line)
+    near(x1, u1 * WIDTH, "x1")
+    near(y1, -v1 * HEIGHT, "y1")
+    near(x2, u2 * WIDTH, "x2")
+    near(y2, -v2 * HEIGHT, "y2")
 end
 
 describe("world map", function()
@@ -158,8 +172,9 @@ describe("world map", function()
         T.truthy(tail and tail:IsShown(), "the tail is drawn")
         position = Stubs.state.position
         local u, v = Stubs.WorldToMap(1412, position.x, position.y)
-        near(tail.x2, u * WIDTH, "tail x")
-        near(tail.y2, -v * HEIGHT, "tail y")
+        local _, _, tailX, tailY = ends(tail)
+        near(tailX, u * WIDTH, "tail x")
+        near(tailY, -v * HEIGHT, "tail y")
         T.eq(tail.thickness, 5, "2.5 pixels at half scale")
     end)
 
@@ -340,6 +355,28 @@ local function kalimdor(u, v)
     return Stubs.MapToWorld(1414, u, v)
 end
 
+-- More maps of Kalimdor in the proportions of the stub canvas, as the client's are: 1413 inside
+-- it, 1416 most of it. Removed again after fn.
+local function withKalimdorMaps(fn)
+    Stubs.MAPS[1413] = { name = "The Barrens", continent = 1, top = 2000, left = 0, width = 6000, height = 4000,
+        parent = 1414, type = 3 }
+    Stubs.MAPS[1416] = { name = "Most of Kalimdor", continent = 1, top = 5000, left = 8000, width = 15000,
+        height = 10000, parent = 1414, type = 2 }
+    local ok, err = pcall(fn)
+    Stubs.MAPS[1413], Stubs.MAPS[1416] = nil, nil
+    if not ok then error(err, 0) end
+end
+
+-- Counts the Footsteps redraws from now on: returns a function giving the count.
+local function countRedraws(ns)
+    local count, redraw = 0, ns.FootstepsMap.Redraw
+    ns.FootstepsMap.Redraw = function(...)
+        count = count + 1
+        return redraw(...)
+    end
+    return function() return count end
+end
+
 describe("on OpenMap's stitched map", function()
     it("draws trails above OpenMap's art, past the edge of the map underneath", function()
         local ns, map = start({ openMap = {} })
@@ -377,8 +414,9 @@ describe("on OpenMap's stitched map", function()
         local lines = trails(ns)
         T.truthy(#lines >= 2, "lines: " .. #lines)
         for _, line in ipairs(lines) do
-            T.truthy(line.x1 <= WIDTH + 0.5 and line.x2 <= WIDTH + 0.5, "no line out to the unplaced point")
-            T.truthy(math.abs(line.x2 - line.x1) < 0.08 * WIDTH, "no line across the gap")
+            local x1, _, x2 = ends(line)
+            T.truthy(x1 <= WIDTH + 0.5 and x2 <= WIDTH + 0.5, "no line out to the unplaced point")
+            T.truthy(math.abs(x2 - x1) < 0.08 * WIDTH, "no line across the gap")
         end
         T.eq(#ns.Log:GetEntries(), 0)
     end)
@@ -391,7 +429,10 @@ describe("on OpenMap's stitched map", function()
         -- too short for a line of their own.
         walkOnMap(1414, 0.9945, 0.5, 1.004, 0.5)
         local reach = 0
-        for _, line in ipairs(live(ns)) do reach = math.max(reach, line.x1, line.x2) end
+        for _, line in ipairs(live(ns)) do
+            local x1, _, x2 = ends(line)
+            reach = math.max(reach, x1, x2)
+        end
         T.truthy(reach > 0.999 * WIDTH and reach <= WIDTH, "the trail reaches " .. reach)
     end)
 
@@ -421,6 +462,71 @@ describe("on OpenMap's stitched map", function()
         T.truthy(ns.FootstepsMap.view.frame:GetFrameLevel() > 2000)
     end)
 
+    it("only moves the drawing when OpenMap switches the map underneath", function()
+        local ns, map, openMap = start({ openMap = {} })
+        withKalimdorMaps(function()
+            trail(1412, 0.2, 0.5, 0.6, 0.5)
+            trail(1412, 0.2, 0.5, 0.6, 0.5, 0)
+            map:Show()
+            local redraws = countRedraws(ns)
+            local lines = trails(ns)
+            local first, placed = { lines[1].x1, lines[1].y1 }, openMap.placed
+            map:SetMapID(1413)
+            T.eq(redraws(), 0, "not drawn again")
+            T.eq(openMap.placed, placed, "nothing placed again")
+            local now = trails(ns)
+            T.truthy(#now == 2 and now[1] == lines[1] and now[2] == lines[2], "the same lines")
+            T.same({ lines[1].x1, lines[1].y1 }, first)
+            local u1, v1 = Stubs.WorldToMap(1413, Stubs.MapToWorld(1412, 0.2, 0.5))
+            local u2, v2 = Stubs.WorldToMap(1413, Stubs.MapToWorld(1412, 0.6, 0.5))
+            expectLine(lines[2], u1, v1, u2, v2)
+            near(lines[2].thickness * lines[2].parent:GetScale(), 2.5, "the same width on screen")
+
+            -- OpenMap keeps the view as it switches: the new map's canvas scale makes up for its
+            -- size, which is no zoom.
+            map:SetMapID(1416)
+            map:Zoom(15000 / 5137.5)
+            Stubs.Advance(1)
+            T.eq(redraws(), 0, "a switch isn't a zoom")
+            local u, v = Stubs.WorldToMap(1416, Stubs.MapToWorld(1412, 0.2, 0.5))
+            local x1, y1 = ends(lines[2])
+            near(x1, u * WIDTH, "x on the new map")
+            near(y1, -v * HEIGHT, "y on the new map")
+            near(lines[2].thickness * lines[2].parent:GetScale() * map.canvasScale, 2.5, "the width on screen")
+
+            openMap.SetStitched(true) -- OpenMap says so again as its map opens
+            T.eq(redraws(), 0, "already drawn for the stitched map")
+            T.eq(#ns.Log:GetEntries(), 0)
+        end)
+    end)
+
+    it("draws over the lines shown for a new zoom, placing nothing again", function()
+        local ns, map, openMap = start({ openMap = {} })
+        local x, y = Stubs.MapToWorld(1412, 0.5, 0.5)
+        for i = 0, 60 do
+            local angle = i / 60 * math.pi
+            Stubs.SetPosition(1, x + 300 * math.cos(angle), y + 300 * math.sin(angle))
+            Stubs.Advance(1)
+        end
+        wait(61)
+        map:Show()
+        map:Zoom(4)
+        Stubs.Advance(1)
+        local zoomedIn = trails(ns)
+        local placed = openMap.placed
+        map:Zoom(0.5)
+        Stubs.Advance(1)
+        -- (the trail being recorded is placed again: a few points at most)
+        T.truthy(openMap.placed - placed < 10, "the trail's 61 points are kept: " .. openMap.placed - placed)
+        local zoomedOut = trails(ns)
+        T.truthy(#zoomedOut < #zoomedIn, #zoomedIn .. " -> " .. #zoomedOut)
+        T.eq(zoomedOut[1], zoomedIn[1], "the same lines, drawn over")
+        local pool = ns.FootstepsMap.view.trails
+        for i = pool.used + 1, #pool.lines do
+            T.falsy(pool.lines[i]:IsShown(), "line " .. i .. " of the older drawing is hidden")
+        end
+    end)
+
     it("grows the trail being recorded past the map's edge, with its tail to the player", function()
         local ns, map = start({ openMap = {} })
         map:Show()
@@ -433,8 +539,9 @@ describe("on OpenMap's stitched map", function()
         T.truthy(tail and tail:IsShown())
         local u, v = Stubs.WorldToMap(1412, position.x, position.y - 9)
         T.truthy(u > 1, "past the edge")
-        near(tail.x2, u * WIDTH, "tail x")
-        near(tail.y2, -v * HEIGHT, "tail y")
+        local _, _, tailX, tailY = ends(tail)
+        near(tailX, u * WIDTH, "tail x")
+        near(tailY, -v * HEIGHT, "tail y")
     end)
 
     it("keeps line widths on screen and draws detail for the settled zoom", function()
@@ -470,10 +577,11 @@ describe("on OpenMap's stitched map", function()
         map:Show()
         local list = markers(ns)
         T.eq(#list, 3)
-        near(list[1].lastPoint[4], 1.5 * WIDTH, "the skull past the zone's edge")
+        near((centre(list[1])), 1.5 * WIDTH, "the skull past the zone's edge")
         local u, v = Stubs.WorldToMap(1412, kalimdor(1.5, 0.5))
-        near(list[3].lastPoint[4], u * WIDTH, "arrived in the Eastern Kingdoms: x")
-        near(list[3].lastPoint[5], -v * HEIGHT, "y")
+        local x, y = centre(list[3])
+        near(x, u * WIDTH, "arrived in the Eastern Kingdoms: x")
+        near(y, -v * HEIGHT, "y")
         T.truthy(list[1]:GetParent():GetFrameLevel() > 2000)
         map:Zoom(2)
         T.eq(list[1].width, 8)

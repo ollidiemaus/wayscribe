@@ -105,6 +105,9 @@ local function newFrame(frameType, name, parent, template)
     function frame:GetFrameLevel() return self.frameLevel or 1 end
     function frame:SetFrameLevel(level) self.frameLevel = level end
     function frame:SetPoint(...) self.lastPoint = { ... } end
+    function frame:ClearAllPoints() self.lastPoint = nil end
+    function frame:SetScale(scale) self.scale = scale end
+    function frame:GetScale() return self.scale or 1 end
     function frame:SetText(text) self.text = text end
     function frame:GetText() return self.text end
     function frame:SetNormalAtlas(atlas) self.normalAtlas = atlas end
@@ -125,7 +128,7 @@ local function newFrame(frameType, name, parent, template)
     end
     -- Lines remember where they were drawn (in the frame's coordinates) for map assertions.
     function frame:CreateLine(_, layer, _, sublevel)
-        local line = { shown = true, layer = layer, sublevel = sublevel }
+        local line = { shown = true, layer = layer, sublevel = sublevel, parent = self }
         function line:Show() self.shown = true end
         function line:Hide() self.shown = false end
         function line:IsShown() return self.shown end
@@ -789,6 +792,15 @@ function Stubs.InstallOpenMap(map, opts)
     function api.Pan(u, v) fire("OpenMap_ViewChanged", u, v, 2) end
     _G.OpenMapAPI = api
     return api
+end
+
+-- A point (x, y) of `frame`'s own coordinates on the frame it is anchored to, through its
+-- TOPLEFT anchor and scale; unchanged for a frame laid over its parent (SetAllPoints).
+function Stubs.OnParent(frame, x, y)
+    local point = frame.lastPoint
+    if not (point and point[1] == "TOPLEFT" and point[3] == "TOPLEFT") then return x, y end
+    local scale = frame:GetScale()
+    return (x + point[4]) * scale, (y + point[5]) * scale
 end
 
 -- Lua files in TOC order; embeds.xml (the libraries) is skipped, like a copy without Libs.

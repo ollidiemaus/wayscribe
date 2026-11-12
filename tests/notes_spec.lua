@@ -27,6 +27,11 @@ end
 
 -- Runs fn with Elwynn Forest (and the Eastern Kingdoms above it) among the stub's maps, named
 -- like a German client names them.
+-- Where a marker's centre is on the canvas: x, y (its frame may span OpenMap's stitched world).
+local function centre(marker)
+    return Stubs.OnParent(marker:GetParent(), marker.lastPoint[4], marker.lastPoint[5])
+end
+
 local function withElwynn(fn)
     Stubs.MAPS[1415] = { name = "Östliche Königreiche", continent = 0, top = 4000, left = 4000, width = 12000,
         height = 9000, parent = 947, type = 2 }
@@ -563,15 +568,16 @@ describe("notes on the map", function()
             T.eq(#list, 3)
             local outsideU = Stubs.WorldToMap(1412, Stubs.MapToWorld(1414, 0.7, 0.5))
             T.truthy(outsideU > 1)
-            near(list[2].lastPoint[4], outsideU * WIDTH, "past the zone's edge")
+            near((centre(list[2])), outsideU * WIDTH, "past the zone's edge")
             local place = ns.Notes.PlacesOf(ns.Notes:Get(2))[1]
             T.eq(place.c, 0)
             -- The fake stitched world puts the Eastern Kingdoms one Kalimdor width east.
             local u, v = Stubs.WorldToMap(1414, place.x, place.y)
             local x, y = Stubs.MapToWorld(1414, u + 1, v)
             local hostU, hostV = Stubs.WorldToMap(1412, x, y)
-            near(list[3].lastPoint[4], hostU * WIDTH, "x")
-            near(list[3].lastPoint[5], -hostV * HEIGHT, "y")
+            local markerX, markerY = centre(list[3])
+            near(markerX, hostU * WIDTH, "x")
+            near(markerY, -hostV * HEIGHT, "y")
             T.truthy(list[1]:GetParent():GetFrameLevel() > 2000, "above the art")
             T.truthy(list[1]:GetParent():GetFrameLevel() > ns.FootstepsMap.view.frame:GetFrameLevel(),
                 "above the trails")
