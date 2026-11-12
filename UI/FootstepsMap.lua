@@ -116,6 +116,14 @@ local function clearPool(pool)
     trimPool(pool)
 end
 
+-- A white line, tinted per drawing with SetVertexColor: cheaper on a redraw than setting the
+-- color texture again (wow-addon-standards W2).
+local function newLine(sublevel)
+    local line = view.frame:CreateLine(nil, "ARTWORK", nil, sublevel)
+    line:SetColorTexture(1, 1, 1, 1)
+    return line
+end
+
 -- Canvas coordinates a..d (already clipped where they need to be) as a line of `style`.
 local function placeLine(line, a, b, c, d, style, alpha)
     local spec = STYLES[style]
@@ -123,7 +131,7 @@ local function placeLine(line, a, b, c, d, style, alpha)
     line:SetStartPoint("TOPLEFT", view.frame, a * view.width, -b * view.height)
     line:SetEndPoint("TOPLEFT", view.frame, c * view.width, -d * view.height)
     line:SetThickness(spec.width / view.scale)
-    line:SetColorTexture(spec.color[1], spec.color[2], spec.color[3], alpha)
+    line:SetVertexColor(spec.color[1], spec.color[2], spec.color[3], alpha)
     line:Show()
 end
 
@@ -136,7 +144,7 @@ local function drawLine(pool, u1, v1, u2, v2, style, alpha)
     pool.used = pool.used + 1
     local line = pool.lines[pool.used]
     if not line then
-        line = view.frame:CreateLine(nil, "ARTWORK", nil, pool.sublevel)
+        line = newLine(pool.sublevel)
         pool.lines[pool.used] = line
     end
     if pool.used > pool.shown then pool.shown = pool.used end
@@ -192,7 +200,7 @@ local function drawTail(live)
         if view.tail then view.tail:Hide() end
         return
     end
-    view.tail = view.tail or view.frame:CreateLine(nil, "ARTWORK", nil, view.liveTrail.sublevel)
+    view.tail = view.tail or newLine(view.liveTrail.sublevel)
     placeLine(view.tail, a, b, c, d, live.f and "flight" or "ground", RECENT_ALPHA)
 end
 
@@ -406,16 +414,19 @@ function FootstepsMap:OnViewChanged()
     end
 end
 
+local function thicken(pool)
+    for i = 1, pool.used do
+        local line = pool.lines[i]
+        line:SetThickness(STYLES[line.style].width / view.scale)
+    end
+end
+
 -- Lines keep their width on screen at every zoom.
 function FootstepsMap:UpdateThickness()
     if not (self.map and view.placement) then return end
     view.scale = screenScale(self.map, view.placement)
-    for _, pool in ipairs({ view.trails, view.liveTrail }) do
-        for i = 1, pool.used do
-            local line = pool.lines[i]
-            line:SetThickness(STYLES[line.style].width / view.scale)
-        end
-    end
+    thicken(view.trails)
+    thicken(view.liveTrail)
     if view.tail and view.tail.style then
         view.tail:SetThickness(STYLES[view.tail.style].width / view.scale)
     end
@@ -434,16 +445,28 @@ local function farFromDrawn()
     return ratio >= REDRAW_ZOOM or ratio <= 1 / REDRAW_ZOOM
 end
 
+-- Runs ZOOM_SETTLE after the last zoom step. This fires every frame of a zoom, so one timer at a
+-- time, with no closure per step: a timer that fires before the zoom has settled arms one more for
+-- the rest (wow-addon-standards U4, G2).
+local settleZoom
+settleZoom = function()
+    local left = view.zoomSettlesAt - GetTime()
+    if left > 0 then
+        C_Timer.After(left, settleZoom)
+        return
+    end
+    view.zoomTimer = false
+    if farFromDrawn() then ns.SafeCall("footsteps:zoom", FootstepsMap.Redraw, FootstepsMap, true) end
+end
+
 function FootstepsMap:OnCanvasScaleChanged()
     self:UpdateThickness()
     if not farFromDrawn() then return end
-    view.zoomGeneration = (view.zoomGeneration or 0) + 1
-    local generation = view.zoomGeneration
-    C_Timer.After(ZOOM_SETTLE, function()
-        if view.zoomGeneration == generation and farFromDrawn() then
-            ns.SafeCall("footsteps:zoom", self.Redraw, self, true)
-        end
-    end)
+    view.zoomSettlesAt = GetTime() + ZOOM_SETTLE
+    if not view.zoomTimer then
+        view.zoomTimer = true
+        C_Timer.After(ZOOM_SETTLE, settleZoom)
+    end
 end
 
 ------------------------------------------------------------------------------------------------

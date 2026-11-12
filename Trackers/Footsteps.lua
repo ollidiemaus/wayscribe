@@ -185,10 +185,13 @@ end
 function Footsteps:UNIT_SPELLCAST_SUCCEEDED(_, _, spellID)
     spellID = Compat.Safe(spellID, "number")
     if not spellID then return end
+    -- A spell ID not listed is looked up by name once and the answer kept by ID (false for not a
+    -- travel spell), so a later cast of it is one lookup: this runs on every cast the player makes.
     local known = self.travelById[spellID]
-    if not known then
+    if known == nil then
         local name = Compat.GetSpellName(spellID)
         known = name ~= nil and self.travelByName[name] == true
+        self.travelById[spellID] = known
     end
     if not known then return end
     local continent, x, y = Compat.GetPlayerWorldPosition()

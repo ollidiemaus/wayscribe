@@ -2,34 +2,26 @@ local T = require("testlib")
 local Stubs = require("wow_stubs")
 local describe, it = T.describe, T.it
 
--- The parts of the 11.x Settings API the panel uses, recording what was registered.
+-- The parts of the Settings API the panel uses, recording what was registered.
 local function installSettingsAPI()
-    local api = { settings = {}, initializers = {}, dropdowns = {} }
+    local api = {}
     _G.Settings = {
-        VarType = { Boolean = "boolean", String = "string" },
-        RegisterVerticalLayoutCategory = function(name)
-            api.category = { name = name, GetID = function() return 77 end }
-            return api.category, { AddInitializer = function(_, init) api.initializers[#api.initializers + 1] = init end }
-        end,
-        RegisterProxySetting = function(_, variable, varType, name, default, get, set)
-            local setting = { variable = variable, varType = varType, name = name, default = default, get = get, set = set }
-            api.settings[variable] = setting
-            return setting
-        end,
-        CreateCheckbox = function(_, setting) setting.control = "checkbox" end,
-        CreateDropdown = function(_, setting, options) setting.control = "dropdown"; api.dropdowns[setting.variable] = options end,
-        CreateControlTextContainer = function()
-            local container = { data = {} }
-            function container:Add(value, label) self.data[#self.data + 1] = { value = value, label = label } end
-            function container:GetData() return self.data end
-            return container
+        RegisterCanvasLayoutCategory = function(frame, name)
+            api.category = { frame = frame, name = name, GetID = function() return 77 end }
+            return api.category
         end,
         RegisterAddOnCategory = function(category) api.registered = category end,
         OpenToCategory = function(id) api.opened = id end,
     }
-    _G.CreateSettingsListSectionHeaderInitializer = function(text) return { header = text } end
-    _G.CreateSettingsButtonInitializer = function(name, _, onClick) return { button = name, onClick = onClick } end
     return api
+end
+
+-- The page's row named label: control.get/set for a checkbox or dropdown, control.choices() for a
+-- dropdown's choices, control.onClick for a button.
+local function row(ns, label)
+    local control = ns.SettingsPanel.page:Find(label)
+    T.truthy(control, label)
+    return control
 end
 
 -- LibStub with LibDataBroker and LibDBIcon doubles.
@@ -65,24 +57,37 @@ describe("settings page", function()
         local ns, api = start()
         T.eq(api.registered, api.category)
         T.eq(api.category.name, "Wayscribe")
+        T.eq(api.category.frame, ns.SettingsPanel.page.frame)
         for _, id in ipairs({ "Level", "Professions", "Gathering", "Bosses", "Dungeons", "WeaponSkills", "Jumps" }) do
-            local setting = api.settings["Wayscribe_Tracker_" .. id]
-            T.truthy(setting, id)
-            T.eq(setting.control, "checkbox")
-            T.eq(setting.get(), true)
+            local control = row(ns, ns.Trackers:Get(id).label)
+            T.eq(control.kind, "checkbox")
+            T.eq(control.get(), true)
         end
-        T.eq(api.settings.Wayscribe_Tracker_Session, nil, "internal trackers have no toggle")
+        local toggles = 0
+        for _, control in ipairs(ns.SettingsPanel.page.controls) do
+            T.falsy(control.label == ns.Trackers:Get("Session").label, "internal trackers have no toggle")
+            for _, tracker in ipairs(ns.Trackers.list) do
+                if control.label == tracker.label then toggles = toggles + 1 end
+            end
+        end
+        local wanted = 0
+        for _, tracker in ipairs(ns.Trackers.list) do
+            if not tracker.internal then wanted = wanted + 1 end
+        end
+        T.eq(toggles, wanted)
 
-        api.settings.Wayscribe_Tracker_Gathering.set(false)
+        local gathering = row(ns, ns.Trackers:Get("Gathering").label)
+        gathering.set(false)
         T.falsy(ns.Trackers:Get("Gathering").enabled)
-        T.eq(api.settings.Wayscribe_Tracker_Gathering.get(), false)
+        T.eq(gathering.get(), false)
         T.eq(ns.accountDB.settings.trackers.Gathering, false)
     end)
 
     it("stores the date format and only real choices", function()
-        local ns, api = start()
-        local setting = api.settings.Wayscribe_DateFormat
-        local options = api.dropdowns.Wayscribe_DateFormat()
+        local ns = start()
+        local setting = row(ns, "Date format")
+        T.eq(setting.kind, "dropdown")
+        local options = setting.choices()
         T.eq(options[1].value, "")
         T.eq(options[1].label, "Language default (2026-10-03)")
         T.eq(options[3].label, "03.10.2026")
@@ -95,17 +100,18 @@ describe("settings page", function()
     end)
 
     it("the login recap toggle is saved", function()
-        local ns, api = start()
-        api.settings.Wayscribe_LoginRecap.set(false)
+        local ns = start()
+        local control = row(ns, "Show last session at login")
+        control.set(false)
         T.eq(ns.accountDB.settings.showLoginRecap, false)
-        T.eq(api.settings.Wayscribe_LoginRecap.get(), false)
+        T.eq(control.get(), false)
     end)
 
     it("has data buttons that run the slash commands", function()
-        local _, api = start()
+        local ns = start()
         local buttons = {}
-        for _, init in ipairs(api.initializers) do
-            if init.button then buttons[init.button] = init end
+        for _, control in ipairs(ns.SettingsPanel.page.controls) do
+            if control.kind == "button" then buttons[control.label] = control end
         end
         T.truthy(buttons["Delete all trails"])
         T.truthy(buttons["Reset journal"])
@@ -124,8 +130,8 @@ describe("settings page", function()
     end)
 
     it("has a notes section: whether the world map shows them", function()
-        local ns, api = start()
-        local onMap = api.settings.Wayscribe_NotesOnMap
+        local ns = start()
+        local onMap = row(ns, "Show notes on the world map")
         T.eq(onMap.get(), true)
         onMap.set(false)
         T.eq(ns.accountDB.settings.notesOnMap, false)
@@ -133,8 +139,8 @@ describe("settings page", function()
     end)
 
     it("has a dungeon maps section: whether the journal shows them", function()
-        local ns, api = start()
-        local shown = api.settings.Wayscribe_DungeonMaps
+        local ns = start()
+        local shown = row(ns, "Show dungeon maps")
         T.eq(shown.get(), true)
         shown.set(false)
         T.eq(ns.accountDB.settings.dungeonMaps, false)
@@ -142,27 +148,25 @@ describe("settings page", function()
     end)
 
     it("has a footsteps section: what the map shows, flights, and deleting trails", function()
-        local ns, api = start()
-        local mode = api.settings.Wayscribe_FootstepsMode
+        local ns = start()
+        local mode = row(ns, "Show on the world map")
         T.eq(mode.get(), "today")
         local labels = {}
-        for i, option in ipairs(api.dropdowns.Wayscribe_FootstepsMode()) do labels[i] = option.label end
+        for i, option in ipairs(mode.choices()) do labels[i] = option.label end
         T.same(labels, { "Today", "Last 7 days", "All", "Off" })
         mode.set("all")
         T.eq(ns.accountDB.settings.footstepsMode, "all")
 
-        local flights = api.settings.Wayscribe_FootstepsFlights
+        local flights = row(ns, "Record flight paths")
         T.eq(flights.get(), true)
         flights.set(false)
         T.eq(ns.accountDB.settings.footstepsFlights, false)
-        T.truthy(api.settings.Wayscribe_Tracker_Footsteps, "Footsteps can be turned off like any tracker")
+        T.truthy(row(ns, ns.Trackers:Get("Footsteps").label), "Footsteps can be turned off like any tracker")
 
         _G.StaticPopupDialogs = {}
         local shown
         _G.StaticPopup_Show = function(name) shown = name end
-        for _, init in ipairs(api.initializers) do
-            if init.button == "Delete all trails" then init.onClick() end
-        end
+        row(ns, "Delete all trails").onClick()
         T.eq(shown, "WAYSCRIBE_DELETE_TRAILS")
         ns.Paths:AddSegment({ c = 1, t = Stubs.Now(), d = 5, p = ns.Codec.EncodePath({ 0, 0, 10, 0 }) })
         StaticPopupDialogs[shown].OnAccept()
@@ -206,11 +210,12 @@ describe("minimap button", function()
     end)
 
     it("can be hidden from the settings page", function()
-        local ns, api, libs = start()
-        api.settings.Wayscribe_Minimap.set(false)
+        local ns, _, libs = start()
+        local control = row(ns, "Minimap button")
+        control.set(false)
         T.falsy(libs.icon.shown.Wayscribe)
         T.eq(ns.accountDB.settings.minimap.hide, true)
-        T.eq(api.settings.Wayscribe_Minimap.get(), false)
+        T.eq(control.get(), false)
     end)
 
     it("left-click toggles the journal, right-click opens settings", function()

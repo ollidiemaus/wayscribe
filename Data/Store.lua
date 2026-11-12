@@ -124,8 +124,15 @@ function Store:CopyState(key)
     return deepCopy(self:GetState(key))
 end
 
+-- Only plain data the client can save, and nothing secret: a tracker's snapshot that isn't is
+-- refused and logged, like an entry that fails validation.
 function Store:SetState(key, value)
     if not self:IsWritable() then return false end
+    local ok, reason = ns.RecordTypes.CheckState(value)
+    if not ok then
+        ns.Log:Error("store", "state " .. tostring(key) .. ": " .. reason)
+        return false
+    end
     self.db.state[key] = value
     return true
 end

@@ -139,6 +139,9 @@ So far only Ragefire Chasm, Wailing Caverns, the Deadmines and the Hall of Thane
 - [ ] **Gather spell.** With `/etrace` open, mine a vein. → Note the spell ID that
   `UNIT_SPELLCAST_SUCCEEDED` shows, and whether it's readable or hidden (secret).
 - [ ] **First Aid.** Learn First Aid, then `/ws probe`. → Is there a `profession.…` line for it?
+- [ ] **Learn a gathering profession.** On a character without one, learn Mining or Skinning at the
+  trainer, then gather right away. → It counts (the tracker starts listening a second after the
+  skill appears). Herbalism too: its skill line is assumed to be 182, as Skinning's 393 was seen.
 
 ## Quests
 
@@ -188,6 +191,15 @@ With OpenMap installed (version 2 of its API or later) and its stitched map show
 - [ ] **Summon or boat.** → No entry, no icon; the line just breaks.
 
 ## Journal and windows
+
+- [ ] **Settings page (canvas).** Options > AddOns > Wayscribe. → Title, General / Footsteps / Notes /
+  Dungeon maps on the left, Data on the right, Tracking below in two columns; the wheel scrolls to
+  the last tracker. Toggles, both dropdowns (menu with the mouse) and every Data button work; a
+  change on the map button shows on the open page.
+- [ ] **Settings page with the controller interface.** Options > Controller > Enable Controller UI.
+  Open the page, move the cursor over every row down to the last tracker (does the page scroll with
+  it?), press a dropdown (→ it steps to the next choice, no menu), toggle a checkbox, close the
+  settings. → The game doesn't hang on close.
 
 - [ ] **Live.** With the journal open on today, loot ore or level up. → The page updates without
   flicker.

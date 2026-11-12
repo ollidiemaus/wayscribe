@@ -35,6 +35,33 @@ function Compat.Call(fn, ...)
     return afterCall(pcall(fn, ...))
 end
 
+-- Compat.Call for another addon's code (OpenMap, TomTom): its error is caught as well, so it can't
+-- break ours, but is noted in /ws log as a warning naming that addon (it isn't Wayscribe's bug),
+-- once per source a session, so a broken addon is visible without one entry per point drawn
+-- (wow-addon-standards X1). In developer mode it also goes to the error handler.
+local reported = {}
+
+function Compat.ReportAddonError(source, message)
+    if reported[source] then return end
+    reported[source] = true
+    ns.Log:Warn(source, message)
+    if ns.devMode and geterrorhandler then
+        local handler = geterrorhandler()
+        if handler then pcall(handler, tostring(source) .. ": " .. tostring(message)) end
+    end
+end
+
+local function afterAddonCall(source, ok, ...)
+    if ok then return sanitizeAll(...) end
+    Compat.ReportAddonError(source, (...))
+    return nil
+end
+
+function Compat.CallAddon(source, fn, ...)
+    if type(fn) ~= "function" then return nil end
+    return afterAddonCall(source, pcall(fn, ...))
+end
+
 -- For the launch trace, which shows a value the way the game gave it: fn's first value through
 -- Compat.Safe(value, expectedType), then the raw value, then true when the call ran. Without fn,
 -- or when it errors, all three are nil.
@@ -80,6 +107,15 @@ function Compat.HasTemplate(name)
     return Compat.Call(getInfo, name) ~= nil
 end
 
+-- Whether Forever's controller interface is on (Options > Controller > Enable Controller UI). Asked
+-- each time: the player can switch it while playing.
+function Compat.IsControllerUI()
+    local style = C_InputInterfaceStyle and C_InputInterfaceStyle.GetCurrentStyle
+    local gamepad = Enum and Enum.InputDeviceInterfaceType and Enum.InputDeviceInterfaceType.Gamepad
+    if not (style and gamepad) then return false end
+    return Compat.Safe(Compat.Call(style), "number") == gamepad
+end
+
 -- Whether a texture atlas exists (atlas names are checked against the client's own list).
 function Compat.HasAtlas(name)
     local getInfo = C_Texture and C_Texture.GetAtlasInfo
@@ -104,7 +140,10 @@ function Compat:Detect()
     else
         has.professions = false
     end
-    has.settingsAPI = Settings ~= nil and Settings.RegisterVerticalLayoutCategory ~= nil
+    has.settingsAPI = Settings ~= nil and Settings.RegisterCanvasLayoutCategory ~= nil
+        and Settings.RegisterAddOnCategory ~= nil
+    -- The game's menu dropdown (Blizzard_Menu), for the settings page.
+    has.dropdownButton = MenuUtil ~= nil and self.HasTemplate("WowStyle2DropdownTemplate") == true
     has.lootSourceInfo = type(GetLootSourceInfo) == "function"
     has.scrollBox = type(CreateScrollBoxListLinearView) == "function" and type(CreateDataProvider) == "function"
         and ScrollUtil ~= nil and ScrollUtil.InitScrollBoxListWithScrollBar ~= nil
@@ -165,7 +204,7 @@ end
 -- after the map closes, so ask only while it shows.
 function Compat.StitchedMap()
     local api = Compat.OpenMapAPI()
-    return api and Compat.Call(api.IsStitched) == true and api or nil
+    return api and Compat.CallAddon("openmap:IsStitched", api.IsStitched) == true and api or nil
 end
 
 local function text(value)

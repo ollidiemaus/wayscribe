@@ -8,10 +8,14 @@ ns.Players = Players
 
 local byGuid = {}
 
+-- Records point at players by id, so a new player takes the id after the highest in use, never
+-- one that #list could give for a list with a hole (a damaged or hand-edited file).
 function Players:Attach(list)
     self.list = list
+    self.lastId = 0
     byGuid = {}
     for id, player in pairs(list) do
+        if type(id) == "number" and id > self.lastId then self.lastId = id end
         if type(player) == "table" and type(player.guid) == "string" then
             byGuid[player.guid] = id
         end
@@ -26,7 +30,8 @@ function Players:Intern(guid, name, realm, class)
     end
     local id = byGuid[guid]
     if not id then
-        id = #self.list + 1
+        id = math.floor(self.lastId) + 1
+        self.lastId = id
         self.list[id] = { guid = guid }
         byGuid[guid] = id
     end

@@ -31,7 +31,7 @@ read_globals = {
     "Settings", "AddonCompartmentFrame",
     "CreateSettingsListSectionHeaderInitializer", "CreateSettingsButtonInitializer",
     "StaticPopup_Show", "ReloadUI", "PlaySound", "SOUNDKIT", "GameTooltip",
-    "SPELLBOOK_FONT_COLOR", "PAGE_NUMBER_WITH_MAX", "MenuUtil", "InCombatLockdown",
+    "SPELLBOOK_FONT_COLOR", "PAGE_NUMBER_WITH_MAX", "MenuUtil", "InCombatLockdown", "C_InputInterfaceStyle",
     "WorldMapFrame", "MapCanvasDataProviderMixin", "CreateFromMixins", "CreateVector2D", "OpenWorldMap",
     "ToggleWorldMap", "PanelTemplates_SetNumTabs", "PanelTemplates_SetTab", "PanelTemplates_TabResize",
     "IsAltKeyDown", "IsControlKeyDown", "IsShiftKeyDown", "UiMapPoint",
